@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Test batch distance operations: nk.dots_symmetric, nk.dots_packed, nk.cdist.
 
-DTypes: float64, float32, float16, bfloat16, e4m3, e5m2, e2m3, e2m1, e3m2, int8, uint8, complex64, complex128.
+Covers: float64, float32, float16, bfloat16, e4m3, e5m2, e2m3, e2m1, e3m2, int8, uint8, complex64, complex128.
 Baselines: high-precision Decimal matrix multiplication, NumPy matmul.
 Matches C++ suite: test/cross_*.cpp.
+Run: python -m pytest test/cross.py
 
 File: test/cross.py
 Author: Ash Vardanian
@@ -11,21 +12,8 @@ Date: February 27, 2026
 """
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 import pytest
-
-
-if TYPE_CHECKING:
-    import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
-
-try:
-    import numpy as np
-
-    numpy_available = True
-except Exception:
-    numpy_available = False
-
 from base import (
     NATIVE_COMPUTE_DTYPE,
     NUMKONG_ATOL,
@@ -47,17 +35,19 @@ from base import (
 import numkong as nk
 
 
-try:
+if numpy_available:
+    import numpy as np
+if scipy_available:
     import scipy.spatial.distance as spd
-except ImportError:
-    spd = None  # type: ignore[assignment]
 
 
 def baseline_dots_symmetric(vectors, dtype=None):
+    """Gram matrix of `vectors` in NumPy, the reference for `dots_symmetric`."""
     return vectors @ vectors.T
 
 
 def baseline_dots_packed(left, right, dtype=None):
+    """Every row of `left` dotted with every row of `right` in NumPy, the reference for `dots_packed`."""
     return left @ right.T
 
 
@@ -95,9 +85,11 @@ KERNELS_CROSS: dict[str, tuple[Callable | None, Callable, Callable]] = {
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
-@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
-def test_batch_sqeuclidean_broadcasting(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
+def test_sqeuclidean_broadcasts_batches_strides_and_out_dtypes(
+    capabilities, ndim: int, dtype: str, np_rng: np.random.Generator
+):
     """Batch sqeuclidean with NxD-vs-NxD, NxD-vs-1xD, strided, transposed, and out_dtype scenarios."""
 
     # NxD vs NxD
@@ -139,8 +131,10 @@ def test_batch_sqeuclidean_broadcasting(capabilities, ndim: int, dtype: str, np_
     b_matrix_extended, _ = make_random((10, ndim + 13), dtype, np_rng)
     a_matrix = a_matrix_extended[:, 1 : 1 + ndim]
     b_matrix = b_matrix_extended[:, 3 : 3 + ndim]
-    assert a_matrix.base is a_matrix_extended and b_matrix.base is b_matrix_extended
-    assert a_matrix.__array_interface__["strides"] is not None and b_matrix.__array_interface__["strides"] is not None
+    assert a_matrix.base is a_matrix_extended
+    assert b_matrix.base is b_matrix_extended
+    assert a_matrix.__array_interface__["strides"] is not None
+    assert b_matrix.__array_interface__["strides"] is not None
     expected_distances = [spd.sqeuclidean(a_matrix[i], b_matrix[i]) for i in range(10)]
     simd_distances = np.array(nk.sqeuclidean(a_matrix, b_matrix, capabilities=capabilities)).astype(np.float64)
     assert_allclose(simd_distances, expected_distances, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
@@ -172,8 +166,6 @@ def test_batch_sqeuclidean_broadcasting(capabilities, ndim: int, dtype: str, np_
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
-@pytest.mark.parametrize("num_vectors", SETTINGS.dims_height)
-@pytest.mark.parametrize("vector_depth", SETTINGS.dims_depth)
 @pytest.mark.parametrize(
     "dtype",
     [
@@ -190,15 +182,17 @@ def test_batch_sqeuclidean_broadcasting(capabilities, ndim: int, dtype: str, np_
         "uint8",
     ],
 )
-def test_dots_symmetric(
-    stats, capabilities, num_vectors: int, vector_depth: int, dtype: str, np_rng: np.random.Generator
+@pytest.mark.parametrize("depth", SETTINGS.dims_depth)
+@pytest.mark.parametrize("count", SETTINGS.dims_height)
+def test_dots_symmetric_matches_the_precise_upper_triangle(
+    stats, capabilities, count: int, depth: int, dtype: str, np_rng: np.random.Generator
 ):
     """Test nk.dots_symmetric against high-precision matmul (upper triangle)."""
 
-    vector_depth = round_up_to(vector_depth, PACKING_GRANULARITY.get(dtype, 1))
+    depth = round_up_to(depth, PACKING_GRANULARITY.get(dtype, 1))
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_CROSS["dots_symmetric"]
     atol, rtol = tolerances_for_dtype(dtype)
-    vectors_raw, vectors_baseline = make_random((num_vectors, vector_depth), dtype, np_rng)
+    vectors_raw, vectors_baseline = make_random((count, depth), dtype, np_rng)
 
     accurate_ns, accurate = timed_call(precise_kernel or baseline_kernel, vectors_baseline, dtype=dtype)
 
@@ -208,13 +202,13 @@ def test_dots_symmetric(
     result_ns, result = timed_call(simd_kernel, vectors_raw, dtype=dtype, capabilities=capabilities)
     result = np.asarray(result)
 
-    mask = np.triu(np.ones((num_vectors, num_vectors), dtype=bool))
+    mask = np.triu(np.ones((count, count), dtype=bool))
     assert_allclose(result[mask], accurate[mask], atol=atol, rtol=rtol)
 
     # A packed Tensor counts logical dimensions and must match its raw-byte twin
     if dtype in PACKING_GRANULARITY:
         vectors_tensor = make_nk(vectors_raw, dtype)
-        assert vectors_tensor.shape == (num_vectors, vector_depth)
+        assert vectors_tensor.shape == (count, depth)
         assert_allclose(
             np.asarray(simd_kernel(vectors_tensor, capabilities=capabilities))[mask],
             result[mask],
@@ -224,13 +218,13 @@ def test_dots_symmetric(
 
     # out= must match the allocated result (upper triangle)
     out_dtype = str(result.dtype)  # kernel output dtype depends on input
-    out = nk.zeros((num_vectors, num_vectors), dtype=out_dtype)
+    out = nk.zeros((count, count), dtype=out_dtype)
     simd_kernel(vectors_raw, dtype=dtype, out=out, capabilities=capabilities)
     assert_allclose(np.asarray(out)[mask], result[mask], atol=1e-10, rtol=1e-10)
 
     collect_errors(
         "dots_symmetric",
-        num_vectors * vector_depth,
+        count * depth,
         dtype,
         accurate[mask],
         accurate_ns,
@@ -245,18 +239,18 @@ def test_dots_symmetric(
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.repetitions)
-def test_hammings_symmetric(capabilities, np_rng: np.random.Generator):
+def test_hammings_symmetric_matches_pairwise_hamming(capabilities, np_rng: np.random.Generator):
     """Test nk.hammings_symmetric against pairwise Hamming (upper triangle)."""
-    num_vectors, bit_depth = 16, 128
-    bits = np_rng.integers(2, size=(num_vectors, bit_depth)).astype(np.uint8)
+    count, bit_depth = 16, 128
+    bits = np_rng.integers(2, size=(count, bit_depth)).astype(np.uint8)
     packed = np.packbits(bits, axis=1)
 
     result = np.asarray(nk.hammings_symmetric(packed, dtype="uint1", capabilities=capabilities))
 
-    mask = np.triu(np.ones((num_vectors, num_vectors), dtype=bool))
-    expected = np.zeros((num_vectors, num_vectors), dtype=np.float64)
-    for i in range(num_vectors):
-        for j in range(i, num_vectors):
+    mask = np.triu(np.ones((count, count), dtype=bool))
+    expected = np.zeros((count, count), dtype=np.float64)
+    for i in range(count):
+        for j in range(i, count):
             expected[i, j] = np.logical_xor(bits[i], bits[j]).sum()
 
     assert_allclose(result[mask], expected[mask], atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
@@ -264,9 +258,6 @@ def test_hammings_symmetric(capabilities, np_rng: np.random.Generator):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
-@pytest.mark.parametrize("rows", SETTINGS.dims_height)
-@pytest.mark.parametrize("columns", SETTINGS.dims_width)
-@pytest.mark.parametrize("depth", SETTINGS.dims_depth)
 @pytest.mark.parametrize(
     "dtype",
     [
@@ -283,7 +274,10 @@ def test_hammings_symmetric(capabilities, np_rng: np.random.Generator):
         "uint8",
     ],
 )
-def test_dots_pack_and_packed(
+@pytest.mark.parametrize("rows", SETTINGS.dims_height)
+@pytest.mark.parametrize("columns", SETTINGS.dims_width)
+@pytest.mark.parametrize("depth", SETTINGS.dims_depth)
+def test_dots_packed_matches_the_precise_matmul(
     stats, capabilities, rows: int, columns: int, depth: int, dtype: str, np_rng: np.random.Generator
 ):
     """Test dots_pack + dots_packed against high-precision matmul."""
@@ -296,7 +290,8 @@ def test_dots_pack_and_packed(
 
     # SIMD path — wrap in nk.Tensor so dots_packed can infer dtype; packed Tensors count logical dimensions
     a_tensor, b_tensor = make_nk(a_raw, dtype), make_nk(b_raw, dtype)
-    assert a_tensor.shape == (rows, depth) and b_tensor.shape == (columns, depth)
+    assert a_tensor.shape == (rows, depth)
+    assert b_tensor.shape == (columns, depth)
     b_packed = nk.dots_pack(b_tensor, dtype=dtype, capabilities=capabilities)
     result_ns, result = timed_call(nk.dots_packed, a_tensor, b_packed, capabilities=capabilities)
     result = np.asarray(result)
@@ -330,12 +325,12 @@ def test_dots_pack_and_packed(
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("numpy_dtype", ["float64", "float32", "float16"])
-def test_dots_pack_infers_dtype(numpy_dtype, np_rng: np.random.Generator):
+@pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
+def test_dots_pack_infers_the_input_dtype(dtype, np_rng: np.random.Generator):
     """dots_pack() without explicit dtype should infer from the input array."""
     rows, columns, depth = 4, 8, 32
-    a, _ = make_random((rows, depth), numpy_dtype, np_rng)
-    b, _ = make_random((columns, depth), numpy_dtype, np_rng)
+    a, _ = make_random((rows, depth), dtype, np_rng)
+    b, _ = make_random((columns, depth), dtype, np_rng)
 
     packed = nk.dots_pack(b)  # no dtype= argument
     result = np.asarray(nk.dots_packed(a, packed))
@@ -345,7 +340,7 @@ def test_dots_pack_infers_dtype(numpy_dtype, np_rng: np.random.Generator):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_dots_pack_matmul_operator(capabilities, np_rng: np.random.Generator):
+def test_matmul_operator_multiplies_by_a_packed_matrix(capabilities, np_rng: np.random.Generator):
     """Test the @ operator with a PackedMatrix (Tensor @ PackedMatrix)."""
     rows, columns, depth = 8, 16, 64
     a_matrix, _ = make_random((rows, depth), "float32", np_rng)
@@ -364,7 +359,7 @@ def test_dots_pack_matmul_operator(capabilities, np_rng: np.random.Generator):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
-def test_hammings_pack_and_packed(capabilities, np_rng: np.random.Generator):
+def test_hammings_packed_matches_pairwise_hamming(capabilities, np_rng: np.random.Generator):
     """Test hammings_pack + hammings_packed against pairwise Hamming."""
     num_rows_a, num_rows_b, bit_depth = 8, 16, 128
     a_bits = np_rng.integers(2, size=(num_rows_a, bit_depth)).astype(np.uint8)
@@ -386,7 +381,7 @@ def test_hammings_pack_and_packed(capabilities, np_rng: np.random.Generator):
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
 @pytest.mark.parametrize("metric", ["angular", "euclidean"])
-def test_spatials_pack_and_packed(capabilities, metric: str, np_rng: np.random.Generator):
+def test_spatials_packed_match_scipy_cdist(capabilities, metric: str, np_rng: np.random.Generator):
     """Test dots_pack + angulars/euclideans_packed against SciPy cdist."""
     num_rows_a, num_rows_b, depth = 8, 16, 64
     a, _ = make_random((num_rows_a, depth), "float32", np_rng)
@@ -406,7 +401,7 @@ def test_spatials_pack_and_packed(capabilities, metric: str, np_rng: np.random.G
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
 @pytest.mark.parametrize("metric", ["angular", "euclidean"])
-def test_spatials_symmetric(capabilities, metric: str, np_rng: np.random.Generator):
+def test_spatials_symmetric_match_scipy_cdist(capabilities, metric: str, np_rng: np.random.Generator):
     """Test angulars/euclideans_symmetric against SciPy cdist (upper triangle)."""
     num_rows, depth = 16, 64
     vectors, _ = make_random((num_rows, depth), "float32", np_rng)
@@ -424,7 +419,7 @@ def test_spatials_symmetric(capabilities, metric: str, np_rng: np.random.Generat
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
-def test_jaccards_pack_and_packed(capabilities, np_rng: np.random.Generator):
+def test_jaccards_packed_match_scipy_cdist(capabilities, np_rng: np.random.Generator):
     """Test hammings_pack + jaccards_packed against SciPy cdist."""
     num_rows_a, num_rows_b, bit_depth = 8, 16, 128
     a_bits = np_rng.integers(2, size=(num_rows_a, bit_depth)).astype(np.uint8)
@@ -441,7 +436,7 @@ def test_jaccards_pack_and_packed(capabilities, np_rng: np.random.Generator):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
-def test_jaccards_symmetric(capabilities, np_rng: np.random.Generator):
+def test_jaccards_symmetric_match_scipy_cdist(capabilities, np_rng: np.random.Generator):
     """Test jaccards_symmetric against SciPy cdist (upper triangle)."""
     num_rows, bit_depth = 16, 128
     bits = np_rng.integers(2, size=(num_rows, bit_depth)).astype(np.uint8)
@@ -455,7 +450,7 @@ def test_jaccards_symmetric(capabilities, np_rng: np.random.Generator):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_packed_kind_validation(np_rng: np.random.Generator):
+def test_packed_kernels_refuse_another_familys_pack(np_rng: np.random.Generator):
     """New packed APIs should enforce the expected packer family."""
     a_float, _ = make_random((4, 8), "float32", np_rng)
     b_float, _ = make_random((5, 8), "float32", np_rng)

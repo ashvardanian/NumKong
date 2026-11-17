@@ -1034,26 +1034,8 @@ impl<Scalar: Dot + Angular + Euclidean> SpatialSimilarity for Scalar {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{FloatLike, TestableType, assert_close, bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u4x2};
-
-    /// Test a two-input metric: convert f32 inputs to Scalar, call `op`, compare to `expected`.
-    pub(crate) fn check_binary<Scalar, R, F>(a_vals: &[f32], b_vals: &[f32], op: F, expected: f64, label: &str)
-    where
-        Scalar: FloatLike + TestableType,
-        R: FloatLike,
-        F: FnOnce(&[Scalar], &[Scalar]) -> Result<R, Error>,
-    {
-        let a: Vec<Scalar> = a_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
-        let b: Vec<Scalar> = b_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
-        let result = op(&a, &b).unwrap().to_f64();
-        assert_close(
-            result,
-            expected,
-            Scalar::atol(),
-            Scalar::rtol(),
-            &format!("{}<{}>", label, core::any::type_name::<Scalar>()),
-        );
-    }
+    use crate::testing::{TestableType, assert_close, check_binary};
+    use crate::types::{FloatLike, bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u4x2};
 
     // region: Angular Distances
 
@@ -1066,7 +1048,7 @@ mod tests {
     }
 
     #[test]
-    fn angular() {
+    fn angular_matches_its_closed_form_across_types() {
         // angular([1,2,3],[4,5,6]) = 1 - 32/sqrt(14*77) ≈ 0.025368
         let expected = 1.0 - 32.0 / (14.0_f64.sqrt() * 77.0_f64.sqrt());
         check_angular::<f32>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0], expected);
@@ -1112,7 +1094,7 @@ mod tests {
     }
 
     #[test]
-    fn sqeuclidean() {
+    fn sqeuclidean_matches_its_closed_form_across_types() {
         check_sqeuclidean::<f32>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0], 27.0);
         check_sqeuclidean::<f64>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0], 27.0);
         check_sqeuclidean::<f16>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0], 27.0);
@@ -1126,7 +1108,7 @@ mod tests {
     }
 
     #[test]
-    fn euclidean() {
+    fn euclidean_matches_its_closed_form_across_types() {
         let expected = 27.0_f64.sqrt();
         check_euclidean::<f32>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0], expected);
         check_euclidean::<f64>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0], expected);
@@ -1151,7 +1133,7 @@ mod tests {
     // also called denormals. This guards against FTZ/DAZ silently flushing tiny values to zero.
 
     #[test]
-    fn sqeuclidean_f32_denormals() {
+    fn sqeuclidean_keeps_f32_denormals() {
         // Two vectors of denormals: differences are also denormal.
         let a_val = f32::from_bits(0x007F_FFFF); // largest f32 denormal
         let b_val = f32::from_bits(0x003F_FFFF); // half-way f32 denormal
@@ -1165,7 +1147,7 @@ mod tests {
     }
 
     #[test]
-    fn sqeuclidean_f64_denormals() {
+    fn sqeuclidean_keeps_f64_denormals() {
         let a_val = f64::from_bits(0x000F_FFFF_FFFF_FFFF);
         let b_val = f64::from_bits(0x0007_FFFF_FFFF_FFFF);
         let diff = a_val - b_val;
@@ -1178,7 +1160,7 @@ mod tests {
     }
 
     #[test]
-    fn angular_f32_denormals() {
+    fn angular_of_equal_f32_denormals_is_zero() {
         // Two identical denormal vectors: angular distance should be 0 (cosine = 1).
         let d = f32::from_bits(0x007F_FFFF);
         let a = [d, d, d];
@@ -1188,7 +1170,7 @@ mod tests {
     }
 
     #[test]
-    fn angular_f64_denormals() {
+    fn angular_of_equal_f64_denormals_is_zero() {
         let d = f64::from_bits(0x000F_FFFF_FFFF_FFFF);
         let a = [d, d, d];
         let result = f64::angular(&a, &a).unwrap();

@@ -7,6 +7,8 @@
  *  Compiled with every capability some listed architecture runs: the CUDA baseline, Ampere, Hopper,
  *  Blackwell and Blackwell RTX.
  */
+#undef NDEBUG // ! A test's oracle must stay live in every build
+
 #include "cross_device.hpp"
 #include "geospatial.hpp" // `test_geodesics_packed`, `test_terrain_packed`
 
@@ -14,1168 +16,1542 @@ namespace ashvardanian::numkong::test {
 
 #if NUMKONG_ARCH_CUDA_
 
-void test_cross_cuda(error_stats_section_t &check) {
-    check.section("Cross CUDA", nk_cap_cuda_k);
-    check("dots_packed_f64_cuda", test_dots_packed<f64_t, cuda_backend_t>, nk_dots_pack_size_f64_cuda,
-          nk_dots_pack_f64_cuda, nk_dots_packed_f64_cuda);
-    check("dots_pack_f64_cuda", test_dots_pack_layout<f64_t, cuda_backend_t, nk_dots_pack_size_f64_cuda,
-                                                      nk_dots_packed_shape_f64_cuda, nk_dots_pack_f64_cuda>);
-    check("dots_contract_f64_cuda", test_dots_launch_contract<f64_t, cuda_backend_t, nk_dots_pack_size_f64_cuda,
-                                                              nk_dots_packed_f64_cuda, nk_dots_symmetric_f64_cuda>);
-    check("dots_symmetric_f64_cuda", test_dots_symmetric<f64_t, cuda_backend_t>, nk_dots_symmetric_f64_cuda);
-    check("dots_packed_f32_cuda", test_dots_packed<f32_t, cuda_backend_t>, nk_dots_pack_size_f32_cuda,
-          nk_dots_pack_f32_cuda, nk_dots_packed_f32_cuda);
-    check("dots_pack_f32_cuda", test_dots_pack_layout<f32_t, cuda_backend_t, nk_dots_pack_size_f32_cuda,
-                                                      nk_dots_packed_shape_f32_cuda, nk_dots_pack_f32_cuda>);
-    check("dots_contract_f32_cuda", test_dots_launch_contract<f32_t, cuda_backend_t, nk_dots_pack_size_f32_cuda,
-                                                              nk_dots_packed_f32_cuda, nk_dots_symmetric_f32_cuda>);
-    check("dots_symmetric_f32_cuda", test_dots_symmetric<f32_t, cuda_backend_t>, nk_dots_symmetric_f32_cuda);
-    check("dots_packed_bf16_cuda", test_dots_packed<bf16_t, cuda_backend_t>, nk_dots_pack_size_bf16_cuda,
-          nk_dots_pack_bf16_cuda, nk_dots_packed_bf16_cuda);
-    check("dots_pack_bf16_cuda", test_dots_pack_layout<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_cuda,
-                                                       nk_dots_packed_shape_bf16_cuda, nk_dots_pack_bf16_cuda>);
-    check("dots_contract_bf16_cuda", test_dots_launch_contract<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_cuda,
-                                                               nk_dots_packed_bf16_cuda, nk_dots_symmetric_bf16_cuda>);
-    check("dots_symmetric_bf16_cuda", test_dots_symmetric<bf16_t, cuda_backend_t>, nk_dots_symmetric_bf16_cuda);
-    check("dots_packed_f16_cuda", test_dots_packed<f16_t, cuda_backend_t>, nk_dots_pack_size_f16_cuda,
-          nk_dots_pack_f16_cuda, nk_dots_packed_f16_cuda);
-    check("dots_pack_f16_cuda", test_dots_pack_layout<f16_t, cuda_backend_t, nk_dots_pack_size_f16_cuda,
-                                                      nk_dots_packed_shape_f16_cuda, nk_dots_pack_f16_cuda>);
-    check("dots_contract_f16_cuda", test_dots_launch_contract<f16_t, cuda_backend_t, nk_dots_pack_size_f16_cuda,
-                                                              nk_dots_packed_f16_cuda, nk_dots_symmetric_f16_cuda>);
-    check("dots_symmetric_f16_cuda", test_dots_symmetric<f16_t, cuda_backend_t>, nk_dots_symmetric_f16_cuda);
-    check("dots_packed_e5m2_cuda", test_dots_packed<e5m2_t, cuda_backend_t>, nk_dots_pack_size_e5m2_cuda,
-          nk_dots_pack_e5m2_cuda, nk_dots_packed_e5m2_cuda);
-    check("dots_pack_e5m2_cuda", test_dots_pack_layout<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_cuda,
-                                                       nk_dots_packed_shape_e5m2_cuda, nk_dots_pack_e5m2_cuda>);
-    check("dots_contract_e5m2_cuda", test_dots_launch_contract<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_cuda,
-                                                               nk_dots_packed_e5m2_cuda, nk_dots_symmetric_e5m2_cuda>);
-    check("dots_symmetric_e5m2_cuda", test_dots_symmetric<e5m2_t, cuda_backend_t>, nk_dots_symmetric_e5m2_cuda);
-    check("dots_packed_e4m3_cuda", test_dots_packed<e4m3_t, cuda_backend_t>, nk_dots_pack_size_e4m3_cuda,
-          nk_dots_pack_e4m3_cuda, nk_dots_packed_e4m3_cuda);
-    check("dots_pack_e4m3_cuda", test_dots_pack_layout<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_cuda,
-                                                       nk_dots_packed_shape_e4m3_cuda, nk_dots_pack_e4m3_cuda>);
-    check("dots_contract_e4m3_cuda", test_dots_launch_contract<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_cuda,
-                                                               nk_dots_packed_e4m3_cuda, nk_dots_symmetric_e4m3_cuda>);
-    check("dots_symmetric_e4m3_cuda", test_dots_symmetric<e4m3_t, cuda_backend_t>, nk_dots_symmetric_e4m3_cuda);
-    check("dots_packed_e3m2_cuda", test_dots_packed<e3m2_t, cuda_backend_t>, nk_dots_pack_size_e3m2_cuda,
-          nk_dots_pack_e3m2_cuda, nk_dots_packed_e3m2_cuda);
-    check("dots_pack_e3m2_cuda", test_dots_pack_layout<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_cuda,
-                                                       nk_dots_packed_shape_e3m2_cuda, nk_dots_pack_e3m2_cuda>);
-    check("dots_contract_e3m2_cuda", test_dots_launch_contract<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_cuda,
-                                                               nk_dots_packed_e3m2_cuda, nk_dots_symmetric_e3m2_cuda>);
-    check("dots_symmetric_e3m2_cuda", test_dots_symmetric<e3m2_t, cuda_backend_t>, nk_dots_symmetric_e3m2_cuda);
-    check("dots_packed_e2m3_cuda", test_dots_packed<e2m3_t, cuda_backend_t>, nk_dots_pack_size_e2m3_cuda,
-          nk_dots_pack_e2m3_cuda, nk_dots_packed_e2m3_cuda);
-    check("dots_pack_e2m3_cuda", test_dots_pack_layout<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_cuda,
-                                                       nk_dots_packed_shape_e2m3_cuda, nk_dots_pack_e2m3_cuda>);
-    check("dots_contract_e2m3_cuda", test_dots_launch_contract<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_cuda,
-                                                               nk_dots_packed_e2m3_cuda, nk_dots_symmetric_e2m3_cuda>);
-    check("dots_symmetric_e2m3_cuda", test_dots_symmetric<e2m3_t, cuda_backend_t>, nk_dots_symmetric_e2m3_cuda);
-    check("dots_packed_e2m1_cuda", test_dots_packed<e2m1x2_t, cuda_backend_t>, nk_dots_pack_size_e2m1_cuda,
-          nk_dots_pack_e2m1_cuda, nk_dots_packed_e2m1_cuda);
-    check("dots_pack_e2m1_cuda", test_dots_pack_layout<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_cuda,
-                                                       nk_dots_packed_shape_e2m1_cuda, nk_dots_pack_e2m1_cuda>);
-    check("dots_contract_e2m1_cuda", test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_cuda,
-                                                               nk_dots_packed_e2m1_cuda, nk_dots_symmetric_e2m1_cuda>);
-    check("dots_symmetric_e2m1_cuda", test_dots_symmetric<e2m1x2_t, cuda_backend_t>, nk_dots_symmetric_e2m1_cuda);
-    check("dots_packed_nvfp4_cuda", test_dots_packed<nvfp4_t, cuda_backend_t>, nk_dots_pack_size_nvfp4_cuda,
-          nk_dots_pack_nvfp4_cuda, nk_dots_packed_nvfp4_cuda);
-    check("dots_pack_nvfp4_cuda", test_dots_pack_layout<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_cuda,
-                                                        nk_dots_packed_shape_nvfp4_cuda, nk_dots_pack_nvfp4_cuda>);
-    check("dots_contract_nvfp4_cuda",
-          test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_cuda, nk_dots_packed_nvfp4_cuda,
-                                    nk_dots_symmetric_nvfp4_cuda>);
-    check("dots_symmetric_nvfp4_cuda", test_dots_symmetric<nvfp4_t, cuda_backend_t>, nk_dots_symmetric_nvfp4_cuda);
-    check("dots_packed_mxfp4_cuda", test_dots_packed<mxfp4_t, cuda_backend_t>, nk_dots_pack_size_mxfp4_cuda,
-          nk_dots_pack_mxfp4_cuda, nk_dots_packed_mxfp4_cuda);
-    check("dots_pack_mxfp4_cuda", test_dots_pack_layout<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_cuda,
-                                                        nk_dots_packed_shape_mxfp4_cuda, nk_dots_pack_mxfp4_cuda>);
-    check("dots_contract_mxfp4_cuda",
-          test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_cuda, nk_dots_packed_mxfp4_cuda,
-                                    nk_dots_symmetric_mxfp4_cuda>);
-    check("dots_symmetric_mxfp4_cuda", test_dots_symmetric<mxfp4_t, cuda_backend_t>, nk_dots_symmetric_mxfp4_cuda);
-    check("dots_packed_mxfp8e4m3_cuda", test_dots_packed<mxfp8e4m3_t, cuda_backend_t>, nk_dots_pack_size_mxfp8e4m3_cuda,
-          nk_dots_pack_mxfp8e4m3_cuda, nk_dots_packed_mxfp8e4m3_cuda);
-    check("dots_pack_mxfp8e4m3_cuda",
-          test_dots_pack_layout<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_cuda,
-                                nk_dots_packed_shape_mxfp8e4m3_cuda, nk_dots_pack_mxfp8e4m3_cuda>);
-    check("dots_contract_mxfp8e4m3_cuda",
-          test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_cuda,
-                                    nk_dots_packed_mxfp8e4m3_cuda, nk_dots_symmetric_mxfp8e4m3_cuda>);
-    check("dots_symmetric_mxfp8e4m3_cuda", test_dots_symmetric<mxfp8e4m3_t, cuda_backend_t>,
-          nk_dots_symmetric_mxfp8e4m3_cuda);
-    check("dots_packed_mxfp8e5m2_cuda", test_dots_packed<mxfp8e5m2_t, cuda_backend_t>, nk_dots_pack_size_mxfp8e5m2_cuda,
-          nk_dots_pack_mxfp8e5m2_cuda, nk_dots_packed_mxfp8e5m2_cuda);
-    check("dots_pack_mxfp8e5m2_cuda",
-          test_dots_pack_layout<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_cuda,
-                                nk_dots_packed_shape_mxfp8e5m2_cuda, nk_dots_pack_mxfp8e5m2_cuda>);
-    check("dots_contract_mxfp8e5m2_cuda",
-          test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_cuda,
-                                    nk_dots_packed_mxfp8e5m2_cuda, nk_dots_symmetric_mxfp8e5m2_cuda>);
-    check("dots_symmetric_mxfp8e5m2_cuda", test_dots_symmetric<mxfp8e5m2_t, cuda_backend_t>,
-          nk_dots_symmetric_mxfp8e5m2_cuda);
-    check("dots_packed_i8_cuda", test_dots_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_cuda,
-          nk_dots_pack_i8_cuda, nk_dots_packed_i8_cuda);
-    check("dots_pack_i8_cuda", test_dots_pack_layout<i8_t, cuda_backend_t, nk_dots_pack_size_i8_cuda,
-                                                     nk_dots_packed_shape_i8_cuda, nk_dots_pack_i8_cuda>);
-    check("dots_contract_i8_cuda", test_dots_launch_contract<i8_t, cuda_backend_t, nk_dots_pack_size_i8_cuda,
-                                                             nk_dots_packed_i8_cuda, nk_dots_symmetric_i8_cuda>);
-    check("dots_symmetric_i8_cuda", test_dots_symmetric<i8_t, cuda_backend_t>, nk_dots_symmetric_i8_cuda);
-    check("dots_packed_u8_cuda", test_dots_packed<u8_t, cuda_backend_t>, nk_dots_pack_size_u8_cuda,
-          nk_dots_pack_u8_cuda, nk_dots_packed_u8_cuda);
-    check("dots_pack_u8_cuda", test_dots_pack_layout<u8_t, cuda_backend_t, nk_dots_pack_size_u8_cuda,
-                                                     nk_dots_packed_shape_u8_cuda, nk_dots_pack_u8_cuda>);
-    check("dots_contract_u8_cuda", test_dots_launch_contract<u8_t, cuda_backend_t, nk_dots_pack_size_u8_cuda,
-                                                             nk_dots_packed_u8_cuda, nk_dots_symmetric_u8_cuda>);
-    check("dots_symmetric_u8_cuda", test_dots_symmetric<u8_t, cuda_backend_t>, nk_dots_symmetric_u8_cuda);
-    check("dots_packed_i4_cuda", test_dots_packed<i4x2_t, cuda_backend_t>, nk_dots_pack_size_i4_cuda,
-          nk_dots_pack_i4_cuda, nk_dots_packed_i4_cuda);
-    check("dots_pack_i4_cuda", test_dots_pack_layout<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_cuda,
-                                                     nk_dots_packed_shape_i4_cuda, nk_dots_pack_i4_cuda>);
-    check("dots_contract_i4_cuda", test_dots_launch_contract<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_cuda,
-                                                             nk_dots_packed_i4_cuda, nk_dots_symmetric_i4_cuda>);
-    check("dots_symmetric_i4_cuda", test_dots_symmetric<i4x2_t, cuda_backend_t>, nk_dots_symmetric_i4_cuda);
-    check("dots_packed_u4_cuda", test_dots_packed<u4x2_t, cuda_backend_t>, nk_dots_pack_size_u4_cuda,
-          nk_dots_pack_u4_cuda, nk_dots_packed_u4_cuda);
-    check("dots_pack_u4_cuda", test_dots_pack_layout<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_cuda,
-                                                     nk_dots_packed_shape_u4_cuda, nk_dots_pack_u4_cuda>);
-    check("dots_contract_u4_cuda", test_dots_launch_contract<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_cuda,
-                                                             nk_dots_packed_u4_cuda, nk_dots_symmetric_u4_cuda>);
-    check("dots_symmetric_u4_cuda", test_dots_symmetric<u4x2_t, cuda_backend_t>, nk_dots_symmetric_u4_cuda);
-    check("angulars_packed_f64_cuda", test_angulars_packed<f64_t, cuda_backend_t>, nk_dots_pack_size_f64_cuda,
-          nk_dots_pack_f64_cuda, nk_angulars_packed_f64_cuda);
-    check("angulars_symmetric_f64_cuda", test_angulars_symmetric<f64_t, cuda_backend_t>,
-          nk_angulars_symmetric_f64_cuda);
-    check("euclideans_packed_f64_cuda", test_euclideans_packed<f64_t, cuda_backend_t>, nk_dots_pack_size_f64_cuda,
-          nk_dots_pack_f64_cuda, nk_euclideans_packed_f64_cuda);
-    check("euclideans_symmetric_f64_cuda", test_euclideans_symmetric<f64_t, cuda_backend_t>,
-          nk_euclideans_symmetric_f64_cuda);
-    check("angulars_packed_f32_cuda", test_angulars_packed<f32_t, cuda_backend_t>, nk_dots_pack_size_f32_cuda,
-          nk_dots_pack_f32_cuda, nk_angulars_packed_f32_cuda);
-    check("angulars_symmetric_f32_cuda", test_angulars_symmetric<f32_t, cuda_backend_t>,
-          nk_angulars_symmetric_f32_cuda);
-    check("euclideans_packed_f32_cuda", test_euclideans_packed<f32_t, cuda_backend_t>, nk_dots_pack_size_f32_cuda,
-          nk_dots_pack_f32_cuda, nk_euclideans_packed_f32_cuda);
-    check("euclideans_symmetric_f32_cuda", test_euclideans_symmetric<f32_t, cuda_backend_t>,
-          nk_euclideans_symmetric_f32_cuda);
-    check("angulars_packed_bf16_cuda", test_angulars_packed<bf16_t, cuda_backend_t>, nk_dots_pack_size_bf16_cuda,
-          nk_dots_pack_bf16_cuda, nk_angulars_packed_bf16_cuda);
-    check("angulars_symmetric_bf16_cuda", test_angulars_symmetric<bf16_t, cuda_backend_t>,
-          nk_angulars_symmetric_bf16_cuda);
-    check("euclideans_packed_bf16_cuda", test_euclideans_packed<bf16_t, cuda_backend_t>, nk_dots_pack_size_bf16_cuda,
-          nk_dots_pack_bf16_cuda, nk_euclideans_packed_bf16_cuda);
-    check("euclideans_symmetric_bf16_cuda", test_euclideans_symmetric<bf16_t, cuda_backend_t>,
-          nk_euclideans_symmetric_bf16_cuda);
-    check("angulars_packed_f16_cuda", test_angulars_packed<f16_t, cuda_backend_t>, nk_dots_pack_size_f16_cuda,
-          nk_dots_pack_f16_cuda, nk_angulars_packed_f16_cuda);
-    check("angulars_symmetric_f16_cuda", test_angulars_symmetric<f16_t, cuda_backend_t>,
-          nk_angulars_symmetric_f16_cuda);
-    check("euclideans_packed_f16_cuda", test_euclideans_packed<f16_t, cuda_backend_t>, nk_dots_pack_size_f16_cuda,
-          nk_dots_pack_f16_cuda, nk_euclideans_packed_f16_cuda);
-    check("euclideans_symmetric_f16_cuda", test_euclideans_symmetric<f16_t, cuda_backend_t>,
-          nk_euclideans_symmetric_f16_cuda);
-    check("angulars_packed_e5m2_cuda", test_angulars_packed<e5m2_t, cuda_backend_t>, nk_dots_pack_size_e5m2_cuda,
-          nk_dots_pack_e5m2_cuda, nk_angulars_packed_e5m2_cuda);
-    check("angulars_symmetric_e5m2_cuda", test_angulars_symmetric<e5m2_t, cuda_backend_t>,
-          nk_angulars_symmetric_e5m2_cuda);
-    check("euclideans_packed_e5m2_cuda", test_euclideans_packed<e5m2_t, cuda_backend_t>, nk_dots_pack_size_e5m2_cuda,
-          nk_dots_pack_e5m2_cuda, nk_euclideans_packed_e5m2_cuda);
-    check("euclideans_symmetric_e5m2_cuda", test_euclideans_symmetric<e5m2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e5m2_cuda);
-    check("angulars_packed_e4m3_cuda", test_angulars_packed<e4m3_t, cuda_backend_t>, nk_dots_pack_size_e4m3_cuda,
-          nk_dots_pack_e4m3_cuda, nk_angulars_packed_e4m3_cuda);
-    check("angulars_symmetric_e4m3_cuda", test_angulars_symmetric<e4m3_t, cuda_backend_t>,
-          nk_angulars_symmetric_e4m3_cuda);
-    check("euclideans_packed_e4m3_cuda", test_euclideans_packed<e4m3_t, cuda_backend_t>, nk_dots_pack_size_e4m3_cuda,
-          nk_dots_pack_e4m3_cuda, nk_euclideans_packed_e4m3_cuda);
-    check("euclideans_symmetric_e4m3_cuda", test_euclideans_symmetric<e4m3_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e4m3_cuda);
-    check("angulars_packed_e3m2_cuda", test_angulars_packed<e3m2_t, cuda_backend_t>, nk_dots_pack_size_e3m2_cuda,
-          nk_dots_pack_e3m2_cuda, nk_angulars_packed_e3m2_cuda);
-    check("angulars_symmetric_e3m2_cuda", test_angulars_symmetric<e3m2_t, cuda_backend_t>,
-          nk_angulars_symmetric_e3m2_cuda);
-    check("euclideans_packed_e3m2_cuda", test_euclideans_packed<e3m2_t, cuda_backend_t>, nk_dots_pack_size_e3m2_cuda,
-          nk_dots_pack_e3m2_cuda, nk_euclideans_packed_e3m2_cuda);
-    check("euclideans_symmetric_e3m2_cuda", test_euclideans_symmetric<e3m2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e3m2_cuda);
-    check("angulars_packed_e2m3_cuda", test_angulars_packed<e2m3_t, cuda_backend_t>, nk_dots_pack_size_e2m3_cuda,
-          nk_dots_pack_e2m3_cuda, nk_angulars_packed_e2m3_cuda);
-    check("angulars_symmetric_e2m3_cuda", test_angulars_symmetric<e2m3_t, cuda_backend_t>,
-          nk_angulars_symmetric_e2m3_cuda);
-    check("euclideans_packed_e2m3_cuda", test_euclideans_packed<e2m3_t, cuda_backend_t>, nk_dots_pack_size_e2m3_cuda,
-          nk_dots_pack_e2m3_cuda, nk_euclideans_packed_e2m3_cuda);
-    check("euclideans_symmetric_e2m3_cuda", test_euclideans_symmetric<e2m3_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e2m3_cuda);
-    check("angulars_packed_e2m1_cuda", test_angulars_packed<e2m1x2_t, cuda_backend_t>, nk_dots_pack_size_e2m1_cuda,
-          nk_dots_pack_e2m1_cuda, nk_angulars_packed_e2m1_cuda);
-    check("angulars_symmetric_e2m1_cuda", test_angulars_symmetric<e2m1x2_t, cuda_backend_t>,
-          nk_angulars_symmetric_e2m1_cuda);
-    check("euclideans_packed_e2m1_cuda", test_euclideans_packed<e2m1x2_t, cuda_backend_t>, nk_dots_pack_size_e2m1_cuda,
-          nk_dots_pack_e2m1_cuda, nk_euclideans_packed_e2m1_cuda);
-    check("euclideans_symmetric_e2m1_cuda", test_euclideans_symmetric<e2m1x2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e2m1_cuda);
-    check("angulars_packed_nvfp4_cuda", test_angulars_packed<nvfp4_t, cuda_backend_t>, nk_dots_pack_size_nvfp4_cuda,
-          nk_dots_pack_nvfp4_cuda, nk_angulars_packed_nvfp4_cuda);
-    check("angulars_symmetric_nvfp4_cuda", test_angulars_symmetric<nvfp4_t, cuda_backend_t>,
-          nk_angulars_symmetric_nvfp4_cuda);
-    check("euclideans_packed_nvfp4_cuda", test_euclideans_packed<nvfp4_t, cuda_backend_t>, nk_dots_pack_size_nvfp4_cuda,
-          nk_dots_pack_nvfp4_cuda, nk_euclideans_packed_nvfp4_cuda);
-    check("euclideans_symmetric_nvfp4_cuda", test_euclideans_symmetric<nvfp4_t, cuda_backend_t>,
-          nk_euclideans_symmetric_nvfp4_cuda);
-    check("angulars_packed_mxfp4_cuda", test_angulars_packed<mxfp4_t, cuda_backend_t>, nk_dots_pack_size_mxfp4_cuda,
-          nk_dots_pack_mxfp4_cuda, nk_angulars_packed_mxfp4_cuda);
-    check("angulars_symmetric_mxfp4_cuda", test_angulars_symmetric<mxfp4_t, cuda_backend_t>,
-          nk_angulars_symmetric_mxfp4_cuda);
-    check("euclideans_packed_mxfp4_cuda", test_euclideans_packed<mxfp4_t, cuda_backend_t>, nk_dots_pack_size_mxfp4_cuda,
-          nk_dots_pack_mxfp4_cuda, nk_euclideans_packed_mxfp4_cuda);
-    check("euclideans_symmetric_mxfp4_cuda", test_euclideans_symmetric<mxfp4_t, cuda_backend_t>,
-          nk_euclideans_symmetric_mxfp4_cuda);
-    check("angulars_packed_mxfp8e4m3_cuda", test_angulars_packed<mxfp8e4m3_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp8e4m3_cuda, nk_dots_pack_mxfp8e4m3_cuda, nk_angulars_packed_mxfp8e4m3_cuda);
-    check("angulars_symmetric_mxfp8e4m3_cuda", test_angulars_symmetric<mxfp8e4m3_t, cuda_backend_t>,
-          nk_angulars_symmetric_mxfp8e4m3_cuda);
-    check("euclideans_packed_mxfp8e4m3_cuda", test_euclideans_packed<mxfp8e4m3_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp8e4m3_cuda, nk_dots_pack_mxfp8e4m3_cuda, nk_euclideans_packed_mxfp8e4m3_cuda);
-    check("euclideans_symmetric_mxfp8e4m3_cuda", test_euclideans_symmetric<mxfp8e4m3_t, cuda_backend_t>,
-          nk_euclideans_symmetric_mxfp8e4m3_cuda);
-    check("angulars_packed_mxfp8e5m2_cuda", test_angulars_packed<mxfp8e5m2_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp8e5m2_cuda, nk_dots_pack_mxfp8e5m2_cuda, nk_angulars_packed_mxfp8e5m2_cuda);
-    check("angulars_symmetric_mxfp8e5m2_cuda", test_angulars_symmetric<mxfp8e5m2_t, cuda_backend_t>,
-          nk_angulars_symmetric_mxfp8e5m2_cuda);
-    check("euclideans_packed_mxfp8e5m2_cuda", test_euclideans_packed<mxfp8e5m2_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp8e5m2_cuda, nk_dots_pack_mxfp8e5m2_cuda, nk_euclideans_packed_mxfp8e5m2_cuda);
-    check("euclideans_symmetric_mxfp8e5m2_cuda", test_euclideans_symmetric<mxfp8e5m2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_mxfp8e5m2_cuda);
-    check("angulars_packed_i8_cuda", test_angulars_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_cuda,
-          nk_dots_pack_i8_cuda, nk_angulars_packed_i8_cuda);
-    check("angulars_symmetric_i8_cuda", test_angulars_symmetric<i8_t, cuda_backend_t>, nk_angulars_symmetric_i8_cuda);
-    check("euclideans_packed_i8_cuda", test_euclideans_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_cuda,
-          nk_dots_pack_i8_cuda, nk_euclideans_packed_i8_cuda);
-    check("euclideans_symmetric_i8_cuda", test_euclideans_symmetric<i8_t, cuda_backend_t>,
-          nk_euclideans_symmetric_i8_cuda);
-    check("angulars_packed_u8_cuda", test_angulars_packed<u8_t, cuda_backend_t>, nk_dots_pack_size_u8_cuda,
-          nk_dots_pack_u8_cuda, nk_angulars_packed_u8_cuda);
-    check("angulars_symmetric_u8_cuda", test_angulars_symmetric<u8_t, cuda_backend_t>, nk_angulars_symmetric_u8_cuda);
-    check("euclideans_packed_u8_cuda", test_euclideans_packed<u8_t, cuda_backend_t>, nk_dots_pack_size_u8_cuda,
-          nk_dots_pack_u8_cuda, nk_euclideans_packed_u8_cuda);
-    check("euclideans_symmetric_u8_cuda", test_euclideans_symmetric<u8_t, cuda_backend_t>,
-          nk_euclideans_symmetric_u8_cuda);
-    check("angulars_packed_i4_cuda", test_angulars_packed<i4x2_t, cuda_backend_t>, nk_dots_pack_size_i4_cuda,
-          nk_dots_pack_i4_cuda, nk_angulars_packed_i4_cuda);
-    check("angulars_symmetric_i4_cuda", test_angulars_symmetric<i4x2_t, cuda_backend_t>, nk_angulars_symmetric_i4_cuda);
-    check("euclideans_packed_i4_cuda", test_euclideans_packed<i4x2_t, cuda_backend_t>, nk_dots_pack_size_i4_cuda,
-          nk_dots_pack_i4_cuda, nk_euclideans_packed_i4_cuda);
-    check("euclideans_symmetric_i4_cuda", test_euclideans_symmetric<i4x2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_i4_cuda);
-    check("angulars_packed_u4_cuda", test_angulars_packed<u4x2_t, cuda_backend_t>, nk_dots_pack_size_u4_cuda,
-          nk_dots_pack_u4_cuda, nk_angulars_packed_u4_cuda);
-    check("angulars_symmetric_u4_cuda", test_angulars_symmetric<u4x2_t, cuda_backend_t>, nk_angulars_symmetric_u4_cuda);
-    check("euclideans_packed_u4_cuda", test_euclideans_packed<u4x2_t, cuda_backend_t>, nk_dots_pack_size_u4_cuda,
-          nk_dots_pack_u4_cuda, nk_euclideans_packed_u4_cuda);
-    check("euclideans_symmetric_u4_cuda", test_euclideans_symmetric<u4x2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_u4_cuda);
-    check("attention_packed_bf16_cuda", test_attention_packed<bf16_t, cuda_backend_t, attention_weights_t::bits_8_k>,
-          nk_attention_pack_size_bf16_cuda, nk_attention_pack_bf16_cuda, nk_attention_packed_bf16_cuda);
-    check("attention_packed_f16_cuda", test_attention_packed<f16_t, cuda_backend_t, attention_weights_t::bits_11_k>,
-          nk_attention_pack_size_f16_cuda, nk_attention_pack_f16_cuda, nk_attention_packed_f16_cuda);
-    check("attention_packed_e4m3_cuda", test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_11_k>,
-          nk_attention_pack_size_e4m3_cuda, nk_attention_pack_e4m3_cuda, nk_attention_packed_e4m3_cuda);
-    check("attention_packed_i8_cuda", test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>,
-          nk_attention_pack_size_i8_cuda, nk_attention_pack_i8_cuda, nk_attention_packed_i8_cuda);
-    check("attention_packed_gradients_bf16_cuda", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
-          nk_attention_pack_size_bf16_cuda, nk_attention_pack_bf16_cuda, nk_attention_packed_gradients_bf16_cuda);
-    check("attention_rope_f32_cuda", test_attention_rope<f32_t, cuda_backend_t>, nk_attention_rope_f32_cuda);
-    check("attention_rope_bf16_cuda", test_attention_rope<bf16_t, cuda_backend_t>, nk_attention_rope_bf16_cuda);
-    check("attention_rope_e4m3_cuda", test_attention_rope<e4m3_t, cuda_backend_t>, nk_attention_rope_e4m3_cuda);
-    check("wassersteinprocrustes_packed_f32_cuda",
-          test_transport_packed<f32_t, nk_kernel_wassersteinprocrustes_packed_k, cuda_backend_t>,
-          nk_wassersteinprocrustes_workspace_size_f32_cuda, nk_wassersteinprocrustes_packed_f32_cuda);
-    check("wassersteinprocrustes_packed_f16_cuda",
-          test_transport_packed<f16_t, nk_kernel_wassersteinprocrustes_packed_k, cuda_backend_t>,
-          nk_wassersteinprocrustes_workspace_size_f16_cuda, nk_wassersteinprocrustes_packed_f16_cuda);
-    check("gromovwassersteins_packed_f32_cuda",
-          test_transport_packed<f32_t, nk_kernel_gromovwassersteins_packed_k, cuda_backend_t>,
-          nk_gromovwassersteins_workspace_size_f32_cuda, nk_gromovwassersteins_packed_f32_cuda);
-    check("gromovwassersteins_packed_f16_cuda",
-          test_transport_packed<f16_t, nk_kernel_gromovwassersteins_packed_k, cuda_backend_t>,
-          nk_gromovwassersteins_workspace_size_f16_cuda, nk_gromovwassersteins_packed_f16_cuda);
-    check("haversines_packed_f64_cuda", test_geodesics_packed<f64_t, nk_kernel_haversines_packed_k, cuda_backend_t>,
-          nk_haversines_pack_size_f64_cuda, nk_haversines_pack_f64_cuda, nk_haversines_packed_f64_cuda);
-    check("vincentys_packed_f64_cuda", test_geodesics_packed<f64_t, nk_kernel_vincentys_packed_k, cuda_backend_t>,
-          nk_vincentys_pack_size_f64_cuda, nk_vincentys_pack_f64_cuda, nk_vincentys_packed_f64_cuda);
-    check("clearances_packed_f32_cuda", test_terrain_packed<f32_t, cuda_backend_t>, nk_terrain_pack_size_f32_cuda,
-          nk_terrain_pack_f32_cuda, nk_terrain_heights_packed_f32_cuda, nk_clearances_packed_f32_cuda);
+void run_cross_cuda_cases() {
+    auto const cuda = nk_cap_cuda_k;
+    run_kernel_case("nk_dots_packed_f64_cuda", test_dots_packed<f64_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_f64_cuda, nk_dots_pack_f64_cuda, nk_dots_packed_f64_cuda);
+    run_kernel_case("nk_dots_pack_f64_cuda",
+                    test_dots_pack_layout<f64_t, cuda_backend_t, nk_dots_pack_size_f64_cuda,
+                                          nk_dots_packed_shape_f64_cuda, nk_dots_pack_f64_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<f64_t, cuda_backend_t, nk_dots_pack_size_f64_cuda, " //
+                    "nk_dots_packed_f64_cuda, nk_dots_symmetric_f64_cuda>",
+                    test_dots_launch_contract<f64_t, cuda_backend_t, nk_dots_pack_size_f64_cuda,
+                                              nk_dots_packed_f64_cuda, nk_dots_symmetric_f64_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_f64_cuda", test_dots_symmetric<f64_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_f64_cuda);
+    run_kernel_case("nk_dots_packed_f32_cuda", test_dots_packed<f32_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_f32_cuda, nk_dots_pack_f32_cuda, nk_dots_packed_f32_cuda);
+    run_kernel_case("nk_dots_pack_f32_cuda",
+                    test_dots_pack_layout<f32_t, cuda_backend_t, nk_dots_pack_size_f32_cuda,
+                                          nk_dots_packed_shape_f32_cuda, nk_dots_pack_f32_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<f32_t, cuda_backend_t, nk_dots_pack_size_f32_cuda, " //
+                    "nk_dots_packed_f32_cuda, nk_dots_symmetric_f32_cuda>",
+                    test_dots_launch_contract<f32_t, cuda_backend_t, nk_dots_pack_size_f32_cuda,
+                                              nk_dots_packed_f32_cuda, nk_dots_symmetric_f32_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_f32_cuda", test_dots_symmetric<f32_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_f32_cuda);
+    run_kernel_case("nk_dots_packed_bf16_cuda", test_dots_packed<bf16_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_bf16_cuda, nk_dots_pack_bf16_cuda, nk_dots_packed_bf16_cuda);
+    run_kernel_case("nk_dots_pack_bf16_cuda",
+                    test_dots_pack_layout<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_cuda,
+                                          nk_dots_packed_shape_bf16_cuda, nk_dots_pack_bf16_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_cuda, " //
+                    "nk_dots_packed_bf16_cuda, nk_dots_symmetric_bf16_cuda>",
+                    test_dots_launch_contract<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_cuda,
+                                              nk_dots_packed_bf16_cuda, nk_dots_symmetric_bf16_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_bf16_cuda", test_dots_symmetric<bf16_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_bf16_cuda);
+    run_kernel_case("nk_dots_packed_f16_cuda", test_dots_packed<f16_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_f16_cuda, nk_dots_pack_f16_cuda, nk_dots_packed_f16_cuda);
+    run_kernel_case("nk_dots_pack_f16_cuda",
+                    test_dots_pack_layout<f16_t, cuda_backend_t, nk_dots_pack_size_f16_cuda,
+                                          nk_dots_packed_shape_f16_cuda, nk_dots_pack_f16_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<f16_t, cuda_backend_t, nk_dots_pack_size_f16_cuda, " //
+                    "nk_dots_packed_f16_cuda, nk_dots_symmetric_f16_cuda>",
+                    test_dots_launch_contract<f16_t, cuda_backend_t, nk_dots_pack_size_f16_cuda,
+                                              nk_dots_packed_f16_cuda, nk_dots_symmetric_f16_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_f16_cuda", test_dots_symmetric<f16_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_f16_cuda);
+    run_kernel_case("nk_dots_packed_e5m2_cuda", test_dots_packed<e5m2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_e5m2_cuda, nk_dots_pack_e5m2_cuda, nk_dots_packed_e5m2_cuda);
+    run_kernel_case("nk_dots_pack_e5m2_cuda",
+                    test_dots_pack_layout<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_cuda,
+                                          nk_dots_packed_shape_e5m2_cuda, nk_dots_pack_e5m2_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_cuda, " //
+                    "nk_dots_packed_e5m2_cuda, nk_dots_symmetric_e5m2_cuda>",
+                    test_dots_launch_contract<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_cuda,
+                                              nk_dots_packed_e5m2_cuda, nk_dots_symmetric_e5m2_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_e5m2_cuda", test_dots_symmetric<e5m2_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_e5m2_cuda);
+    run_kernel_case("nk_dots_packed_e4m3_cuda", test_dots_packed<e4m3_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_e4m3_cuda, nk_dots_pack_e4m3_cuda, nk_dots_packed_e4m3_cuda);
+    run_kernel_case("nk_dots_pack_e4m3_cuda",
+                    test_dots_pack_layout<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_cuda,
+                                          nk_dots_packed_shape_e4m3_cuda, nk_dots_pack_e4m3_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_cuda, " //
+                    "nk_dots_packed_e4m3_cuda, nk_dots_symmetric_e4m3_cuda>",
+                    test_dots_launch_contract<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_cuda,
+                                              nk_dots_packed_e4m3_cuda, nk_dots_symmetric_e4m3_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_e4m3_cuda", test_dots_symmetric<e4m3_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_e4m3_cuda);
+    run_kernel_case("nk_dots_packed_e3m2_cuda", test_dots_packed<e3m2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_e3m2_cuda, nk_dots_pack_e3m2_cuda, nk_dots_packed_e3m2_cuda);
+    run_kernel_case("nk_dots_pack_e3m2_cuda",
+                    test_dots_pack_layout<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_cuda,
+                                          nk_dots_packed_shape_e3m2_cuda, nk_dots_pack_e3m2_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_cuda, " //
+                    "nk_dots_packed_e3m2_cuda, nk_dots_symmetric_e3m2_cuda>",
+                    test_dots_launch_contract<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_cuda,
+                                              nk_dots_packed_e3m2_cuda, nk_dots_symmetric_e3m2_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_e3m2_cuda", test_dots_symmetric<e3m2_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_e3m2_cuda);
+    run_kernel_case("nk_dots_packed_e2m3_cuda", test_dots_packed<e2m3_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_e2m3_cuda, nk_dots_pack_e2m3_cuda, nk_dots_packed_e2m3_cuda);
+    run_kernel_case("nk_dots_pack_e2m3_cuda",
+                    test_dots_pack_layout<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_cuda,
+                                          nk_dots_packed_shape_e2m3_cuda, nk_dots_pack_e2m3_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_cuda, " //
+                    "nk_dots_packed_e2m3_cuda, nk_dots_symmetric_e2m3_cuda>",
+                    test_dots_launch_contract<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_cuda,
+                                              nk_dots_packed_e2m3_cuda, nk_dots_symmetric_e2m3_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_e2m3_cuda", test_dots_symmetric<e2m3_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_e2m3_cuda);
+    run_kernel_case("nk_dots_packed_e2m1_cuda", test_dots_packed<e2m1x2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_e2m1_cuda, nk_dots_pack_e2m1_cuda, nk_dots_packed_e2m1_cuda);
+    run_kernel_case("nk_dots_pack_e2m1_cuda",
+                    test_dots_pack_layout<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_cuda,
+                                          nk_dots_packed_shape_e2m1_cuda, nk_dots_pack_e2m1_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_cuda, " //
+                    "nk_dots_packed_e2m1_cuda, nk_dots_symmetric_e2m1_cuda>",
+                    test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_cuda,
+                                              nk_dots_packed_e2m1_cuda, nk_dots_symmetric_e2m1_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_e2m1_cuda", test_dots_symmetric<e2m1x2_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_e2m1_cuda);
+    run_kernel_case("nk_dots_packed_nvfp4_cuda", test_dots_packed<nvfp4_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_nvfp4_cuda, nk_dots_pack_nvfp4_cuda, nk_dots_packed_nvfp4_cuda);
+    run_kernel_case("nk_dots_pack_nvfp4_cuda",
+                    test_dots_pack_layout<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_cuda,
+                                          nk_dots_packed_shape_nvfp4_cuda, nk_dots_pack_nvfp4_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_cuda, " //
+                    "nk_dots_packed_nvfp4_cuda, nk_dots_symmetric_nvfp4_cuda>",
+                    test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_cuda,
+                                              nk_dots_packed_nvfp4_cuda, nk_dots_symmetric_nvfp4_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_nvfp4_cuda", test_dots_symmetric<nvfp4_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_nvfp4_cuda);
+    run_kernel_case("nk_dots_packed_mxfp4_cuda", test_dots_packed<mxfp4_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_mxfp4_cuda, nk_dots_pack_mxfp4_cuda, nk_dots_packed_mxfp4_cuda);
+    run_kernel_case("nk_dots_pack_mxfp4_cuda",
+                    test_dots_pack_layout<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_cuda,
+                                          nk_dots_packed_shape_mxfp4_cuda, nk_dots_pack_mxfp4_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_cuda, " //
+                    "nk_dots_packed_mxfp4_cuda, nk_dots_symmetric_mxfp4_cuda>",
+                    test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_cuda,
+                                              nk_dots_packed_mxfp4_cuda, nk_dots_symmetric_mxfp4_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_mxfp4_cuda", test_dots_symmetric<mxfp4_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_mxfp4_cuda);
+    run_kernel_case("nk_dots_packed_mxfp8e4m3_cuda", test_dots_packed<mxfp8e4m3_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_mxfp8e4m3_cuda, nk_dots_pack_mxfp8e4m3_cuda, nk_dots_packed_mxfp8e4m3_cuda);
+    run_kernel_case("nk_dots_pack_mxfp8e4m3_cuda",
+                    test_dots_pack_layout<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_cuda,
+                                          nk_dots_packed_shape_mxfp8e4m3_cuda, nk_dots_pack_mxfp8e4m3_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_cuda, " //
+                    "nk_dots_packed_mxfp8e4m3_cuda, nk_dots_symmetric_mxfp8e4m3_cuda>",
+                    test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_cuda,
+                                              nk_dots_packed_mxfp8e4m3_cuda, nk_dots_symmetric_mxfp8e4m3_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_mxfp8e4m3_cuda", test_dots_symmetric<mxfp8e4m3_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_mxfp8e4m3_cuda);
+    run_kernel_case("nk_dots_packed_mxfp8e5m2_cuda", test_dots_packed<mxfp8e5m2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_mxfp8e5m2_cuda, nk_dots_pack_mxfp8e5m2_cuda, nk_dots_packed_mxfp8e5m2_cuda);
+    run_kernel_case("nk_dots_pack_mxfp8e5m2_cuda",
+                    test_dots_pack_layout<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_cuda,
+                                          nk_dots_packed_shape_mxfp8e5m2_cuda, nk_dots_pack_mxfp8e5m2_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_cuda, " //
+                    "nk_dots_packed_mxfp8e5m2_cuda, nk_dots_symmetric_mxfp8e5m2_cuda>",
+                    test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_cuda,
+                                              nk_dots_packed_mxfp8e5m2_cuda, nk_dots_symmetric_mxfp8e5m2_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_mxfp8e5m2_cuda", test_dots_symmetric<mxfp8e5m2_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_mxfp8e5m2_cuda);
+    run_kernel_case("nk_dots_packed_i8_cuda", test_dots_packed<i8_t, cuda_backend_t>, cuda, nk_dots_pack_size_i8_cuda,
+                    nk_dots_pack_i8_cuda, nk_dots_packed_i8_cuda);
+    run_kernel_case("nk_dots_pack_i8_cuda",
+                    test_dots_pack_layout<i8_t, cuda_backend_t, nk_dots_pack_size_i8_cuda, nk_dots_packed_shape_i8_cuda,
+                                          nk_dots_pack_i8_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<i8_t, cuda_backend_t, nk_dots_pack_size_i8_cuda, " //
+                    "nk_dots_packed_i8_cuda, nk_dots_symmetric_i8_cuda>",
+                    test_dots_launch_contract<i8_t, cuda_backend_t, nk_dots_pack_size_i8_cuda, nk_dots_packed_i8_cuda,
+                                              nk_dots_symmetric_i8_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_i8_cuda", test_dots_symmetric<i8_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_i8_cuda);
+    run_kernel_case("nk_dots_packed_u8_cuda", test_dots_packed<u8_t, cuda_backend_t>, cuda, nk_dots_pack_size_u8_cuda,
+                    nk_dots_pack_u8_cuda, nk_dots_packed_u8_cuda);
+    run_kernel_case("nk_dots_pack_u8_cuda",
+                    test_dots_pack_layout<u8_t, cuda_backend_t, nk_dots_pack_size_u8_cuda, nk_dots_packed_shape_u8_cuda,
+                                          nk_dots_pack_u8_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<u8_t, cuda_backend_t, nk_dots_pack_size_u8_cuda, " //
+                    "nk_dots_packed_u8_cuda, nk_dots_symmetric_u8_cuda>",
+                    test_dots_launch_contract<u8_t, cuda_backend_t, nk_dots_pack_size_u8_cuda, nk_dots_packed_u8_cuda,
+                                              nk_dots_symmetric_u8_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_u8_cuda", test_dots_symmetric<u8_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_u8_cuda);
+    run_kernel_case("nk_dots_packed_i4_cuda", test_dots_packed<i4x2_t, cuda_backend_t>, cuda, nk_dots_pack_size_i4_cuda,
+                    nk_dots_pack_i4_cuda, nk_dots_packed_i4_cuda);
+    run_kernel_case("nk_dots_pack_i4_cuda",
+                    test_dots_pack_layout<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_cuda,
+                                          nk_dots_packed_shape_i4_cuda, nk_dots_pack_i4_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_cuda, " //
+                    "nk_dots_packed_i4_cuda, nk_dots_symmetric_i4_cuda>",
+                    test_dots_launch_contract<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_cuda, nk_dots_packed_i4_cuda,
+                                              nk_dots_symmetric_i4_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_i4_cuda", test_dots_symmetric<i4x2_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_i4_cuda);
+    run_kernel_case("nk_dots_packed_u4_cuda", test_dots_packed<u4x2_t, cuda_backend_t>, cuda, nk_dots_pack_size_u4_cuda,
+                    nk_dots_pack_u4_cuda, nk_dots_packed_u4_cuda);
+    run_kernel_case("nk_dots_pack_u4_cuda",
+                    test_dots_pack_layout<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_cuda,
+                                          nk_dots_packed_shape_u4_cuda, nk_dots_pack_u4_cuda>,
+                    cuda);
+    run_kernel_case("test_dots_launch_contract<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_cuda, " //
+                    "nk_dots_packed_u4_cuda, nk_dots_symmetric_u4_cuda>",
+                    test_dots_launch_contract<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_cuda, nk_dots_packed_u4_cuda,
+                                              nk_dots_symmetric_u4_cuda>,
+                    cuda);
+    run_kernel_case("nk_dots_symmetric_u4_cuda", test_dots_symmetric<u4x2_t, cuda_backend_t>, cuda,
+                    nk_dots_symmetric_u4_cuda);
+    run_kernel_case("nk_angulars_packed_f64_cuda", test_angulars_packed<f64_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_f64_cuda, nk_dots_pack_f64_cuda, nk_angulars_packed_f64_cuda);
+    run_kernel_case("nk_angulars_symmetric_f64_cuda", test_angulars_symmetric<f64_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_f64_cuda);
+    run_kernel_case("nk_euclideans_packed_f64_cuda", test_euclideans_packed<f64_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_f64_cuda, nk_dots_pack_f64_cuda, nk_euclideans_packed_f64_cuda);
+    run_kernel_case("nk_euclideans_symmetric_f64_cuda", test_euclideans_symmetric<f64_t, cuda_backend_t>, cuda,
+                    nk_euclideans_symmetric_f64_cuda);
+    run_kernel_case("nk_angulars_packed_f32_cuda", test_angulars_packed<f32_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_f32_cuda, nk_dots_pack_f32_cuda, nk_angulars_packed_f32_cuda);
+    run_kernel_case("nk_angulars_symmetric_f32_cuda", test_angulars_symmetric<f32_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_f32_cuda);
+    run_kernel_case("nk_euclideans_packed_f32_cuda", test_euclideans_packed<f32_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_f32_cuda, nk_dots_pack_f32_cuda, nk_euclideans_packed_f32_cuda);
+    run_kernel_case("nk_euclideans_symmetric_f32_cuda", test_euclideans_symmetric<f32_t, cuda_backend_t>, cuda,
+                    nk_euclideans_symmetric_f32_cuda);
+    run_kernel_case("nk_angulars_packed_bf16_cuda", test_angulars_packed<bf16_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_bf16_cuda, nk_dots_pack_bf16_cuda, nk_angulars_packed_bf16_cuda);
+    run_kernel_case("nk_angulars_symmetric_bf16_cuda", test_angulars_symmetric<bf16_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_bf16_cuda);
+    run_kernel_case("nk_euclideans_packed_bf16_cuda", test_euclideans_packed<bf16_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_bf16_cuda, nk_dots_pack_bf16_cuda, nk_euclideans_packed_bf16_cuda);
+    run_kernel_case("nk_euclideans_symmetric_bf16_cuda", test_euclideans_symmetric<bf16_t, cuda_backend_t>, cuda,
+                    nk_euclideans_symmetric_bf16_cuda);
+    run_kernel_case("nk_angulars_packed_f16_cuda", test_angulars_packed<f16_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_f16_cuda, nk_dots_pack_f16_cuda, nk_angulars_packed_f16_cuda);
+    run_kernel_case("nk_angulars_symmetric_f16_cuda", test_angulars_symmetric<f16_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_f16_cuda);
+    run_kernel_case("nk_euclideans_packed_f16_cuda", test_euclideans_packed<f16_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_f16_cuda, nk_dots_pack_f16_cuda, nk_euclideans_packed_f16_cuda);
+    run_kernel_case("nk_euclideans_symmetric_f16_cuda", test_euclideans_symmetric<f16_t, cuda_backend_t>, cuda,
+                    nk_euclideans_symmetric_f16_cuda);
+    run_kernel_case("nk_angulars_packed_e5m2_cuda", test_angulars_packed<e5m2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_e5m2_cuda, nk_dots_pack_e5m2_cuda, nk_angulars_packed_e5m2_cuda);
+    run_kernel_case("nk_angulars_symmetric_e5m2_cuda", test_angulars_symmetric<e5m2_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_e5m2_cuda);
+    run_kernel_case("nk_euclideans_packed_e5m2_cuda", test_euclideans_packed<e5m2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_e5m2_cuda, nk_dots_pack_e5m2_cuda, nk_euclideans_packed_e5m2_cuda);
+    run_kernel_case("nk_euclideans_symmetric_e5m2_cuda", test_euclideans_symmetric<e5m2_t, cuda_backend_t>, cuda,
+                    nk_euclideans_symmetric_e5m2_cuda);
+    run_kernel_case("nk_angulars_packed_e4m3_cuda", test_angulars_packed<e4m3_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_e4m3_cuda, nk_dots_pack_e4m3_cuda, nk_angulars_packed_e4m3_cuda);
+    run_kernel_case("nk_angulars_symmetric_e4m3_cuda", test_angulars_symmetric<e4m3_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_e4m3_cuda);
+    run_kernel_case("nk_euclideans_packed_e4m3_cuda", test_euclideans_packed<e4m3_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_e4m3_cuda, nk_dots_pack_e4m3_cuda, nk_euclideans_packed_e4m3_cuda);
+    run_kernel_case("nk_euclideans_symmetric_e4m3_cuda", test_euclideans_symmetric<e4m3_t, cuda_backend_t>, cuda,
+                    nk_euclideans_symmetric_e4m3_cuda);
+    run_kernel_case("nk_angulars_packed_e3m2_cuda", test_angulars_packed<e3m2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_e3m2_cuda, nk_dots_pack_e3m2_cuda, nk_angulars_packed_e3m2_cuda);
+    run_kernel_case("nk_angulars_symmetric_e3m2_cuda", test_angulars_symmetric<e3m2_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_e3m2_cuda);
+    run_kernel_case("nk_euclideans_packed_e3m2_cuda", test_euclideans_packed<e3m2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_e3m2_cuda, nk_dots_pack_e3m2_cuda, nk_euclideans_packed_e3m2_cuda);
+    run_kernel_case("nk_euclideans_symmetric_e3m2_cuda", test_euclideans_symmetric<e3m2_t, cuda_backend_t>, cuda,
+                    nk_euclideans_symmetric_e3m2_cuda);
+    run_kernel_case("nk_angulars_packed_e2m3_cuda", test_angulars_packed<e2m3_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_e2m3_cuda, nk_dots_pack_e2m3_cuda, nk_angulars_packed_e2m3_cuda);
+    run_kernel_case("nk_angulars_symmetric_e2m3_cuda", test_angulars_symmetric<e2m3_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_e2m3_cuda);
+    run_kernel_case("nk_euclideans_packed_e2m3_cuda", test_euclideans_packed<e2m3_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_e2m3_cuda, nk_dots_pack_e2m3_cuda, nk_euclideans_packed_e2m3_cuda);
+    run_kernel_case("nk_euclideans_symmetric_e2m3_cuda", test_euclideans_symmetric<e2m3_t, cuda_backend_t>, cuda,
+                    nk_euclideans_symmetric_e2m3_cuda);
+    run_kernel_case("nk_angulars_packed_e2m1_cuda", test_angulars_packed<e2m1x2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_e2m1_cuda, nk_dots_pack_e2m1_cuda, nk_angulars_packed_e2m1_cuda);
+    run_kernel_case("nk_angulars_symmetric_e2m1_cuda", test_angulars_symmetric<e2m1x2_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_e2m1_cuda);
+    run_kernel_case("nk_euclideans_packed_e2m1_cuda", test_euclideans_packed<e2m1x2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_e2m1_cuda, nk_dots_pack_e2m1_cuda, nk_euclideans_packed_e2m1_cuda);
+    run_kernel_case("nk_euclideans_symmetric_e2m1_cuda", test_euclideans_symmetric<e2m1x2_t, cuda_backend_t>, cuda,
+                    nk_euclideans_symmetric_e2m1_cuda);
+    run_kernel_case("nk_angulars_packed_nvfp4_cuda", test_angulars_packed<nvfp4_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_nvfp4_cuda, nk_dots_pack_nvfp4_cuda, nk_angulars_packed_nvfp4_cuda);
+    run_kernel_case("nk_angulars_symmetric_nvfp4_cuda", test_angulars_symmetric<nvfp4_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_nvfp4_cuda);
+    run_kernel_case("nk_euclideans_packed_nvfp4_cuda", test_euclideans_packed<nvfp4_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_nvfp4_cuda, nk_dots_pack_nvfp4_cuda, nk_euclideans_packed_nvfp4_cuda);
+    run_kernel_case("nk_euclideans_symmetric_nvfp4_cuda", test_euclideans_symmetric<nvfp4_t, cuda_backend_t>, cuda,
+                    nk_euclideans_symmetric_nvfp4_cuda);
+    run_kernel_case("nk_angulars_packed_mxfp4_cuda", test_angulars_packed<mxfp4_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_mxfp4_cuda, nk_dots_pack_mxfp4_cuda, nk_angulars_packed_mxfp4_cuda);
+    run_kernel_case("nk_angulars_symmetric_mxfp4_cuda", test_angulars_symmetric<mxfp4_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_mxfp4_cuda);
+    run_kernel_case("nk_euclideans_packed_mxfp4_cuda", test_euclideans_packed<mxfp4_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_mxfp4_cuda, nk_dots_pack_mxfp4_cuda, nk_euclideans_packed_mxfp4_cuda);
+    run_kernel_case("nk_euclideans_symmetric_mxfp4_cuda", test_euclideans_symmetric<mxfp4_t, cuda_backend_t>, cuda,
+                    nk_euclideans_symmetric_mxfp4_cuda);
+    run_kernel_case("nk_angulars_packed_mxfp8e4m3_cuda", test_angulars_packed<mxfp8e4m3_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_mxfp8e4m3_cuda, nk_dots_pack_mxfp8e4m3_cuda, nk_angulars_packed_mxfp8e4m3_cuda);
+    run_kernel_case("nk_angulars_symmetric_mxfp8e4m3_cuda", test_angulars_symmetric<mxfp8e4m3_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_mxfp8e4m3_cuda);
+    run_kernel_case("nk_euclideans_packed_mxfp8e4m3_cuda", test_euclideans_packed<mxfp8e4m3_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_mxfp8e4m3_cuda, nk_dots_pack_mxfp8e4m3_cuda, nk_euclideans_packed_mxfp8e4m3_cuda);
+    run_kernel_case("nk_euclideans_symmetric_mxfp8e4m3_cuda", test_euclideans_symmetric<mxfp8e4m3_t, cuda_backend_t>,
+                    cuda, nk_euclideans_symmetric_mxfp8e4m3_cuda);
+    run_kernel_case("nk_angulars_packed_mxfp8e5m2_cuda", test_angulars_packed<mxfp8e5m2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_mxfp8e5m2_cuda, nk_dots_pack_mxfp8e5m2_cuda, nk_angulars_packed_mxfp8e5m2_cuda);
+    run_kernel_case("nk_angulars_symmetric_mxfp8e5m2_cuda", test_angulars_symmetric<mxfp8e5m2_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_mxfp8e5m2_cuda);
+    run_kernel_case("nk_euclideans_packed_mxfp8e5m2_cuda", test_euclideans_packed<mxfp8e5m2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_mxfp8e5m2_cuda, nk_dots_pack_mxfp8e5m2_cuda, nk_euclideans_packed_mxfp8e5m2_cuda);
+    run_kernel_case("nk_euclideans_symmetric_mxfp8e5m2_cuda", test_euclideans_symmetric<mxfp8e5m2_t, cuda_backend_t>,
+                    cuda, nk_euclideans_symmetric_mxfp8e5m2_cuda);
+    run_kernel_case("nk_angulars_packed_i8_cuda", test_angulars_packed<i8_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_i8_cuda, nk_dots_pack_i8_cuda, nk_angulars_packed_i8_cuda);
+    run_kernel_case("nk_angulars_symmetric_i8_cuda", test_angulars_symmetric<i8_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_i8_cuda);
+    run_kernel_case("nk_euclideans_packed_i8_cuda", test_euclideans_packed<i8_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_i8_cuda, nk_dots_pack_i8_cuda, nk_euclideans_packed_i8_cuda);
+    run_kernel_case("nk_euclideans_symmetric_i8_cuda", test_euclideans_symmetric<i8_t, cuda_backend_t>, cuda,
+                    nk_euclideans_symmetric_i8_cuda);
+    run_kernel_case("nk_angulars_packed_u8_cuda", test_angulars_packed<u8_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_u8_cuda, nk_dots_pack_u8_cuda, nk_angulars_packed_u8_cuda);
+    run_kernel_case("nk_angulars_symmetric_u8_cuda", test_angulars_symmetric<u8_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_u8_cuda);
+    run_kernel_case("nk_euclideans_packed_u8_cuda", test_euclideans_packed<u8_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_u8_cuda, nk_dots_pack_u8_cuda, nk_euclideans_packed_u8_cuda);
+    run_kernel_case("nk_euclideans_symmetric_u8_cuda", test_euclideans_symmetric<u8_t, cuda_backend_t>, cuda,
+                    nk_euclideans_symmetric_u8_cuda);
+    run_kernel_case("nk_angulars_packed_i4_cuda", test_angulars_packed<i4x2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_i4_cuda, nk_dots_pack_i4_cuda, nk_angulars_packed_i4_cuda);
+    run_kernel_case("nk_angulars_symmetric_i4_cuda", test_angulars_symmetric<i4x2_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_i4_cuda);
+    run_kernel_case("nk_euclideans_packed_i4_cuda", test_euclideans_packed<i4x2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_i4_cuda, nk_dots_pack_i4_cuda, nk_euclideans_packed_i4_cuda);
+    run_kernel_case("nk_euclideans_symmetric_i4_cuda", test_euclideans_symmetric<i4x2_t, cuda_backend_t>, cuda,
+                    nk_euclideans_symmetric_i4_cuda);
+    run_kernel_case("nk_angulars_packed_u4_cuda", test_angulars_packed<u4x2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_u4_cuda, nk_dots_pack_u4_cuda, nk_angulars_packed_u4_cuda);
+    run_kernel_case("nk_angulars_symmetric_u4_cuda", test_angulars_symmetric<u4x2_t, cuda_backend_t>, cuda,
+                    nk_angulars_symmetric_u4_cuda);
+    run_kernel_case("nk_euclideans_packed_u4_cuda", test_euclideans_packed<u4x2_t, cuda_backend_t>, cuda,
+                    nk_dots_pack_size_u4_cuda, nk_dots_pack_u4_cuda, nk_euclideans_packed_u4_cuda);
+    run_kernel_case("nk_euclideans_symmetric_u4_cuda", test_euclideans_symmetric<u4x2_t, cuda_backend_t>, cuda,
+                    nk_euclideans_symmetric_u4_cuda);
+    run_kernel_case("nk_attention_packed_bf16_cuda",
+                    test_attention_packed<bf16_t, cuda_backend_t, attention_weights_t::bits_8_k>, cuda,
+                    nk_attention_pack_size_bf16_cuda, nk_attention_pack_bf16_cuda, nk_attention_packed_bf16_cuda);
+    run_kernel_case("nk_attention_packed_f16_cuda",
+                    test_attention_packed<f16_t, cuda_backend_t, attention_weights_t::bits_11_k>, cuda,
+                    nk_attention_pack_size_f16_cuda, nk_attention_pack_f16_cuda, nk_attention_packed_f16_cuda);
+    run_kernel_case("nk_attention_packed_e4m3_cuda",
+                    test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_11_k>, cuda,
+                    nk_attention_pack_size_e4m3_cuda, nk_attention_pack_e4m3_cuda, nk_attention_packed_e4m3_cuda);
+    run_kernel_case("nk_attention_packed_i8_cuda",
+                    test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>, cuda,
+                    nk_attention_pack_size_i8_cuda, nk_attention_pack_i8_cuda, nk_attention_packed_i8_cuda);
+    run_kernel_case("nk_attention_packed_gradients_bf16_cuda", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
+                    cuda, nk_attention_pack_size_bf16_cuda, nk_attention_pack_bf16_cuda,
+                    nk_attention_packed_gradients_bf16_cuda);
+    run_kernel_case("nk_attention_rope_f32_cuda", test_attention_rope<f32_t, cuda_backend_t>, cuda,
+                    nk_attention_rope_f32_cuda);
+    run_kernel_case("nk_attention_rope_bf16_cuda", test_attention_rope<bf16_t, cuda_backend_t>, cuda,
+                    nk_attention_rope_bf16_cuda);
+    run_kernel_case("nk_attention_rope_e4m3_cuda", test_attention_rope<e4m3_t, cuda_backend_t>, cuda,
+                    nk_attention_rope_e4m3_cuda);
+    run_kernel_case("nk_wassersteinprocrustes_packed_f32_cuda",
+                    test_transport_packed<f32_t, nk_kernel_wassersteinprocrustes_packed_k, cuda_backend_t>, cuda,
+                    nk_wassersteinprocrustes_workspace_size_f32_cuda, nk_wassersteinprocrustes_packed_f32_cuda);
+    run_kernel_case("nk_wassersteinprocrustes_packed_f16_cuda",
+                    test_transport_packed<f16_t, nk_kernel_wassersteinprocrustes_packed_k, cuda_backend_t>, cuda,
+                    nk_wassersteinprocrustes_workspace_size_f16_cuda, nk_wassersteinprocrustes_packed_f16_cuda);
+    run_kernel_case("nk_gromovwassersteins_packed_f32_cuda",
+                    test_transport_packed<f32_t, nk_kernel_gromovwassersteins_packed_k, cuda_backend_t>, cuda,
+                    nk_gromovwassersteins_workspace_size_f32_cuda, nk_gromovwassersteins_packed_f32_cuda);
+    run_kernel_case("nk_gromovwassersteins_packed_f16_cuda",
+                    test_transport_packed<f16_t, nk_kernel_gromovwassersteins_packed_k, cuda_backend_t>, cuda,
+                    nk_gromovwassersteins_workspace_size_f16_cuda, nk_gromovwassersteins_packed_f16_cuda);
+    run_kernel_case("nk_haversines_packed_f64_cuda",
+                    test_geodesics_packed<f64_t, nk_kernel_haversines_packed_k, cuda_backend_t>, cuda,
+                    nk_haversines_pack_size_f64_cuda, nk_haversines_pack_f64_cuda, nk_haversines_packed_f64_cuda);
+    run_kernel_case("nk_vincentys_packed_f64_cuda",
+                    test_geodesics_packed<f64_t, nk_kernel_vincentys_packed_k, cuda_backend_t>, cuda,
+                    nk_vincentys_pack_size_f64_cuda, nk_vincentys_pack_f64_cuda, nk_vincentys_packed_f64_cuda);
+    run_kernel_case("nk_clearances_packed_f32_cuda", test_terrain_packed<f32_t, cuda_backend_t>, cuda,
+                    nk_terrain_pack_size_f32_cuda, nk_terrain_pack_f32_cuda, nk_terrain_heights_packed_f32_cuda,
+                    nk_clearances_packed_f32_cuda);
 
 #if NUMKONG_TARGET_AMPERE
-    check.section("Cross Ampere", nk_cap_ampere_k);
-    check("dots_packed_f64_ampere", test_dots_packed<f64_t, cuda_backend_t>, nk_dots_pack_size_f64_ampere,
-          nk_dots_pack_f64_ampere, nk_dots_packed_f64_ampere);
-    check("dots_pack_f64_ampere", test_dots_pack_layout<f64_t, cuda_backend_t, nk_dots_pack_size_f64_ampere,
-                                                        nk_dots_packed_shape_f64_ampere, nk_dots_pack_f64_ampere>);
-    check("dots_contract_f64_ampere",
-          test_dots_launch_contract<f64_t, cuda_backend_t, nk_dots_pack_size_f64_ampere, nk_dots_packed_f64_ampere,
-                                    nk_dots_symmetric_f64_ampere>);
-    check("dots_symmetric_f64_ampere", test_dots_symmetric<f64_t, cuda_backend_t>, nk_dots_symmetric_f64_ampere);
-    check("dots_packed_f64_ampere_workspace", test_dots_packed<f64_t, cuda_backend_t>, nk_dots_pack_size_f64_ampere,
-          nk_dots_pack_f64_ampere, with_workspace(nk_dots_packed_f64_ampere, nk_dots_packed_workspace_size_f64_ampere));
-    check("dots_symmetric_f64_ampere_workspace", test_dots_symmetric<f64_t, cuda_backend_t>,
-          with_workspace(nk_dots_symmetric_f64_ampere, nk_dots_symmetric_workspace_size_f64_ampere));
-    check("dots_packed_f32_ampere", test_dots_packed<f32_t, cuda_backend_t>, nk_dots_pack_size_f32_ampere,
-          nk_dots_pack_f32_ampere, nk_dots_packed_f32_ampere);
-    check("dots_pack_f32_ampere", test_dots_pack_layout<f32_t, cuda_backend_t, nk_dots_pack_size_f32_ampere,
-                                                        nk_dots_packed_shape_f32_ampere, nk_dots_pack_f32_ampere>);
-    check("dots_contract_f32_ampere",
-          test_dots_launch_contract<f32_t, cuda_backend_t, nk_dots_pack_size_f32_ampere, nk_dots_packed_f32_ampere,
-                                    nk_dots_symmetric_f32_ampere>);
-    check("dots_symmetric_f32_ampere", test_dots_symmetric<f32_t, cuda_backend_t>, nk_dots_symmetric_f32_ampere);
-    check("dots_packed_bf16_ampere", test_dots_packed<bf16_t, cuda_backend_t>, nk_dots_pack_size_bf16_ampere,
-          nk_dots_pack_bf16_ampere, nk_dots_packed_bf16_ampere);
-    check("dots_pack_bf16_ampere", test_dots_pack_layout<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_ampere,
-                                                         nk_dots_packed_shape_bf16_ampere, nk_dots_pack_bf16_ampere>);
-    check("dots_contract_bf16_ampere",
-          test_dots_launch_contract<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_ampere, nk_dots_packed_bf16_ampere,
-                                    nk_dots_symmetric_bf16_ampere>);
-    check("dots_symmetric_bf16_ampere", test_dots_symmetric<bf16_t, cuda_backend_t>, nk_dots_symmetric_bf16_ampere);
-    check("dots_packed_f16_ampere", test_dots_packed<f16_t, cuda_backend_t>, nk_dots_pack_size_f16_ampere,
-          nk_dots_pack_f16_ampere, nk_dots_packed_f16_ampere);
-    check("dots_pack_f16_ampere", test_dots_pack_layout<f16_t, cuda_backend_t, nk_dots_pack_size_f16_ampere,
-                                                        nk_dots_packed_shape_f16_ampere, nk_dots_pack_f16_ampere>);
-    check("dots_contract_f16_ampere",
-          test_dots_launch_contract<f16_t, cuda_backend_t, nk_dots_pack_size_f16_ampere, nk_dots_packed_f16_ampere,
-                                    nk_dots_symmetric_f16_ampere>);
-    check("dots_symmetric_f16_ampere", test_dots_symmetric<f16_t, cuda_backend_t>, nk_dots_symmetric_f16_ampere);
-    check("dots_packed_e5m2_ampere", test_dots_packed<e5m2_t, cuda_backend_t>, nk_dots_pack_size_e5m2_ampere,
-          nk_dots_pack_e5m2_ampere, nk_dots_packed_e5m2_ampere);
-    check("dots_pack_e5m2_ampere", test_dots_pack_layout<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_ampere,
-                                                         nk_dots_packed_shape_e5m2_ampere, nk_dots_pack_e5m2_ampere>);
-    check("dots_contract_e5m2_ampere",
-          test_dots_launch_contract<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_ampere, nk_dots_packed_e5m2_ampere,
-                                    nk_dots_symmetric_e5m2_ampere>);
-    check("dots_symmetric_e5m2_ampere", test_dots_symmetric<e5m2_t, cuda_backend_t>, nk_dots_symmetric_e5m2_ampere);
-    check("dots_packed_e4m3_ampere", test_dots_packed<e4m3_t, cuda_backend_t>, nk_dots_pack_size_e4m3_ampere,
-          nk_dots_pack_e4m3_ampere, nk_dots_packed_e4m3_ampere);
-    check("dots_pack_e4m3_ampere", test_dots_pack_layout<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_ampere,
-                                                         nk_dots_packed_shape_e4m3_ampere, nk_dots_pack_e4m3_ampere>);
-    check("dots_contract_e4m3_ampere",
-          test_dots_launch_contract<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_ampere, nk_dots_packed_e4m3_ampere,
-                                    nk_dots_symmetric_e4m3_ampere>);
-    check("dots_symmetric_e4m3_ampere", test_dots_symmetric<e4m3_t, cuda_backend_t>, nk_dots_symmetric_e4m3_ampere);
-    check("dots_packed_e3m2_ampere", test_dots_packed<e3m2_t, cuda_backend_t>, nk_dots_pack_size_e3m2_ampere,
-          nk_dots_pack_e3m2_ampere, nk_dots_packed_e3m2_ampere);
-    check("dots_pack_e3m2_ampere", test_dots_pack_layout<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_ampere,
-                                                         nk_dots_packed_shape_e3m2_ampere, nk_dots_pack_e3m2_ampere>);
-    check("dots_contract_e3m2_ampere",
-          test_dots_launch_contract<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_ampere, nk_dots_packed_e3m2_ampere,
-                                    nk_dots_symmetric_e3m2_ampere>);
-    check("dots_symmetric_e3m2_ampere", test_dots_symmetric<e3m2_t, cuda_backend_t>, nk_dots_symmetric_e3m2_ampere);
-    check("dots_packed_e2m3_ampere", test_dots_packed<e2m3_t, cuda_backend_t>, nk_dots_pack_size_e2m3_ampere,
-          nk_dots_pack_e2m3_ampere, nk_dots_packed_e2m3_ampere);
-    check("dots_pack_e2m3_ampere", test_dots_pack_layout<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_ampere,
-                                                         nk_dots_packed_shape_e2m3_ampere, nk_dots_pack_e2m3_ampere>);
-    check("dots_contract_e2m3_ampere",
-          test_dots_launch_contract<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_ampere, nk_dots_packed_e2m3_ampere,
-                                    nk_dots_symmetric_e2m3_ampere>);
-    check("dots_symmetric_e2m3_ampere", test_dots_symmetric<e2m3_t, cuda_backend_t>, nk_dots_symmetric_e2m3_ampere);
-    check("dots_packed_e2m1_ampere", test_dots_packed<e2m1x2_t, cuda_backend_t>, nk_dots_pack_size_e2m1_ampere,
-          nk_dots_pack_e2m1_ampere, nk_dots_packed_e2m1_ampere);
-    check("dots_pack_e2m1_ampere", test_dots_pack_layout<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_ampere,
-                                                         nk_dots_packed_shape_e2m1_ampere, nk_dots_pack_e2m1_ampere>);
-    check("dots_contract_e2m1_ampere",
-          test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_ampere, nk_dots_packed_e2m1_ampere,
-                                    nk_dots_symmetric_e2m1_ampere>);
-    check("dots_symmetric_e2m1_ampere", test_dots_symmetric<e2m1x2_t, cuda_backend_t>, nk_dots_symmetric_e2m1_ampere);
-    check("dots_packed_nvfp4_ampere", test_dots_packed<nvfp4_t, cuda_backend_t>, nk_dots_pack_size_nvfp4_ampere,
-          nk_dots_pack_nvfp4_ampere, nk_dots_packed_nvfp4_ampere);
-    check("dots_pack_nvfp4_ampere",
-          test_dots_pack_layout<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_ampere,
-                                nk_dots_packed_shape_nvfp4_ampere, nk_dots_pack_nvfp4_ampere>);
-    check("dots_contract_nvfp4_ampere",
-          test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_ampere,
-                                    nk_dots_packed_nvfp4_ampere, nk_dots_symmetric_nvfp4_ampere>);
-    check("dots_symmetric_nvfp4_ampere", test_dots_symmetric<nvfp4_t, cuda_backend_t>, nk_dots_symmetric_nvfp4_ampere);
-    check("dots_packed_mxfp4_ampere", test_dots_packed<mxfp4_t, cuda_backend_t>, nk_dots_pack_size_mxfp4_ampere,
-          nk_dots_pack_mxfp4_ampere, nk_dots_packed_mxfp4_ampere);
-    check("dots_pack_mxfp4_ampere",
-          test_dots_pack_layout<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_ampere,
-                                nk_dots_packed_shape_mxfp4_ampere, nk_dots_pack_mxfp4_ampere>);
-    check("dots_contract_mxfp4_ampere",
-          test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_ampere,
-                                    nk_dots_packed_mxfp4_ampere, nk_dots_symmetric_mxfp4_ampere>);
-    check("dots_symmetric_mxfp4_ampere", test_dots_symmetric<mxfp4_t, cuda_backend_t>, nk_dots_symmetric_mxfp4_ampere);
-    check("dots_packed_mxfp8e4m3_ampere", test_dots_packed<mxfp8e4m3_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp8e4m3_ampere, nk_dots_pack_mxfp8e4m3_ampere, nk_dots_packed_mxfp8e4m3_ampere);
-    check("dots_pack_mxfp8e4m3_ampere",
-          test_dots_pack_layout<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_ampere,
-                                nk_dots_packed_shape_mxfp8e4m3_ampere, nk_dots_pack_mxfp8e4m3_ampere>);
-    check("dots_contract_mxfp8e4m3_ampere",
-          test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_ampere,
-                                    nk_dots_packed_mxfp8e4m3_ampere, nk_dots_symmetric_mxfp8e4m3_ampere>);
-    check("dots_symmetric_mxfp8e4m3_ampere", test_dots_symmetric<mxfp8e4m3_t, cuda_backend_t>,
-          nk_dots_symmetric_mxfp8e4m3_ampere);
-    check("dots_packed_mxfp8e5m2_ampere", test_dots_packed<mxfp8e5m2_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp8e5m2_ampere, nk_dots_pack_mxfp8e5m2_ampere, nk_dots_packed_mxfp8e5m2_ampere);
-    check("dots_pack_mxfp8e5m2_ampere",
-          test_dots_pack_layout<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_ampere,
-                                nk_dots_packed_shape_mxfp8e5m2_ampere, nk_dots_pack_mxfp8e5m2_ampere>);
-    check("dots_contract_mxfp8e5m2_ampere",
-          test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_ampere,
-                                    nk_dots_packed_mxfp8e5m2_ampere, nk_dots_symmetric_mxfp8e5m2_ampere>);
-    check("dots_symmetric_mxfp8e5m2_ampere", test_dots_symmetric<mxfp8e5m2_t, cuda_backend_t>,
-          nk_dots_symmetric_mxfp8e5m2_ampere);
-    check("dots_packed_i8_ampere", test_dots_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_ampere,
-          nk_dots_pack_i8_ampere, nk_dots_packed_i8_ampere);
-    check("dots_pack_i8_ampere", test_dots_pack_layout<i8_t, cuda_backend_t, nk_dots_pack_size_i8_ampere,
-                                                       nk_dots_packed_shape_i8_ampere, nk_dots_pack_i8_ampere>);
-    check("dots_contract_i8_ampere", test_dots_launch_contract<i8_t, cuda_backend_t, nk_dots_pack_size_i8_ampere,
-                                                               nk_dots_packed_i8_ampere, nk_dots_symmetric_i8_ampere>);
-    check("dots_symmetric_i8_ampere", test_dots_symmetric<i8_t, cuda_backend_t>, nk_dots_symmetric_i8_ampere);
-    check("dots_packed_u8_ampere", test_dots_packed<u8_t, cuda_backend_t>, nk_dots_pack_size_u8_ampere,
-          nk_dots_pack_u8_ampere, nk_dots_packed_u8_ampere);
-    check("dots_pack_u8_ampere", test_dots_pack_layout<u8_t, cuda_backend_t, nk_dots_pack_size_u8_ampere,
-                                                       nk_dots_packed_shape_u8_ampere, nk_dots_pack_u8_ampere>);
-    check("dots_contract_u8_ampere", test_dots_launch_contract<u8_t, cuda_backend_t, nk_dots_pack_size_u8_ampere,
-                                                               nk_dots_packed_u8_ampere, nk_dots_symmetric_u8_ampere>);
-    check("dots_symmetric_u8_ampere", test_dots_symmetric<u8_t, cuda_backend_t>, nk_dots_symmetric_u8_ampere);
-    check("dots_packed_i4_ampere", test_dots_packed<i4x2_t, cuda_backend_t>, nk_dots_pack_size_i4_ampere,
-          nk_dots_pack_i4_ampere, nk_dots_packed_i4_ampere);
-    check("dots_pack_i4_ampere", test_dots_pack_layout<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_ampere,
-                                                       nk_dots_packed_shape_i4_ampere, nk_dots_pack_i4_ampere>);
-    check("dots_contract_i4_ampere", test_dots_launch_contract<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_ampere,
-                                                               nk_dots_packed_i4_ampere, nk_dots_symmetric_i4_ampere>);
-    check("dots_symmetric_i4_ampere", test_dots_symmetric<i4x2_t, cuda_backend_t>, nk_dots_symmetric_i4_ampere);
-    check("dots_packed_u4_ampere", test_dots_packed<u4x2_t, cuda_backend_t>, nk_dots_pack_size_u4_ampere,
-          nk_dots_pack_u4_ampere, nk_dots_packed_u4_ampere);
-    check("dots_pack_u4_ampere", test_dots_pack_layout<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_ampere,
-                                                       nk_dots_packed_shape_u4_ampere, nk_dots_pack_u4_ampere>);
-    check("dots_contract_u4_ampere", test_dots_launch_contract<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_ampere,
-                                                               nk_dots_packed_u4_ampere, nk_dots_symmetric_u4_ampere>);
-    check("dots_symmetric_u4_ampere", test_dots_symmetric<u4x2_t, cuda_backend_t>, nk_dots_symmetric_u4_ampere);
-    check("angulars_packed_f64_ampere", test_angulars_packed<f64_t, cuda_backend_t>, nk_dots_pack_size_f64_ampere,
-          nk_dots_pack_f64_ampere, nk_angulars_packed_f64_ampere);
-    check("angulars_symmetric_f64_ampere", test_angulars_symmetric<f64_t, cuda_backend_t>,
-          nk_angulars_symmetric_f64_ampere);
-    check("euclideans_packed_f64_ampere", test_euclideans_packed<f64_t, cuda_backend_t>, nk_dots_pack_size_f64_ampere,
-          nk_dots_pack_f64_ampere, nk_euclideans_packed_f64_ampere);
-    check("euclideans_symmetric_f64_ampere", test_euclideans_symmetric<f64_t, cuda_backend_t>,
-          nk_euclideans_symmetric_f64_ampere);
-    check("angulars_packed_f64_ampere_workspace", test_angulars_packed<f64_t, cuda_backend_t>,
-          nk_dots_pack_size_f64_ampere, nk_dots_pack_f64_ampere,
-          with_workspace(nk_angulars_packed_f64_ampere, nk_angulars_packed_workspace_size_f64_ampere));
-    check("angulars_symmetric_f64_ampere_workspace", test_angulars_symmetric<f64_t, cuda_backend_t>,
-          with_workspace(nk_angulars_symmetric_f64_ampere, nk_angulars_symmetric_workspace_size_f64_ampere));
-    check("euclideans_packed_f64_ampere_workspace", test_euclideans_packed<f64_t, cuda_backend_t>,
-          nk_dots_pack_size_f64_ampere, nk_dots_pack_f64_ampere,
-          with_workspace(nk_euclideans_packed_f64_ampere, nk_euclideans_packed_workspace_size_f64_ampere));
-    check("euclideans_symmetric_f64_ampere_workspace", test_euclideans_symmetric<f64_t, cuda_backend_t>,
-          with_workspace(nk_euclideans_symmetric_f64_ampere, nk_euclideans_symmetric_workspace_size_f64_ampere));
-    check("angulars_packed_f32_ampere", test_angulars_packed<f32_t, cuda_backend_t>, nk_dots_pack_size_f32_ampere,
-          nk_dots_pack_f32_ampere, nk_angulars_packed_f32_ampere);
-    check("angulars_symmetric_f32_ampere", test_angulars_symmetric<f32_t, cuda_backend_t>,
-          nk_angulars_symmetric_f32_ampere);
-    check("euclideans_packed_f32_ampere", test_euclideans_packed<f32_t, cuda_backend_t>, nk_dots_pack_size_f32_ampere,
-          nk_dots_pack_f32_ampere, nk_euclideans_packed_f32_ampere);
-    check("euclideans_symmetric_f32_ampere", test_euclideans_symmetric<f32_t, cuda_backend_t>,
-          nk_euclideans_symmetric_f32_ampere);
-    check("angulars_packed_bf16_ampere", test_angulars_packed<bf16_t, cuda_backend_t>, nk_dots_pack_size_bf16_ampere,
-          nk_dots_pack_bf16_ampere, nk_angulars_packed_bf16_ampere);
-    check("angulars_symmetric_bf16_ampere", test_angulars_symmetric<bf16_t, cuda_backend_t>,
-          nk_angulars_symmetric_bf16_ampere);
-    check("euclideans_packed_bf16_ampere", test_euclideans_packed<bf16_t, cuda_backend_t>,
-          nk_dots_pack_size_bf16_ampere, nk_dots_pack_bf16_ampere, nk_euclideans_packed_bf16_ampere);
-    check("euclideans_symmetric_bf16_ampere", test_euclideans_symmetric<bf16_t, cuda_backend_t>,
-          nk_euclideans_symmetric_bf16_ampere);
-    check("angulars_packed_f16_ampere", test_angulars_packed<f16_t, cuda_backend_t>, nk_dots_pack_size_f16_ampere,
-          nk_dots_pack_f16_ampere, nk_angulars_packed_f16_ampere);
-    check("angulars_symmetric_f16_ampere", test_angulars_symmetric<f16_t, cuda_backend_t>,
-          nk_angulars_symmetric_f16_ampere);
-    check("euclideans_packed_f16_ampere", test_euclideans_packed<f16_t, cuda_backend_t>, nk_dots_pack_size_f16_ampere,
-          nk_dots_pack_f16_ampere, nk_euclideans_packed_f16_ampere);
-    check("euclideans_symmetric_f16_ampere", test_euclideans_symmetric<f16_t, cuda_backend_t>,
-          nk_euclideans_symmetric_f16_ampere);
-    check("angulars_packed_e5m2_ampere", test_angulars_packed<e5m2_t, cuda_backend_t>, nk_dots_pack_size_e5m2_ampere,
-          nk_dots_pack_e5m2_ampere, nk_angulars_packed_e5m2_ampere);
-    check("angulars_symmetric_e5m2_ampere", test_angulars_symmetric<e5m2_t, cuda_backend_t>,
-          nk_angulars_symmetric_e5m2_ampere);
-    check("euclideans_packed_e5m2_ampere", test_euclideans_packed<e5m2_t, cuda_backend_t>,
-          nk_dots_pack_size_e5m2_ampere, nk_dots_pack_e5m2_ampere, nk_euclideans_packed_e5m2_ampere);
-    check("euclideans_symmetric_e5m2_ampere", test_euclideans_symmetric<e5m2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e5m2_ampere);
-    check("angulars_packed_e4m3_ampere", test_angulars_packed<e4m3_t, cuda_backend_t>, nk_dots_pack_size_e4m3_ampere,
-          nk_dots_pack_e4m3_ampere, nk_angulars_packed_e4m3_ampere);
-    check("angulars_symmetric_e4m3_ampere", test_angulars_symmetric<e4m3_t, cuda_backend_t>,
-          nk_angulars_symmetric_e4m3_ampere);
-    check("euclideans_packed_e4m3_ampere", test_euclideans_packed<e4m3_t, cuda_backend_t>,
-          nk_dots_pack_size_e4m3_ampere, nk_dots_pack_e4m3_ampere, nk_euclideans_packed_e4m3_ampere);
-    check("euclideans_symmetric_e4m3_ampere", test_euclideans_symmetric<e4m3_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e4m3_ampere);
-    check("angulars_packed_e3m2_ampere", test_angulars_packed<e3m2_t, cuda_backend_t>, nk_dots_pack_size_e3m2_ampere,
-          nk_dots_pack_e3m2_ampere, nk_angulars_packed_e3m2_ampere);
-    check("angulars_symmetric_e3m2_ampere", test_angulars_symmetric<e3m2_t, cuda_backend_t>,
-          nk_angulars_symmetric_e3m2_ampere);
-    check("euclideans_packed_e3m2_ampere", test_euclideans_packed<e3m2_t, cuda_backend_t>,
-          nk_dots_pack_size_e3m2_ampere, nk_dots_pack_e3m2_ampere, nk_euclideans_packed_e3m2_ampere);
-    check("euclideans_symmetric_e3m2_ampere", test_euclideans_symmetric<e3m2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e3m2_ampere);
-    check("angulars_packed_e2m3_ampere", test_angulars_packed<e2m3_t, cuda_backend_t>, nk_dots_pack_size_e2m3_ampere,
-          nk_dots_pack_e2m3_ampere, nk_angulars_packed_e2m3_ampere);
-    check("angulars_symmetric_e2m3_ampere", test_angulars_symmetric<e2m3_t, cuda_backend_t>,
-          nk_angulars_symmetric_e2m3_ampere);
-    check("euclideans_packed_e2m3_ampere", test_euclideans_packed<e2m3_t, cuda_backend_t>,
-          nk_dots_pack_size_e2m3_ampere, nk_dots_pack_e2m3_ampere, nk_euclideans_packed_e2m3_ampere);
-    check("euclideans_symmetric_e2m3_ampere", test_euclideans_symmetric<e2m3_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e2m3_ampere);
-    check("angulars_packed_e2m1_ampere", test_angulars_packed<e2m1x2_t, cuda_backend_t>, nk_dots_pack_size_e2m1_ampere,
-          nk_dots_pack_e2m1_ampere, nk_angulars_packed_e2m1_ampere);
-    check("angulars_symmetric_e2m1_ampere", test_angulars_symmetric<e2m1x2_t, cuda_backend_t>,
-          nk_angulars_symmetric_e2m1_ampere);
-    check("euclideans_packed_e2m1_ampere", test_euclideans_packed<e2m1x2_t, cuda_backend_t>,
-          nk_dots_pack_size_e2m1_ampere, nk_dots_pack_e2m1_ampere, nk_euclideans_packed_e2m1_ampere);
-    check("euclideans_symmetric_e2m1_ampere", test_euclideans_symmetric<e2m1x2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e2m1_ampere);
-    check("angulars_packed_i8_ampere", test_angulars_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_ampere,
-          nk_dots_pack_i8_ampere, nk_angulars_packed_i8_ampere);
-    check("angulars_symmetric_i8_ampere", test_angulars_symmetric<i8_t, cuda_backend_t>,
-          nk_angulars_symmetric_i8_ampere);
-    check("euclideans_packed_i8_ampere", test_euclideans_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_ampere,
-          nk_dots_pack_i8_ampere, nk_euclideans_packed_i8_ampere);
-    check("euclideans_symmetric_i8_ampere", test_euclideans_symmetric<i8_t, cuda_backend_t>,
-          nk_euclideans_symmetric_i8_ampere);
-    check("angulars_packed_u8_ampere", test_angulars_packed<u8_t, cuda_backend_t>, nk_dots_pack_size_u8_ampere,
-          nk_dots_pack_u8_ampere, nk_angulars_packed_u8_ampere);
-    check("angulars_symmetric_u8_ampere", test_angulars_symmetric<u8_t, cuda_backend_t>,
-          nk_angulars_symmetric_u8_ampere);
-    check("euclideans_packed_u8_ampere", test_euclideans_packed<u8_t, cuda_backend_t>, nk_dots_pack_size_u8_ampere,
-          nk_dots_pack_u8_ampere, nk_euclideans_packed_u8_ampere);
-    check("euclideans_symmetric_u8_ampere", test_euclideans_symmetric<u8_t, cuda_backend_t>,
-          nk_euclideans_symmetric_u8_ampere);
-    check("angulars_packed_i4_ampere", test_angulars_packed<i4x2_t, cuda_backend_t>, nk_dots_pack_size_i4_ampere,
-          nk_dots_pack_i4_ampere, nk_angulars_packed_i4_ampere);
-    check("angulars_symmetric_i4_ampere", test_angulars_symmetric<i4x2_t, cuda_backend_t>,
-          nk_angulars_symmetric_i4_ampere);
-    check("euclideans_packed_i4_ampere", test_euclideans_packed<i4x2_t, cuda_backend_t>, nk_dots_pack_size_i4_ampere,
-          nk_dots_pack_i4_ampere, nk_euclideans_packed_i4_ampere);
-    check("euclideans_symmetric_i4_ampere", test_euclideans_symmetric<i4x2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_i4_ampere);
-    check("angulars_packed_u4_ampere", test_angulars_packed<u4x2_t, cuda_backend_t>, nk_dots_pack_size_u4_ampere,
-          nk_dots_pack_u4_ampere, nk_angulars_packed_u4_ampere);
-    check("angulars_symmetric_u4_ampere", test_angulars_symmetric<u4x2_t, cuda_backend_t>,
-          nk_angulars_symmetric_u4_ampere);
-    check("euclideans_packed_u4_ampere", test_euclideans_packed<u4x2_t, cuda_backend_t>, nk_dots_pack_size_u4_ampere,
-          nk_dots_pack_u4_ampere, nk_euclideans_packed_u4_ampere);
-    check("euclideans_symmetric_u4_ampere", test_euclideans_symmetric<u4x2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_u4_ampere);
-    check("attention_packed_bf16_ampere", test_attention_packed<bf16_t, cuda_backend_t, attention_weights_t::bits_8_k>,
-          nk_attention_pack_size_bf16_ampere, nk_attention_pack_bf16_ampere, nk_attention_packed_bf16_ampere);
-    check("attention_packed_f16_ampere", test_attention_packed<f16_t, cuda_backend_t, attention_weights_t::bits_11_k>,
-          nk_attention_pack_size_f16_ampere, nk_attention_pack_f16_ampere, nk_attention_packed_f16_ampere);
-    check("attention_packed_e4m3_ampere", test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_11_k>,
-          nk_attention_pack_size_e4m3_ampere, nk_attention_pack_e4m3_ampere, nk_attention_packed_e4m3_ampere);
-    check("attention_packed_i8_ampere", test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>,
-          nk_attention_pack_size_i8_ampere, nk_attention_pack_i8_ampere, nk_attention_packed_i8_ampere);
-    check("attention_packed_gradients_bf16_ampere", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
-          nk_attention_pack_size_bf16_ampere, nk_attention_pack_bf16_ampere, nk_attention_packed_gradients_bf16_ampere);
+    auto const ampere = nk_cap_ampere_k;
+    run_kernel_case("nk_dots_packed_f64_ampere", test_dots_packed<f64_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_f64_ampere, nk_dots_pack_f64_ampere, nk_dots_packed_f64_ampere);
+    run_kernel_case("nk_dots_pack_f64_ampere",
+                    test_dots_pack_layout<f64_t, cuda_backend_t, nk_dots_pack_size_f64_ampere,
+                                          nk_dots_packed_shape_f64_ampere, nk_dots_pack_f64_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<f64_t, cuda_backend_t, nk_dots_pack_size_f64_ampere, " //
+                    "nk_dots_packed_f64_ampere, nk_dots_symmetric_f64_ampere>",
+                    test_dots_launch_contract<f64_t, cuda_backend_t, nk_dots_pack_size_f64_ampere,
+                                              nk_dots_packed_f64_ampere, nk_dots_symmetric_f64_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_f64_ampere", test_dots_symmetric<f64_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_f64_ampere);
+    run_kernel_case("test_dots_packed<f64_t, cuda_backend_t>(nk_dots_pack_size_f64_ampere, nk_dots_pack_f64_ampere, " //
+                    "with_workspace(nk_dots_packed_f64_ampere, nk_dots_packed_workspace_size_f64_ampere))",
+                    test_dots_packed<f64_t, cuda_backend_t>, ampere, nk_dots_pack_size_f64_ampere,
+                    nk_dots_pack_f64_ampere,
+                    with_workspace(nk_dots_packed_f64_ampere, nk_dots_packed_workspace_size_f64_ampere));
+    run_kernel_case("test_dots_symmetric<f64_t, cuda_backend_t>(with_workspace(nk_dots_symmetric_f64_ampere, " //
+                    "nk_dots_symmetric_workspace_size_f64_ampere))",
+                    test_dots_symmetric<f64_t, cuda_backend_t>, ampere,
+                    with_workspace(nk_dots_symmetric_f64_ampere, nk_dots_symmetric_workspace_size_f64_ampere));
+    run_kernel_case("nk_dots_packed_f32_ampere", test_dots_packed<f32_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_f32_ampere, nk_dots_pack_f32_ampere, nk_dots_packed_f32_ampere);
+    run_kernel_case("nk_dots_pack_f32_ampere",
+                    test_dots_pack_layout<f32_t, cuda_backend_t, nk_dots_pack_size_f32_ampere,
+                                          nk_dots_packed_shape_f32_ampere, nk_dots_pack_f32_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<f32_t, cuda_backend_t, nk_dots_pack_size_f32_ampere, " //
+                    "nk_dots_packed_f32_ampere, nk_dots_symmetric_f32_ampere>",
+                    test_dots_launch_contract<f32_t, cuda_backend_t, nk_dots_pack_size_f32_ampere,
+                                              nk_dots_packed_f32_ampere, nk_dots_symmetric_f32_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_f32_ampere", test_dots_symmetric<f32_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_f32_ampere);
+    run_kernel_case("nk_dots_packed_bf16_ampere", test_dots_packed<bf16_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_bf16_ampere, nk_dots_pack_bf16_ampere, nk_dots_packed_bf16_ampere);
+    run_kernel_case("nk_dots_pack_bf16_ampere",
+                    test_dots_pack_layout<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_ampere,
+                                          nk_dots_packed_shape_bf16_ampere, nk_dots_pack_bf16_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_ampere, " //
+                    "nk_dots_packed_bf16_ampere, nk_dots_symmetric_bf16_ampere>",
+                    test_dots_launch_contract<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_ampere,
+                                              nk_dots_packed_bf16_ampere, nk_dots_symmetric_bf16_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_bf16_ampere", test_dots_symmetric<bf16_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_bf16_ampere);
+    run_kernel_case("nk_dots_packed_f16_ampere", test_dots_packed<f16_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_f16_ampere, nk_dots_pack_f16_ampere, nk_dots_packed_f16_ampere);
+    run_kernel_case("nk_dots_pack_f16_ampere",
+                    test_dots_pack_layout<f16_t, cuda_backend_t, nk_dots_pack_size_f16_ampere,
+                                          nk_dots_packed_shape_f16_ampere, nk_dots_pack_f16_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<f16_t, cuda_backend_t, nk_dots_pack_size_f16_ampere, " //
+                    "nk_dots_packed_f16_ampere, nk_dots_symmetric_f16_ampere>",
+                    test_dots_launch_contract<f16_t, cuda_backend_t, nk_dots_pack_size_f16_ampere,
+                                              nk_dots_packed_f16_ampere, nk_dots_symmetric_f16_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_f16_ampere", test_dots_symmetric<f16_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_f16_ampere);
+    run_kernel_case("nk_dots_packed_e5m2_ampere", test_dots_packed<e5m2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_e5m2_ampere, nk_dots_pack_e5m2_ampere, nk_dots_packed_e5m2_ampere);
+    run_kernel_case("nk_dots_pack_e5m2_ampere",
+                    test_dots_pack_layout<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_ampere,
+                                          nk_dots_packed_shape_e5m2_ampere, nk_dots_pack_e5m2_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_ampere, " //
+                    "nk_dots_packed_e5m2_ampere, nk_dots_symmetric_e5m2_ampere>",
+                    test_dots_launch_contract<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_ampere,
+                                              nk_dots_packed_e5m2_ampere, nk_dots_symmetric_e5m2_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_e5m2_ampere", test_dots_symmetric<e5m2_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_e5m2_ampere);
+    run_kernel_case("nk_dots_packed_e4m3_ampere", test_dots_packed<e4m3_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_e4m3_ampere, nk_dots_pack_e4m3_ampere, nk_dots_packed_e4m3_ampere);
+    run_kernel_case("nk_dots_pack_e4m3_ampere",
+                    test_dots_pack_layout<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_ampere,
+                                          nk_dots_packed_shape_e4m3_ampere, nk_dots_pack_e4m3_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_ampere, " //
+                    "nk_dots_packed_e4m3_ampere, nk_dots_symmetric_e4m3_ampere>",
+                    test_dots_launch_contract<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_ampere,
+                                              nk_dots_packed_e4m3_ampere, nk_dots_symmetric_e4m3_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_e4m3_ampere", test_dots_symmetric<e4m3_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_e4m3_ampere);
+    run_kernel_case("nk_dots_packed_e3m2_ampere", test_dots_packed<e3m2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_e3m2_ampere, nk_dots_pack_e3m2_ampere, nk_dots_packed_e3m2_ampere);
+    run_kernel_case("nk_dots_pack_e3m2_ampere",
+                    test_dots_pack_layout<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_ampere,
+                                          nk_dots_packed_shape_e3m2_ampere, nk_dots_pack_e3m2_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_ampere, " //
+                    "nk_dots_packed_e3m2_ampere, nk_dots_symmetric_e3m2_ampere>",
+                    test_dots_launch_contract<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_ampere,
+                                              nk_dots_packed_e3m2_ampere, nk_dots_symmetric_e3m2_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_e3m2_ampere", test_dots_symmetric<e3m2_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_e3m2_ampere);
+    run_kernel_case("nk_dots_packed_e2m3_ampere", test_dots_packed<e2m3_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_e2m3_ampere, nk_dots_pack_e2m3_ampere, nk_dots_packed_e2m3_ampere);
+    run_kernel_case("nk_dots_pack_e2m3_ampere",
+                    test_dots_pack_layout<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_ampere,
+                                          nk_dots_packed_shape_e2m3_ampere, nk_dots_pack_e2m3_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_ampere, " //
+                    "nk_dots_packed_e2m3_ampere, nk_dots_symmetric_e2m3_ampere>",
+                    test_dots_launch_contract<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_ampere,
+                                              nk_dots_packed_e2m3_ampere, nk_dots_symmetric_e2m3_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_e2m3_ampere", test_dots_symmetric<e2m3_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_e2m3_ampere);
+    run_kernel_case("nk_dots_packed_e2m1_ampere", test_dots_packed<e2m1x2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_e2m1_ampere, nk_dots_pack_e2m1_ampere, nk_dots_packed_e2m1_ampere);
+    run_kernel_case("nk_dots_pack_e2m1_ampere",
+                    test_dots_pack_layout<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_ampere,
+                                          nk_dots_packed_shape_e2m1_ampere, nk_dots_pack_e2m1_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_ampere, " //
+                    "nk_dots_packed_e2m1_ampere, nk_dots_symmetric_e2m1_ampere>",
+                    test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_ampere,
+                                              nk_dots_packed_e2m1_ampere, nk_dots_symmetric_e2m1_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_e2m1_ampere", test_dots_symmetric<e2m1x2_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_e2m1_ampere);
+    run_kernel_case("nk_dots_packed_nvfp4_ampere", test_dots_packed<nvfp4_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_nvfp4_ampere, nk_dots_pack_nvfp4_ampere, nk_dots_packed_nvfp4_ampere);
+    run_kernel_case("nk_dots_pack_nvfp4_ampere",
+                    test_dots_pack_layout<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_ampere,
+                                          nk_dots_packed_shape_nvfp4_ampere, nk_dots_pack_nvfp4_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_ampere, " //
+                    "nk_dots_packed_nvfp4_ampere, nk_dots_symmetric_nvfp4_ampere>",
+                    test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_ampere,
+                                              nk_dots_packed_nvfp4_ampere, nk_dots_symmetric_nvfp4_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_nvfp4_ampere", test_dots_symmetric<nvfp4_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_nvfp4_ampere);
+    run_kernel_case("nk_dots_packed_mxfp4_ampere", test_dots_packed<mxfp4_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_mxfp4_ampere, nk_dots_pack_mxfp4_ampere, nk_dots_packed_mxfp4_ampere);
+    run_kernel_case("nk_dots_pack_mxfp4_ampere",
+                    test_dots_pack_layout<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_ampere,
+                                          nk_dots_packed_shape_mxfp4_ampere, nk_dots_pack_mxfp4_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_ampere, " //
+                    "nk_dots_packed_mxfp4_ampere, nk_dots_symmetric_mxfp4_ampere>",
+                    test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_ampere,
+                                              nk_dots_packed_mxfp4_ampere, nk_dots_symmetric_mxfp4_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_mxfp4_ampere", test_dots_symmetric<mxfp4_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_mxfp4_ampere);
+    run_kernel_case("nk_dots_packed_mxfp8e4m3_ampere", test_dots_packed<mxfp8e4m3_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_mxfp8e4m3_ampere, nk_dots_pack_mxfp8e4m3_ampere, nk_dots_packed_mxfp8e4m3_ampere);
+    run_kernel_case("nk_dots_pack_mxfp8e4m3_ampere",
+                    test_dots_pack_layout<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_ampere,
+                                          nk_dots_packed_shape_mxfp8e4m3_ampere, nk_dots_pack_mxfp8e4m3_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_ampere, " //
+                    "nk_dots_packed_mxfp8e4m3_ampere, nk_dots_symmetric_mxfp8e4m3_ampere>",
+                    test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_ampere,
+                                              nk_dots_packed_mxfp8e4m3_ampere, nk_dots_symmetric_mxfp8e4m3_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_mxfp8e4m3_ampere", test_dots_symmetric<mxfp8e4m3_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_mxfp8e4m3_ampere);
+    run_kernel_case("nk_dots_packed_mxfp8e5m2_ampere", test_dots_packed<mxfp8e5m2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_mxfp8e5m2_ampere, nk_dots_pack_mxfp8e5m2_ampere, nk_dots_packed_mxfp8e5m2_ampere);
+    run_kernel_case("nk_dots_pack_mxfp8e5m2_ampere",
+                    test_dots_pack_layout<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_ampere,
+                                          nk_dots_packed_shape_mxfp8e5m2_ampere, nk_dots_pack_mxfp8e5m2_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_ampere, " //
+                    "nk_dots_packed_mxfp8e5m2_ampere, nk_dots_symmetric_mxfp8e5m2_ampere>",
+                    test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_ampere,
+                                              nk_dots_packed_mxfp8e5m2_ampere, nk_dots_symmetric_mxfp8e5m2_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_mxfp8e5m2_ampere", test_dots_symmetric<mxfp8e5m2_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_mxfp8e5m2_ampere);
+    run_kernel_case("nk_dots_packed_i8_ampere", test_dots_packed<i8_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_i8_ampere, nk_dots_pack_i8_ampere, nk_dots_packed_i8_ampere);
+    run_kernel_case("nk_dots_pack_i8_ampere",
+                    test_dots_pack_layout<i8_t, cuda_backend_t, nk_dots_pack_size_i8_ampere,
+                                          nk_dots_packed_shape_i8_ampere, nk_dots_pack_i8_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<i8_t, cuda_backend_t, nk_dots_pack_size_i8_ampere, " //
+                    "nk_dots_packed_i8_ampere, nk_dots_symmetric_i8_ampere>",
+                    test_dots_launch_contract<i8_t, cuda_backend_t, nk_dots_pack_size_i8_ampere,
+                                              nk_dots_packed_i8_ampere, nk_dots_symmetric_i8_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_i8_ampere", test_dots_symmetric<i8_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_i8_ampere);
+    run_kernel_case("nk_dots_packed_u8_ampere", test_dots_packed<u8_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_u8_ampere, nk_dots_pack_u8_ampere, nk_dots_packed_u8_ampere);
+    run_kernel_case("nk_dots_pack_u8_ampere",
+                    test_dots_pack_layout<u8_t, cuda_backend_t, nk_dots_pack_size_u8_ampere,
+                                          nk_dots_packed_shape_u8_ampere, nk_dots_pack_u8_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<u8_t, cuda_backend_t, nk_dots_pack_size_u8_ampere, " //
+                    "nk_dots_packed_u8_ampere, nk_dots_symmetric_u8_ampere>",
+                    test_dots_launch_contract<u8_t, cuda_backend_t, nk_dots_pack_size_u8_ampere,
+                                              nk_dots_packed_u8_ampere, nk_dots_symmetric_u8_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_u8_ampere", test_dots_symmetric<u8_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_u8_ampere);
+    run_kernel_case("nk_dots_packed_i4_ampere", test_dots_packed<i4x2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_i4_ampere, nk_dots_pack_i4_ampere, nk_dots_packed_i4_ampere);
+    run_kernel_case("nk_dots_pack_i4_ampere",
+                    test_dots_pack_layout<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_ampere,
+                                          nk_dots_packed_shape_i4_ampere, nk_dots_pack_i4_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_ampere, " //
+                    "nk_dots_packed_i4_ampere, nk_dots_symmetric_i4_ampere>",
+                    test_dots_launch_contract<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_ampere,
+                                              nk_dots_packed_i4_ampere, nk_dots_symmetric_i4_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_i4_ampere", test_dots_symmetric<i4x2_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_i4_ampere);
+    run_kernel_case("nk_dots_packed_u4_ampere", test_dots_packed<u4x2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_u4_ampere, nk_dots_pack_u4_ampere, nk_dots_packed_u4_ampere);
+    run_kernel_case("nk_dots_pack_u4_ampere",
+                    test_dots_pack_layout<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_ampere,
+                                          nk_dots_packed_shape_u4_ampere, nk_dots_pack_u4_ampere>,
+                    ampere);
+    run_kernel_case("test_dots_launch_contract<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_ampere, " //
+                    "nk_dots_packed_u4_ampere, nk_dots_symmetric_u4_ampere>",
+                    test_dots_launch_contract<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_ampere,
+                                              nk_dots_packed_u4_ampere, nk_dots_symmetric_u4_ampere>,
+                    ampere);
+    run_kernel_case("nk_dots_symmetric_u4_ampere", test_dots_symmetric<u4x2_t, cuda_backend_t>, ampere,
+                    nk_dots_symmetric_u4_ampere);
+    run_kernel_case("nk_angulars_packed_f64_ampere", test_angulars_packed<f64_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_f64_ampere, nk_dots_pack_f64_ampere, nk_angulars_packed_f64_ampere);
+    run_kernel_case("nk_angulars_symmetric_f64_ampere", test_angulars_symmetric<f64_t, cuda_backend_t>, ampere,
+                    nk_angulars_symmetric_f64_ampere);
+    run_kernel_case("nk_euclideans_packed_f64_ampere", test_euclideans_packed<f64_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_f64_ampere, nk_dots_pack_f64_ampere, nk_euclideans_packed_f64_ampere);
+    run_kernel_case("nk_euclideans_symmetric_f64_ampere", test_euclideans_symmetric<f64_t, cuda_backend_t>, ampere,
+                    nk_euclideans_symmetric_f64_ampere);
+    run_kernel_case(
+        "test_angulars_packed<f64_t, cuda_backend_t>(nk_dots_pack_size_f64_ampere, nk_dots_pack_f64_ampere, " //
+        "with_workspace(nk_angulars_packed_f64_ampere, nk_angulars_packed_workspace_size_f64_ampere))",
+        test_angulars_packed<f64_t, cuda_backend_t>, ampere, nk_dots_pack_size_f64_ampere, nk_dots_pack_f64_ampere,
+        with_workspace(nk_angulars_packed_f64_ampere, nk_angulars_packed_workspace_size_f64_ampere));
+    run_kernel_case(
+        "test_angulars_symmetric<f64_t, cuda_backend_t>(with_workspace(nk_angulars_symmetric_f64_ampere, " //
+        "nk_angulars_symmetric_workspace_size_f64_ampere))",
+        test_angulars_symmetric<f64_t, cuda_backend_t>, ampere,
+        with_workspace(nk_angulars_symmetric_f64_ampere, nk_angulars_symmetric_workspace_size_f64_ampere));
+    run_kernel_case(
+        "test_euclideans_packed<f64_t, cuda_backend_t>(nk_dots_pack_size_f64_ampere, nk_dots_pack_f64_ampere, " //
+        "with_workspace(nk_euclideans_packed_f64_ampere, nk_euclideans_packed_workspace_size_f64_ampere))",
+        test_euclideans_packed<f64_t, cuda_backend_t>, ampere, nk_dots_pack_size_f64_ampere, nk_dots_pack_f64_ampere,
+        with_workspace(nk_euclideans_packed_f64_ampere, nk_euclideans_packed_workspace_size_f64_ampere));
+    run_kernel_case(
+        "test_euclideans_symmetric<f64_t, cuda_backend_t>(with_workspace(nk_euclideans_symmetric_f64_ampere, " //
+        "nk_euclideans_symmetric_workspace_size_f64_ampere))",
+        test_euclideans_symmetric<f64_t, cuda_backend_t>, ampere,
+        with_workspace(nk_euclideans_symmetric_f64_ampere, nk_euclideans_symmetric_workspace_size_f64_ampere));
+    run_kernel_case("nk_angulars_packed_f32_ampere", test_angulars_packed<f32_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_f32_ampere, nk_dots_pack_f32_ampere, nk_angulars_packed_f32_ampere);
+    run_kernel_case("nk_angulars_symmetric_f32_ampere", test_angulars_symmetric<f32_t, cuda_backend_t>, ampere,
+                    nk_angulars_symmetric_f32_ampere);
+    run_kernel_case("nk_euclideans_packed_f32_ampere", test_euclideans_packed<f32_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_f32_ampere, nk_dots_pack_f32_ampere, nk_euclideans_packed_f32_ampere);
+    run_kernel_case("nk_euclideans_symmetric_f32_ampere", test_euclideans_symmetric<f32_t, cuda_backend_t>, ampere,
+                    nk_euclideans_symmetric_f32_ampere);
+    run_kernel_case("nk_angulars_packed_bf16_ampere", test_angulars_packed<bf16_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_bf16_ampere, nk_dots_pack_bf16_ampere, nk_angulars_packed_bf16_ampere);
+    run_kernel_case("nk_angulars_symmetric_bf16_ampere", test_angulars_symmetric<bf16_t, cuda_backend_t>, ampere,
+                    nk_angulars_symmetric_bf16_ampere);
+    run_kernel_case("nk_euclideans_packed_bf16_ampere", test_euclideans_packed<bf16_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_bf16_ampere, nk_dots_pack_bf16_ampere, nk_euclideans_packed_bf16_ampere);
+    run_kernel_case("nk_euclideans_symmetric_bf16_ampere", test_euclideans_symmetric<bf16_t, cuda_backend_t>, ampere,
+                    nk_euclideans_symmetric_bf16_ampere);
+    run_kernel_case("nk_angulars_packed_f16_ampere", test_angulars_packed<f16_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_f16_ampere, nk_dots_pack_f16_ampere, nk_angulars_packed_f16_ampere);
+    run_kernel_case("nk_angulars_symmetric_f16_ampere", test_angulars_symmetric<f16_t, cuda_backend_t>, ampere,
+                    nk_angulars_symmetric_f16_ampere);
+    run_kernel_case("nk_euclideans_packed_f16_ampere", test_euclideans_packed<f16_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_f16_ampere, nk_dots_pack_f16_ampere, nk_euclideans_packed_f16_ampere);
+    run_kernel_case("nk_euclideans_symmetric_f16_ampere", test_euclideans_symmetric<f16_t, cuda_backend_t>, ampere,
+                    nk_euclideans_symmetric_f16_ampere);
+    run_kernel_case("nk_angulars_packed_e5m2_ampere", test_angulars_packed<e5m2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_e5m2_ampere, nk_dots_pack_e5m2_ampere, nk_angulars_packed_e5m2_ampere);
+    run_kernel_case("nk_angulars_symmetric_e5m2_ampere", test_angulars_symmetric<e5m2_t, cuda_backend_t>, ampere,
+                    nk_angulars_symmetric_e5m2_ampere);
+    run_kernel_case("nk_euclideans_packed_e5m2_ampere", test_euclideans_packed<e5m2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_e5m2_ampere, nk_dots_pack_e5m2_ampere, nk_euclideans_packed_e5m2_ampere);
+    run_kernel_case("nk_euclideans_symmetric_e5m2_ampere", test_euclideans_symmetric<e5m2_t, cuda_backend_t>, ampere,
+                    nk_euclideans_symmetric_e5m2_ampere);
+    run_kernel_case("nk_angulars_packed_e4m3_ampere", test_angulars_packed<e4m3_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_e4m3_ampere, nk_dots_pack_e4m3_ampere, nk_angulars_packed_e4m3_ampere);
+    run_kernel_case("nk_angulars_symmetric_e4m3_ampere", test_angulars_symmetric<e4m3_t, cuda_backend_t>, ampere,
+                    nk_angulars_symmetric_e4m3_ampere);
+    run_kernel_case("nk_euclideans_packed_e4m3_ampere", test_euclideans_packed<e4m3_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_e4m3_ampere, nk_dots_pack_e4m3_ampere, nk_euclideans_packed_e4m3_ampere);
+    run_kernel_case("nk_euclideans_symmetric_e4m3_ampere", test_euclideans_symmetric<e4m3_t, cuda_backend_t>, ampere,
+                    nk_euclideans_symmetric_e4m3_ampere);
+    run_kernel_case("nk_angulars_packed_e3m2_ampere", test_angulars_packed<e3m2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_e3m2_ampere, nk_dots_pack_e3m2_ampere, nk_angulars_packed_e3m2_ampere);
+    run_kernel_case("nk_angulars_symmetric_e3m2_ampere", test_angulars_symmetric<e3m2_t, cuda_backend_t>, ampere,
+                    nk_angulars_symmetric_e3m2_ampere);
+    run_kernel_case("nk_euclideans_packed_e3m2_ampere", test_euclideans_packed<e3m2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_e3m2_ampere, nk_dots_pack_e3m2_ampere, nk_euclideans_packed_e3m2_ampere);
+    run_kernel_case("nk_euclideans_symmetric_e3m2_ampere", test_euclideans_symmetric<e3m2_t, cuda_backend_t>, ampere,
+                    nk_euclideans_symmetric_e3m2_ampere);
+    run_kernel_case("nk_angulars_packed_e2m3_ampere", test_angulars_packed<e2m3_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_e2m3_ampere, nk_dots_pack_e2m3_ampere, nk_angulars_packed_e2m3_ampere);
+    run_kernel_case("nk_angulars_symmetric_e2m3_ampere", test_angulars_symmetric<e2m3_t, cuda_backend_t>, ampere,
+                    nk_angulars_symmetric_e2m3_ampere);
+    run_kernel_case("nk_euclideans_packed_e2m3_ampere", test_euclideans_packed<e2m3_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_e2m3_ampere, nk_dots_pack_e2m3_ampere, nk_euclideans_packed_e2m3_ampere);
+    run_kernel_case("nk_euclideans_symmetric_e2m3_ampere", test_euclideans_symmetric<e2m3_t, cuda_backend_t>, ampere,
+                    nk_euclideans_symmetric_e2m3_ampere);
+    run_kernel_case("nk_angulars_packed_e2m1_ampere", test_angulars_packed<e2m1x2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_e2m1_ampere, nk_dots_pack_e2m1_ampere, nk_angulars_packed_e2m1_ampere);
+    run_kernel_case("nk_angulars_symmetric_e2m1_ampere", test_angulars_symmetric<e2m1x2_t, cuda_backend_t>, ampere,
+                    nk_angulars_symmetric_e2m1_ampere);
+    run_kernel_case("nk_euclideans_packed_e2m1_ampere", test_euclideans_packed<e2m1x2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_e2m1_ampere, nk_dots_pack_e2m1_ampere, nk_euclideans_packed_e2m1_ampere);
+    run_kernel_case("nk_euclideans_symmetric_e2m1_ampere", test_euclideans_symmetric<e2m1x2_t, cuda_backend_t>, ampere,
+                    nk_euclideans_symmetric_e2m1_ampere);
+    run_kernel_case("nk_angulars_packed_i8_ampere", test_angulars_packed<i8_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_i8_ampere, nk_dots_pack_i8_ampere, nk_angulars_packed_i8_ampere);
+    run_kernel_case("nk_angulars_symmetric_i8_ampere", test_angulars_symmetric<i8_t, cuda_backend_t>, ampere,
+                    nk_angulars_symmetric_i8_ampere);
+    run_kernel_case("nk_euclideans_packed_i8_ampere", test_euclideans_packed<i8_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_i8_ampere, nk_dots_pack_i8_ampere, nk_euclideans_packed_i8_ampere);
+    run_kernel_case("nk_euclideans_symmetric_i8_ampere", test_euclideans_symmetric<i8_t, cuda_backend_t>, ampere,
+                    nk_euclideans_symmetric_i8_ampere);
+    run_kernel_case("nk_angulars_packed_u8_ampere", test_angulars_packed<u8_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_u8_ampere, nk_dots_pack_u8_ampere, nk_angulars_packed_u8_ampere);
+    run_kernel_case("nk_angulars_symmetric_u8_ampere", test_angulars_symmetric<u8_t, cuda_backend_t>, ampere,
+                    nk_angulars_symmetric_u8_ampere);
+    run_kernel_case("nk_euclideans_packed_u8_ampere", test_euclideans_packed<u8_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_u8_ampere, nk_dots_pack_u8_ampere, nk_euclideans_packed_u8_ampere);
+    run_kernel_case("nk_euclideans_symmetric_u8_ampere", test_euclideans_symmetric<u8_t, cuda_backend_t>, ampere,
+                    nk_euclideans_symmetric_u8_ampere);
+    run_kernel_case("nk_angulars_packed_i4_ampere", test_angulars_packed<i4x2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_i4_ampere, nk_dots_pack_i4_ampere, nk_angulars_packed_i4_ampere);
+    run_kernel_case("nk_angulars_symmetric_i4_ampere", test_angulars_symmetric<i4x2_t, cuda_backend_t>, ampere,
+                    nk_angulars_symmetric_i4_ampere);
+    run_kernel_case("nk_euclideans_packed_i4_ampere", test_euclideans_packed<i4x2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_i4_ampere, nk_dots_pack_i4_ampere, nk_euclideans_packed_i4_ampere);
+    run_kernel_case("nk_euclideans_symmetric_i4_ampere", test_euclideans_symmetric<i4x2_t, cuda_backend_t>, ampere,
+                    nk_euclideans_symmetric_i4_ampere);
+    run_kernel_case("nk_angulars_packed_u4_ampere", test_angulars_packed<u4x2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_u4_ampere, nk_dots_pack_u4_ampere, nk_angulars_packed_u4_ampere);
+    run_kernel_case("nk_angulars_symmetric_u4_ampere", test_angulars_symmetric<u4x2_t, cuda_backend_t>, ampere,
+                    nk_angulars_symmetric_u4_ampere);
+    run_kernel_case("nk_euclideans_packed_u4_ampere", test_euclideans_packed<u4x2_t, cuda_backend_t>, ampere,
+                    nk_dots_pack_size_u4_ampere, nk_dots_pack_u4_ampere, nk_euclideans_packed_u4_ampere);
+    run_kernel_case("nk_euclideans_symmetric_u4_ampere", test_euclideans_symmetric<u4x2_t, cuda_backend_t>, ampere,
+                    nk_euclideans_symmetric_u4_ampere);
+    run_kernel_case("nk_attention_packed_bf16_ampere",
+                    test_attention_packed<bf16_t, cuda_backend_t, attention_weights_t::bits_8_k>, ampere,
+                    nk_attention_pack_size_bf16_ampere, nk_attention_pack_bf16_ampere, nk_attention_packed_bf16_ampere);
+    run_kernel_case("nk_attention_packed_f16_ampere",
+                    test_attention_packed<f16_t, cuda_backend_t, attention_weights_t::bits_11_k>, ampere,
+                    nk_attention_pack_size_f16_ampere, nk_attention_pack_f16_ampere, nk_attention_packed_f16_ampere);
+    run_kernel_case("nk_attention_packed_e4m3_ampere",
+                    test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_11_k>, ampere,
+                    nk_attention_pack_size_e4m3_ampere, nk_attention_pack_e4m3_ampere, nk_attention_packed_e4m3_ampere);
+    run_kernel_case("nk_attention_packed_i8_ampere",
+                    test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>, ampere,
+                    nk_attention_pack_size_i8_ampere, nk_attention_pack_i8_ampere, nk_attention_packed_i8_ampere);
+    run_kernel_case("nk_attention_packed_gradients_bf16_ampere",
+                    test_attention_packed_gradients<bf16_t, cuda_backend_t>, ampere, nk_attention_pack_size_bf16_ampere,
+                    nk_attention_pack_bf16_ampere, nk_attention_packed_gradients_bf16_ampere);
 #endif // NUMKONG_TARGET_AMPERE
 
 #if NUMKONG_TARGET_HOPPER
-    check.section("Cross Hopper", nk_cap_hopper_k);
-    check("dots_packed_bf16_hopper", test_dots_packed<bf16_t, cuda_backend_t>, nk_dots_pack_size_bf16_hopper,
-          nk_dots_pack_bf16_hopper, nk_dots_packed_bf16_hopper);
-    check("dots_pack_bf16_hopper", test_dots_pack_layout<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_hopper,
-                                                         nk_dots_packed_shape_bf16_hopper, nk_dots_pack_bf16_hopper>);
-    check("dots_contract_bf16_hopper",
-          test_dots_launch_contract<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_hopper, nk_dots_packed_bf16_hopper,
-                                    nk_dots_symmetric_bf16_hopper>);
-    check("dots_symmetric_bf16_hopper", test_dots_symmetric<bf16_t, cuda_backend_t>, nk_dots_symmetric_bf16_hopper);
-    check("dots_packed_f16_hopper", test_dots_packed<f16_t, cuda_backend_t>, nk_dots_pack_size_f16_hopper,
-          nk_dots_pack_f16_hopper, nk_dots_packed_f16_hopper);
-    check("dots_pack_f16_hopper", test_dots_pack_layout<f16_t, cuda_backend_t, nk_dots_pack_size_f16_hopper,
-                                                        nk_dots_packed_shape_f16_hopper, nk_dots_pack_f16_hopper>);
-    check("dots_contract_f16_hopper",
-          test_dots_launch_contract<f16_t, cuda_backend_t, nk_dots_pack_size_f16_hopper, nk_dots_packed_f16_hopper,
-                                    nk_dots_symmetric_f16_hopper>);
-    check("dots_symmetric_f16_hopper", test_dots_symmetric<f16_t, cuda_backend_t>, nk_dots_symmetric_f16_hopper);
-    check("dots_packed_e2m3_hopper", test_dots_packed<e2m3_t, cuda_backend_t>, nk_dots_pack_size_e2m3_hopper,
-          nk_dots_pack_e2m3_hopper, nk_dots_packed_e2m3_hopper);
-    check("dots_pack_e2m3_hopper", test_dots_pack_layout<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_hopper,
-                                                         nk_dots_packed_shape_e2m3_hopper, nk_dots_pack_e2m3_hopper>);
-    check("dots_contract_e2m3_hopper",
-          test_dots_launch_contract<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_hopper, nk_dots_packed_e2m3_hopper,
-                                    nk_dots_symmetric_e2m3_hopper>);
-    check("dots_symmetric_e2m3_hopper", test_dots_symmetric<e2m3_t, cuda_backend_t>, nk_dots_symmetric_e2m3_hopper);
-    check("dots_packed_e2m1_hopper", test_dots_packed<e2m1x2_t, cuda_backend_t>, nk_dots_pack_size_e2m1_hopper,
-          nk_dots_pack_e2m1_hopper, nk_dots_packed_e2m1_hopper);
-    check("dots_pack_e2m1_hopper", test_dots_pack_layout<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_hopper,
-                                                         nk_dots_packed_shape_e2m1_hopper, nk_dots_pack_e2m1_hopper>);
-    check("dots_contract_e2m1_hopper",
-          test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_hopper, nk_dots_packed_e2m1_hopper,
-                                    nk_dots_symmetric_e2m1_hopper>);
-    check("dots_symmetric_e2m1_hopper", test_dots_symmetric<e2m1x2_t, cuda_backend_t>, nk_dots_symmetric_e2m1_hopper);
-    check("dots_packed_nvfp4_hopper", test_dots_packed<nvfp4_t, cuda_backend_t>, nk_dots_pack_size_nvfp4_hopper,
-          nk_dots_pack_nvfp4_hopper, nk_dots_packed_nvfp4_hopper);
-    check("dots_pack_nvfp4_hopper",
-          test_dots_pack_layout<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_hopper,
-                                nk_dots_packed_shape_nvfp4_hopper, nk_dots_pack_nvfp4_hopper>);
-    check("dots_contract_nvfp4_hopper",
-          test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_hopper,
-                                    nk_dots_packed_nvfp4_hopper, nk_dots_symmetric_nvfp4_hopper>);
-    check("dots_symmetric_nvfp4_hopper", test_dots_symmetric<nvfp4_t, cuda_backend_t>, nk_dots_symmetric_nvfp4_hopper);
-    check("dots_packed_mxfp4_hopper", test_dots_packed<mxfp4_t, cuda_backend_t>, nk_dots_pack_size_mxfp4_hopper,
-          nk_dots_pack_mxfp4_hopper, nk_dots_packed_mxfp4_hopper);
-    check("dots_pack_mxfp4_hopper",
-          test_dots_pack_layout<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_hopper,
-                                nk_dots_packed_shape_mxfp4_hopper, nk_dots_pack_mxfp4_hopper>);
-    check("dots_contract_mxfp4_hopper",
-          test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_hopper,
-                                    nk_dots_packed_mxfp4_hopper, nk_dots_symmetric_mxfp4_hopper>);
-    check("dots_symmetric_mxfp4_hopper", test_dots_symmetric<mxfp4_t, cuda_backend_t>, nk_dots_symmetric_mxfp4_hopper);
-    check("dots_packed_mxfp8e4m3_hopper", test_dots_packed<mxfp8e4m3_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp8e4m3_hopper, nk_dots_pack_mxfp8e4m3_hopper, nk_dots_packed_mxfp8e4m3_hopper);
-    check("dots_pack_mxfp8e4m3_hopper",
-          test_dots_pack_layout<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_hopper,
-                                nk_dots_packed_shape_mxfp8e4m3_hopper, nk_dots_pack_mxfp8e4m3_hopper>);
-    check("dots_contract_mxfp8e4m3_hopper",
-          test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_hopper,
-                                    nk_dots_packed_mxfp8e4m3_hopper, nk_dots_symmetric_mxfp8e4m3_hopper>);
-    check("dots_symmetric_mxfp8e4m3_hopper", test_dots_symmetric<mxfp8e4m3_t, cuda_backend_t>,
-          nk_dots_symmetric_mxfp8e4m3_hopper);
-    check("dots_packed_mxfp8e5m2_hopper", test_dots_packed<mxfp8e5m2_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp8e5m2_hopper, nk_dots_pack_mxfp8e5m2_hopper, nk_dots_packed_mxfp8e5m2_hopper);
-    check("dots_pack_mxfp8e5m2_hopper",
-          test_dots_pack_layout<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_hopper,
-                                nk_dots_packed_shape_mxfp8e5m2_hopper, nk_dots_pack_mxfp8e5m2_hopper>);
-    check("dots_contract_mxfp8e5m2_hopper",
-          test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_hopper,
-                                    nk_dots_packed_mxfp8e5m2_hopper, nk_dots_symmetric_mxfp8e5m2_hopper>);
-    check("dots_symmetric_mxfp8e5m2_hopper", test_dots_symmetric<mxfp8e5m2_t, cuda_backend_t>,
-          nk_dots_symmetric_mxfp8e5m2_hopper);
-    check("dots_packed_i8_hopper", test_dots_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_hopper,
-          nk_dots_pack_i8_hopper, nk_dots_packed_i8_hopper);
-    check("dots_pack_i8_hopper", test_dots_pack_layout<i8_t, cuda_backend_t, nk_dots_pack_size_i8_hopper,
-                                                       nk_dots_packed_shape_i8_hopper, nk_dots_pack_i8_hopper>);
-    check("dots_contract_i8_hopper", test_dots_launch_contract<i8_t, cuda_backend_t, nk_dots_pack_size_i8_hopper,
-                                                               nk_dots_packed_i8_hopper, nk_dots_symmetric_i8_hopper>);
-    check("dots_symmetric_i8_hopper", test_dots_symmetric<i8_t, cuda_backend_t>, nk_dots_symmetric_i8_hopper);
-    check("dots_packed_u8_hopper", test_dots_packed<u8_t, cuda_backend_t>, nk_dots_pack_size_u8_hopper,
-          nk_dots_pack_u8_hopper, nk_dots_packed_u8_hopper);
-    check("dots_pack_u8_hopper", test_dots_pack_layout<u8_t, cuda_backend_t, nk_dots_pack_size_u8_hopper,
-                                                       nk_dots_packed_shape_u8_hopper, nk_dots_pack_u8_hopper>);
-    check("dots_contract_u8_hopper", test_dots_launch_contract<u8_t, cuda_backend_t, nk_dots_pack_size_u8_hopper,
-                                                               nk_dots_packed_u8_hopper, nk_dots_symmetric_u8_hopper>);
-    check("dots_symmetric_u8_hopper", test_dots_symmetric<u8_t, cuda_backend_t>, nk_dots_symmetric_u8_hopper);
-    check("dots_packed_i4_hopper", test_dots_packed<i4x2_t, cuda_backend_t>, nk_dots_pack_size_i4_hopper,
-          nk_dots_pack_i4_hopper, nk_dots_packed_i4_hopper);
-    check("dots_pack_i4_hopper", test_dots_pack_layout<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_hopper,
-                                                       nk_dots_packed_shape_i4_hopper, nk_dots_pack_i4_hopper>);
-    check("dots_contract_i4_hopper", test_dots_launch_contract<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_hopper,
-                                                               nk_dots_packed_i4_hopper, nk_dots_symmetric_i4_hopper>);
-    check("dots_symmetric_i4_hopper", test_dots_symmetric<i4x2_t, cuda_backend_t>, nk_dots_symmetric_i4_hopper);
-    check("dots_packed_u4_hopper", test_dots_packed<u4x2_t, cuda_backend_t>, nk_dots_pack_size_u4_hopper,
-          nk_dots_pack_u4_hopper, nk_dots_packed_u4_hopper);
-    check("dots_pack_u4_hopper", test_dots_pack_layout<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_hopper,
-                                                       nk_dots_packed_shape_u4_hopper, nk_dots_pack_u4_hopper>);
-    check("dots_contract_u4_hopper", test_dots_launch_contract<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_hopper,
-                                                               nk_dots_packed_u4_hopper, nk_dots_symmetric_u4_hopper>);
-    check("dots_symmetric_u4_hopper", test_dots_symmetric<u4x2_t, cuda_backend_t>, nk_dots_symmetric_u4_hopper);
-    check("angulars_packed_bf16_hopper", test_angulars_packed<bf16_t, cuda_backend_t>, nk_dots_pack_size_bf16_hopper,
-          nk_dots_pack_bf16_hopper, nk_angulars_packed_bf16_hopper);
-    check("angulars_symmetric_bf16_hopper", test_angulars_symmetric<bf16_t, cuda_backend_t>,
-          nk_angulars_symmetric_bf16_hopper);
-    check("euclideans_packed_bf16_hopper", test_euclideans_packed<bf16_t, cuda_backend_t>,
-          nk_dots_pack_size_bf16_hopper, nk_dots_pack_bf16_hopper, nk_euclideans_packed_bf16_hopper);
-    check("euclideans_symmetric_bf16_hopper", test_euclideans_symmetric<bf16_t, cuda_backend_t>,
-          nk_euclideans_symmetric_bf16_hopper);
-    check("angulars_packed_f16_hopper", test_angulars_packed<f16_t, cuda_backend_t>, nk_dots_pack_size_f16_hopper,
-          nk_dots_pack_f16_hopper, nk_angulars_packed_f16_hopper);
-    check("angulars_symmetric_f16_hopper", test_angulars_symmetric<f16_t, cuda_backend_t>,
-          nk_angulars_symmetric_f16_hopper);
-    check("euclideans_packed_f16_hopper", test_euclideans_packed<f16_t, cuda_backend_t>, nk_dots_pack_size_f16_hopper,
-          nk_dots_pack_f16_hopper, nk_euclideans_packed_f16_hopper);
-    check("euclideans_symmetric_f16_hopper", test_euclideans_symmetric<f16_t, cuda_backend_t>,
-          nk_euclideans_symmetric_f16_hopper);
-    check("angulars_packed_e2m3_hopper", test_angulars_packed<e2m3_t, cuda_backend_t>, nk_dots_pack_size_e2m3_hopper,
-          nk_dots_pack_e2m3_hopper, nk_angulars_packed_e2m3_hopper);
-    check("angulars_symmetric_e2m3_hopper", test_angulars_symmetric<e2m3_t, cuda_backend_t>,
-          nk_angulars_symmetric_e2m3_hopper);
-    check("euclideans_packed_e2m3_hopper", test_euclideans_packed<e2m3_t, cuda_backend_t>,
-          nk_dots_pack_size_e2m3_hopper, nk_dots_pack_e2m3_hopper, nk_euclideans_packed_e2m3_hopper);
-    check("euclideans_symmetric_e2m3_hopper", test_euclideans_symmetric<e2m3_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e2m3_hopper);
-    check("angulars_packed_e2m1_hopper", test_angulars_packed<e2m1x2_t, cuda_backend_t>, nk_dots_pack_size_e2m1_hopper,
-          nk_dots_pack_e2m1_hopper, nk_angulars_packed_e2m1_hopper);
-    check("angulars_symmetric_e2m1_hopper", test_angulars_symmetric<e2m1x2_t, cuda_backend_t>,
-          nk_angulars_symmetric_e2m1_hopper);
-    check("euclideans_packed_e2m1_hopper", test_euclideans_packed<e2m1x2_t, cuda_backend_t>,
-          nk_dots_pack_size_e2m1_hopper, nk_dots_pack_e2m1_hopper, nk_euclideans_packed_e2m1_hopper);
-    check("euclideans_symmetric_e2m1_hopper", test_euclideans_symmetric<e2m1x2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e2m1_hopper);
-    check("angulars_packed_i8_hopper", test_angulars_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_hopper,
-          nk_dots_pack_i8_hopper, nk_angulars_packed_i8_hopper);
-    check("angulars_symmetric_i8_hopper", test_angulars_symmetric<i8_t, cuda_backend_t>,
-          nk_angulars_symmetric_i8_hopper);
-    check("euclideans_packed_i8_hopper", test_euclideans_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_hopper,
-          nk_dots_pack_i8_hopper, nk_euclideans_packed_i8_hopper);
-    check("euclideans_symmetric_i8_hopper", test_euclideans_symmetric<i8_t, cuda_backend_t>,
-          nk_euclideans_symmetric_i8_hopper);
-    check("angulars_packed_u8_hopper", test_angulars_packed<u8_t, cuda_backend_t>, nk_dots_pack_size_u8_hopper,
-          nk_dots_pack_u8_hopper, nk_angulars_packed_u8_hopper);
-    check("angulars_symmetric_u8_hopper", test_angulars_symmetric<u8_t, cuda_backend_t>,
-          nk_angulars_symmetric_u8_hopper);
-    check("euclideans_packed_u8_hopper", test_euclideans_packed<u8_t, cuda_backend_t>, nk_dots_pack_size_u8_hopper,
-          nk_dots_pack_u8_hopper, nk_euclideans_packed_u8_hopper);
-    check("euclideans_symmetric_u8_hopper", test_euclideans_symmetric<u8_t, cuda_backend_t>,
-          nk_euclideans_symmetric_u8_hopper);
-    check("angulars_packed_i4_hopper", test_angulars_packed<i4x2_t, cuda_backend_t>, nk_dots_pack_size_i4_hopper,
-          nk_dots_pack_i4_hopper, nk_angulars_packed_i4_hopper);
-    check("angulars_symmetric_i4_hopper", test_angulars_symmetric<i4x2_t, cuda_backend_t>,
-          nk_angulars_symmetric_i4_hopper);
-    check("euclideans_packed_i4_hopper", test_euclideans_packed<i4x2_t, cuda_backend_t>, nk_dots_pack_size_i4_hopper,
-          nk_dots_pack_i4_hopper, nk_euclideans_packed_i4_hopper);
-    check("euclideans_symmetric_i4_hopper", test_euclideans_symmetric<i4x2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_i4_hopper);
-    check("angulars_packed_u4_hopper", test_angulars_packed<u4x2_t, cuda_backend_t>, nk_dots_pack_size_u4_hopper,
-          nk_dots_pack_u4_hopper, nk_angulars_packed_u4_hopper);
-    check("angulars_symmetric_u4_hopper", test_angulars_symmetric<u4x2_t, cuda_backend_t>,
-          nk_angulars_symmetric_u4_hopper);
-    check("euclideans_packed_u4_hopper", test_euclideans_packed<u4x2_t, cuda_backend_t>, nk_dots_pack_size_u4_hopper,
-          nk_dots_pack_u4_hopper, nk_euclideans_packed_u4_hopper);
-    check("euclideans_symmetric_u4_hopper", test_euclideans_symmetric<u4x2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_u4_hopper);
-    check("attention_packed_bf16_hopper", test_attention_packed<bf16_t, cuda_backend_t, attention_weights_t::bits_8_k>,
-          nk_attention_pack_size_bf16_hopper, nk_attention_pack_bf16_hopper, nk_attention_packed_bf16_hopper);
-    check("attention_packed_e4m3_hopper", test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_4_k>,
-          nk_attention_pack_size_e4m3_hopper, nk_attention_pack_e4m3_hopper, nk_attention_packed_e4m3_hopper);
-    check("attention_packed_i8_hopper", test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>,
-          nk_attention_pack_size_i8_hopper, nk_attention_pack_i8_hopper, nk_attention_packed_i8_hopper);
-    check("attention_packed_gradients_bf16_hopper", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
-          nk_attention_pack_size_bf16_hopper, nk_attention_pack_bf16_hopper, nk_attention_packed_gradients_bf16_hopper);
+    auto const hopper = nk_cap_hopper_k;
+    run_kernel_case("nk_dots_packed_bf16_hopper", test_dots_packed<bf16_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_bf16_hopper, nk_dots_pack_bf16_hopper, nk_dots_packed_bf16_hopper);
+    run_kernel_case("nk_dots_pack_bf16_hopper",
+                    test_dots_pack_layout<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_hopper,
+                                          nk_dots_packed_shape_bf16_hopper, nk_dots_pack_bf16_hopper>,
+                    hopper);
+    run_kernel_case("test_dots_launch_contract<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_hopper, " //
+                    "nk_dots_packed_bf16_hopper, nk_dots_symmetric_bf16_hopper>",
+                    test_dots_launch_contract<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_hopper,
+                                              nk_dots_packed_bf16_hopper, nk_dots_symmetric_bf16_hopper>,
+                    hopper);
+    run_kernel_case("nk_dots_symmetric_bf16_hopper", test_dots_symmetric<bf16_t, cuda_backend_t>, hopper,
+                    nk_dots_symmetric_bf16_hopper);
+    run_kernel_case("nk_dots_packed_f16_hopper", test_dots_packed<f16_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_f16_hopper, nk_dots_pack_f16_hopper, nk_dots_packed_f16_hopper);
+    run_kernel_case("nk_dots_pack_f16_hopper",
+                    test_dots_pack_layout<f16_t, cuda_backend_t, nk_dots_pack_size_f16_hopper,
+                                          nk_dots_packed_shape_f16_hopper, nk_dots_pack_f16_hopper>,
+                    hopper);
+    run_kernel_case("test_dots_launch_contract<f16_t, cuda_backend_t, nk_dots_pack_size_f16_hopper, " //
+                    "nk_dots_packed_f16_hopper, nk_dots_symmetric_f16_hopper>",
+                    test_dots_launch_contract<f16_t, cuda_backend_t, nk_dots_pack_size_f16_hopper,
+                                              nk_dots_packed_f16_hopper, nk_dots_symmetric_f16_hopper>,
+                    hopper);
+    run_kernel_case("nk_dots_symmetric_f16_hopper", test_dots_symmetric<f16_t, cuda_backend_t>, hopper,
+                    nk_dots_symmetric_f16_hopper);
+    run_kernel_case("nk_dots_packed_e2m3_hopper", test_dots_packed<e2m3_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_e2m3_hopper, nk_dots_pack_e2m3_hopper, nk_dots_packed_e2m3_hopper);
+    run_kernel_case("nk_dots_pack_e2m3_hopper",
+                    test_dots_pack_layout<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_hopper,
+                                          nk_dots_packed_shape_e2m3_hopper, nk_dots_pack_e2m3_hopper>,
+                    hopper);
+    run_kernel_case("test_dots_launch_contract<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_hopper, " //
+                    "nk_dots_packed_e2m3_hopper, nk_dots_symmetric_e2m3_hopper>",
+                    test_dots_launch_contract<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_hopper,
+                                              nk_dots_packed_e2m3_hopper, nk_dots_symmetric_e2m3_hopper>,
+                    hopper);
+    run_kernel_case("nk_dots_symmetric_e2m3_hopper", test_dots_symmetric<e2m3_t, cuda_backend_t>, hopper,
+                    nk_dots_symmetric_e2m3_hopper);
+    run_kernel_case("nk_dots_packed_e2m1_hopper", test_dots_packed<e2m1x2_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_e2m1_hopper, nk_dots_pack_e2m1_hopper, nk_dots_packed_e2m1_hopper);
+    run_kernel_case("nk_dots_pack_e2m1_hopper",
+                    test_dots_pack_layout<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_hopper,
+                                          nk_dots_packed_shape_e2m1_hopper, nk_dots_pack_e2m1_hopper>,
+                    hopper);
+    run_kernel_case("test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_hopper, " //
+                    "nk_dots_packed_e2m1_hopper, nk_dots_symmetric_e2m1_hopper>",
+                    test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_hopper,
+                                              nk_dots_packed_e2m1_hopper, nk_dots_symmetric_e2m1_hopper>,
+                    hopper);
+    run_kernel_case("nk_dots_symmetric_e2m1_hopper", test_dots_symmetric<e2m1x2_t, cuda_backend_t>, hopper,
+                    nk_dots_symmetric_e2m1_hopper);
+    run_kernel_case("nk_dots_packed_nvfp4_hopper", test_dots_packed<nvfp4_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_nvfp4_hopper, nk_dots_pack_nvfp4_hopper, nk_dots_packed_nvfp4_hopper);
+    run_kernel_case("nk_dots_pack_nvfp4_hopper",
+                    test_dots_pack_layout<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_hopper,
+                                          nk_dots_packed_shape_nvfp4_hopper, nk_dots_pack_nvfp4_hopper>,
+                    hopper);
+    run_kernel_case("test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_hopper, " //
+                    "nk_dots_packed_nvfp4_hopper, nk_dots_symmetric_nvfp4_hopper>",
+                    test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_hopper,
+                                              nk_dots_packed_nvfp4_hopper, nk_dots_symmetric_nvfp4_hopper>,
+                    hopper);
+    run_kernel_case("nk_dots_symmetric_nvfp4_hopper", test_dots_symmetric<nvfp4_t, cuda_backend_t>, hopper,
+                    nk_dots_symmetric_nvfp4_hopper);
+    run_kernel_case("nk_dots_packed_mxfp4_hopper", test_dots_packed<mxfp4_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_mxfp4_hopper, nk_dots_pack_mxfp4_hopper, nk_dots_packed_mxfp4_hopper);
+    run_kernel_case("nk_dots_pack_mxfp4_hopper",
+                    test_dots_pack_layout<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_hopper,
+                                          nk_dots_packed_shape_mxfp4_hopper, nk_dots_pack_mxfp4_hopper>,
+                    hopper);
+    run_kernel_case("test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_hopper, " //
+                    "nk_dots_packed_mxfp4_hopper, nk_dots_symmetric_mxfp4_hopper>",
+                    test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_hopper,
+                                              nk_dots_packed_mxfp4_hopper, nk_dots_symmetric_mxfp4_hopper>,
+                    hopper);
+    run_kernel_case("nk_dots_symmetric_mxfp4_hopper", test_dots_symmetric<mxfp4_t, cuda_backend_t>, hopper,
+                    nk_dots_symmetric_mxfp4_hopper);
+    run_kernel_case("nk_dots_packed_mxfp8e4m3_hopper", test_dots_packed<mxfp8e4m3_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_mxfp8e4m3_hopper, nk_dots_pack_mxfp8e4m3_hopper, nk_dots_packed_mxfp8e4m3_hopper);
+    run_kernel_case("nk_dots_pack_mxfp8e4m3_hopper",
+                    test_dots_pack_layout<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_hopper,
+                                          nk_dots_packed_shape_mxfp8e4m3_hopper, nk_dots_pack_mxfp8e4m3_hopper>,
+                    hopper);
+    run_kernel_case("test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_hopper, " //
+                    "nk_dots_packed_mxfp8e4m3_hopper, nk_dots_symmetric_mxfp8e4m3_hopper>",
+                    test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_hopper,
+                                              nk_dots_packed_mxfp8e4m3_hopper, nk_dots_symmetric_mxfp8e4m3_hopper>,
+                    hopper);
+    run_kernel_case("nk_dots_symmetric_mxfp8e4m3_hopper", test_dots_symmetric<mxfp8e4m3_t, cuda_backend_t>, hopper,
+                    nk_dots_symmetric_mxfp8e4m3_hopper);
+    run_kernel_case("nk_dots_packed_mxfp8e5m2_hopper", test_dots_packed<mxfp8e5m2_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_mxfp8e5m2_hopper, nk_dots_pack_mxfp8e5m2_hopper, nk_dots_packed_mxfp8e5m2_hopper);
+    run_kernel_case("nk_dots_pack_mxfp8e5m2_hopper",
+                    test_dots_pack_layout<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_hopper,
+                                          nk_dots_packed_shape_mxfp8e5m2_hopper, nk_dots_pack_mxfp8e5m2_hopper>,
+                    hopper);
+    run_kernel_case("test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_hopper, " //
+                    "nk_dots_packed_mxfp8e5m2_hopper, nk_dots_symmetric_mxfp8e5m2_hopper>",
+                    test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_hopper,
+                                              nk_dots_packed_mxfp8e5m2_hopper, nk_dots_symmetric_mxfp8e5m2_hopper>,
+                    hopper);
+    run_kernel_case("nk_dots_symmetric_mxfp8e5m2_hopper", test_dots_symmetric<mxfp8e5m2_t, cuda_backend_t>, hopper,
+                    nk_dots_symmetric_mxfp8e5m2_hopper);
+    run_kernel_case("nk_dots_packed_i8_hopper", test_dots_packed<i8_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_i8_hopper, nk_dots_pack_i8_hopper, nk_dots_packed_i8_hopper);
+    run_kernel_case("nk_dots_pack_i8_hopper",
+                    test_dots_pack_layout<i8_t, cuda_backend_t, nk_dots_pack_size_i8_hopper,
+                                          nk_dots_packed_shape_i8_hopper, nk_dots_pack_i8_hopper>,
+                    hopper);
+    run_kernel_case("test_dots_launch_contract<i8_t, cuda_backend_t, nk_dots_pack_size_i8_hopper, " //
+                    "nk_dots_packed_i8_hopper, nk_dots_symmetric_i8_hopper>",
+                    test_dots_launch_contract<i8_t, cuda_backend_t, nk_dots_pack_size_i8_hopper,
+                                              nk_dots_packed_i8_hopper, nk_dots_symmetric_i8_hopper>,
+                    hopper);
+    run_kernel_case("nk_dots_symmetric_i8_hopper", test_dots_symmetric<i8_t, cuda_backend_t>, hopper,
+                    nk_dots_symmetric_i8_hopper);
+    run_kernel_case("nk_dots_packed_u8_hopper", test_dots_packed<u8_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_u8_hopper, nk_dots_pack_u8_hopper, nk_dots_packed_u8_hopper);
+    run_kernel_case("nk_dots_pack_u8_hopper",
+                    test_dots_pack_layout<u8_t, cuda_backend_t, nk_dots_pack_size_u8_hopper,
+                                          nk_dots_packed_shape_u8_hopper, nk_dots_pack_u8_hopper>,
+                    hopper);
+    run_kernel_case("test_dots_launch_contract<u8_t, cuda_backend_t, nk_dots_pack_size_u8_hopper, " //
+                    "nk_dots_packed_u8_hopper, nk_dots_symmetric_u8_hopper>",
+                    test_dots_launch_contract<u8_t, cuda_backend_t, nk_dots_pack_size_u8_hopper,
+                                              nk_dots_packed_u8_hopper, nk_dots_symmetric_u8_hopper>,
+                    hopper);
+    run_kernel_case("nk_dots_symmetric_u8_hopper", test_dots_symmetric<u8_t, cuda_backend_t>, hopper,
+                    nk_dots_symmetric_u8_hopper);
+    run_kernel_case("nk_dots_packed_i4_hopper", test_dots_packed<i4x2_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_i4_hopper, nk_dots_pack_i4_hopper, nk_dots_packed_i4_hopper);
+    run_kernel_case("nk_dots_pack_i4_hopper",
+                    test_dots_pack_layout<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_hopper,
+                                          nk_dots_packed_shape_i4_hopper, nk_dots_pack_i4_hopper>,
+                    hopper);
+    run_kernel_case("test_dots_launch_contract<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_hopper, " //
+                    "nk_dots_packed_i4_hopper, nk_dots_symmetric_i4_hopper>",
+                    test_dots_launch_contract<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_hopper,
+                                              nk_dots_packed_i4_hopper, nk_dots_symmetric_i4_hopper>,
+                    hopper);
+    run_kernel_case("nk_dots_symmetric_i4_hopper", test_dots_symmetric<i4x2_t, cuda_backend_t>, hopper,
+                    nk_dots_symmetric_i4_hopper);
+    run_kernel_case("nk_dots_packed_u4_hopper", test_dots_packed<u4x2_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_u4_hopper, nk_dots_pack_u4_hopper, nk_dots_packed_u4_hopper);
+    run_kernel_case("nk_dots_pack_u4_hopper",
+                    test_dots_pack_layout<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_hopper,
+                                          nk_dots_packed_shape_u4_hopper, nk_dots_pack_u4_hopper>,
+                    hopper);
+    run_kernel_case("test_dots_launch_contract<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_hopper, " //
+                    "nk_dots_packed_u4_hopper, nk_dots_symmetric_u4_hopper>",
+                    test_dots_launch_contract<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_hopper,
+                                              nk_dots_packed_u4_hopper, nk_dots_symmetric_u4_hopper>,
+                    hopper);
+    run_kernel_case("nk_dots_symmetric_u4_hopper", test_dots_symmetric<u4x2_t, cuda_backend_t>, hopper,
+                    nk_dots_symmetric_u4_hopper);
+    run_kernel_case("nk_angulars_packed_bf16_hopper", test_angulars_packed<bf16_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_bf16_hopper, nk_dots_pack_bf16_hopper, nk_angulars_packed_bf16_hopper);
+    run_kernel_case("nk_angulars_symmetric_bf16_hopper", test_angulars_symmetric<bf16_t, cuda_backend_t>, hopper,
+                    nk_angulars_symmetric_bf16_hopper);
+    run_kernel_case("nk_euclideans_packed_bf16_hopper", test_euclideans_packed<bf16_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_bf16_hopper, nk_dots_pack_bf16_hopper, nk_euclideans_packed_bf16_hopper);
+    run_kernel_case("nk_euclideans_symmetric_bf16_hopper", test_euclideans_symmetric<bf16_t, cuda_backend_t>, hopper,
+                    nk_euclideans_symmetric_bf16_hopper);
+    run_kernel_case("nk_angulars_packed_f16_hopper", test_angulars_packed<f16_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_f16_hopper, nk_dots_pack_f16_hopper, nk_angulars_packed_f16_hopper);
+    run_kernel_case("nk_angulars_symmetric_f16_hopper", test_angulars_symmetric<f16_t, cuda_backend_t>, hopper,
+                    nk_angulars_symmetric_f16_hopper);
+    run_kernel_case("nk_euclideans_packed_f16_hopper", test_euclideans_packed<f16_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_f16_hopper, nk_dots_pack_f16_hopper, nk_euclideans_packed_f16_hopper);
+    run_kernel_case("nk_euclideans_symmetric_f16_hopper", test_euclideans_symmetric<f16_t, cuda_backend_t>, hopper,
+                    nk_euclideans_symmetric_f16_hopper);
+    run_kernel_case("nk_angulars_packed_e2m3_hopper", test_angulars_packed<e2m3_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_e2m3_hopper, nk_dots_pack_e2m3_hopper, nk_angulars_packed_e2m3_hopper);
+    run_kernel_case("nk_angulars_symmetric_e2m3_hopper", test_angulars_symmetric<e2m3_t, cuda_backend_t>, hopper,
+                    nk_angulars_symmetric_e2m3_hopper);
+    run_kernel_case("nk_euclideans_packed_e2m3_hopper", test_euclideans_packed<e2m3_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_e2m3_hopper, nk_dots_pack_e2m3_hopper, nk_euclideans_packed_e2m3_hopper);
+    run_kernel_case("nk_euclideans_symmetric_e2m3_hopper", test_euclideans_symmetric<e2m3_t, cuda_backend_t>, hopper,
+                    nk_euclideans_symmetric_e2m3_hopper);
+    run_kernel_case("nk_angulars_packed_e2m1_hopper", test_angulars_packed<e2m1x2_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_e2m1_hopper, nk_dots_pack_e2m1_hopper, nk_angulars_packed_e2m1_hopper);
+    run_kernel_case("nk_angulars_symmetric_e2m1_hopper", test_angulars_symmetric<e2m1x2_t, cuda_backend_t>, hopper,
+                    nk_angulars_symmetric_e2m1_hopper);
+    run_kernel_case("nk_euclideans_packed_e2m1_hopper", test_euclideans_packed<e2m1x2_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_e2m1_hopper, nk_dots_pack_e2m1_hopper, nk_euclideans_packed_e2m1_hopper);
+    run_kernel_case("nk_euclideans_symmetric_e2m1_hopper", test_euclideans_symmetric<e2m1x2_t, cuda_backend_t>, hopper,
+                    nk_euclideans_symmetric_e2m1_hopper);
+    run_kernel_case("nk_angulars_packed_i8_hopper", test_angulars_packed<i8_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_i8_hopper, nk_dots_pack_i8_hopper, nk_angulars_packed_i8_hopper);
+    run_kernel_case("nk_angulars_symmetric_i8_hopper", test_angulars_symmetric<i8_t, cuda_backend_t>, hopper,
+                    nk_angulars_symmetric_i8_hopper);
+    run_kernel_case("nk_euclideans_packed_i8_hopper", test_euclideans_packed<i8_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_i8_hopper, nk_dots_pack_i8_hopper, nk_euclideans_packed_i8_hopper);
+    run_kernel_case("nk_euclideans_symmetric_i8_hopper", test_euclideans_symmetric<i8_t, cuda_backend_t>, hopper,
+                    nk_euclideans_symmetric_i8_hopper);
+    run_kernel_case("nk_angulars_packed_u8_hopper", test_angulars_packed<u8_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_u8_hopper, nk_dots_pack_u8_hopper, nk_angulars_packed_u8_hopper);
+    run_kernel_case("nk_angulars_symmetric_u8_hopper", test_angulars_symmetric<u8_t, cuda_backend_t>, hopper,
+                    nk_angulars_symmetric_u8_hopper);
+    run_kernel_case("nk_euclideans_packed_u8_hopper", test_euclideans_packed<u8_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_u8_hopper, nk_dots_pack_u8_hopper, nk_euclideans_packed_u8_hopper);
+    run_kernel_case("nk_euclideans_symmetric_u8_hopper", test_euclideans_symmetric<u8_t, cuda_backend_t>, hopper,
+                    nk_euclideans_symmetric_u8_hopper);
+    run_kernel_case("nk_angulars_packed_i4_hopper", test_angulars_packed<i4x2_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_i4_hopper, nk_dots_pack_i4_hopper, nk_angulars_packed_i4_hopper);
+    run_kernel_case("nk_angulars_symmetric_i4_hopper", test_angulars_symmetric<i4x2_t, cuda_backend_t>, hopper,
+                    nk_angulars_symmetric_i4_hopper);
+    run_kernel_case("nk_euclideans_packed_i4_hopper", test_euclideans_packed<i4x2_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_i4_hopper, nk_dots_pack_i4_hopper, nk_euclideans_packed_i4_hopper);
+    run_kernel_case("nk_euclideans_symmetric_i4_hopper", test_euclideans_symmetric<i4x2_t, cuda_backend_t>, hopper,
+                    nk_euclideans_symmetric_i4_hopper);
+    run_kernel_case("nk_angulars_packed_u4_hopper", test_angulars_packed<u4x2_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_u4_hopper, nk_dots_pack_u4_hopper, nk_angulars_packed_u4_hopper);
+    run_kernel_case("nk_angulars_symmetric_u4_hopper", test_angulars_symmetric<u4x2_t, cuda_backend_t>, hopper,
+                    nk_angulars_symmetric_u4_hopper);
+    run_kernel_case("nk_euclideans_packed_u4_hopper", test_euclideans_packed<u4x2_t, cuda_backend_t>, hopper,
+                    nk_dots_pack_size_u4_hopper, nk_dots_pack_u4_hopper, nk_euclideans_packed_u4_hopper);
+    run_kernel_case("nk_euclideans_symmetric_u4_hopper", test_euclideans_symmetric<u4x2_t, cuda_backend_t>, hopper,
+                    nk_euclideans_symmetric_u4_hopper);
+    run_kernel_case("nk_attention_packed_bf16_hopper",
+                    test_attention_packed<bf16_t, cuda_backend_t, attention_weights_t::bits_8_k>, hopper,
+                    nk_attention_pack_size_bf16_hopper, nk_attention_pack_bf16_hopper, nk_attention_packed_bf16_hopper);
+    run_kernel_case("nk_attention_packed_e4m3_hopper",
+                    test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_4_k>, hopper,
+                    nk_attention_pack_size_e4m3_hopper, nk_attention_pack_e4m3_hopper, nk_attention_packed_e4m3_hopper);
+    run_kernel_case("nk_attention_packed_i8_hopper",
+                    test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>, hopper,
+                    nk_attention_pack_size_i8_hopper, nk_attention_pack_i8_hopper, nk_attention_packed_i8_hopper);
+    run_kernel_case("nk_attention_packed_gradients_bf16_hopper",
+                    test_attention_packed_gradients<bf16_t, cuda_backend_t>, hopper, nk_attention_pack_size_bf16_hopper,
+                    nk_attention_pack_bf16_hopper, nk_attention_packed_gradients_bf16_hopper);
 #endif // NUMKONG_TARGET_HOPPER
 
 #if NUMKONG_TARGET_BLACKWELL
-    check.section("Cross Blackwell", nk_cap_blackwell_k);
-    check("dots_packed_bf16_blackwell", test_dots_packed<bf16_t, cuda_backend_t>, nk_dots_pack_size_bf16_blackwell,
-          nk_dots_pack_bf16_blackwell,
-          with_workspace(nk_dots_packed_bf16_blackwell, nk_dots_packed_workspace_size_bf16_blackwell));
-    check("dots_pack_bf16_blackwell",
-          test_dots_pack_layout<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_blackwell,
-                                nk_dots_packed_shape_bf16_blackwell, nk_dots_pack_bf16_blackwell>);
-    check("dots_contract_bf16_blackwell",
-          test_dots_launch_contract<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_blackwell,
-                                    nk_dots_packed_bf16_blackwell, nk_dots_symmetric_bf16_blackwell>);
-    check("dots_symmetric_bf16_blackwell", test_dots_symmetric<bf16_t, cuda_backend_t>,
-          nk_dots_symmetric_bf16_blackwell);
-    check("dots_packed_f16_blackwell", test_dots_packed<f16_t, cuda_backend_t>, nk_dots_pack_size_f16_blackwell,
-          nk_dots_pack_f16_blackwell,
-          with_workspace(nk_dots_packed_f16_blackwell, nk_dots_packed_workspace_size_f16_blackwell));
-    check("dots_pack_f16_blackwell",
-          test_dots_pack_layout<f16_t, cuda_backend_t, nk_dots_pack_size_f16_blackwell,
-                                nk_dots_packed_shape_f16_blackwell, nk_dots_pack_f16_blackwell>);
-    check("dots_contract_f16_blackwell",
-          test_dots_launch_contract<f16_t, cuda_backend_t, nk_dots_pack_size_f16_blackwell,
-                                    nk_dots_packed_f16_blackwell, nk_dots_symmetric_f16_blackwell>);
-    check("dots_symmetric_f16_blackwell", test_dots_symmetric<f16_t, cuda_backend_t>, nk_dots_symmetric_f16_blackwell);
-    check("dots_packed_e5m2_blackwell", test_dots_packed<e5m2_t, cuda_backend_t>, nk_dots_pack_size_e5m2_blackwell,
-          nk_dots_pack_e5m2_blackwell,
-          with_workspace(nk_dots_packed_e5m2_blackwell, nk_dots_packed_workspace_size_e5m2_blackwell));
-    check("dots_pack_e5m2_blackwell",
-          test_dots_pack_layout<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_blackwell,
-                                nk_dots_packed_shape_e5m2_blackwell, nk_dots_pack_e5m2_blackwell>);
-    check("dots_contract_e5m2_blackwell",
-          test_dots_launch_contract<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_blackwell,
-                                    nk_dots_packed_e5m2_blackwell, nk_dots_symmetric_e5m2_blackwell>);
-    check("dots_symmetric_e5m2_blackwell", test_dots_symmetric<e5m2_t, cuda_backend_t>,
-          nk_dots_symmetric_e5m2_blackwell);
-    check("dots_packed_e4m3_blackwell", test_dots_packed<e4m3_t, cuda_backend_t>, nk_dots_pack_size_e4m3_blackwell,
-          nk_dots_pack_e4m3_blackwell,
-          with_workspace(nk_dots_packed_e4m3_blackwell, nk_dots_packed_workspace_size_e4m3_blackwell));
-    check("dots_pack_e4m3_blackwell",
-          test_dots_pack_layout<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_blackwell,
-                                nk_dots_packed_shape_e4m3_blackwell, nk_dots_pack_e4m3_blackwell>);
-    check("dots_contract_e4m3_blackwell",
-          test_dots_launch_contract<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_blackwell,
-                                    nk_dots_packed_e4m3_blackwell, nk_dots_symmetric_e4m3_blackwell>);
-    check("dots_symmetric_e4m3_blackwell", test_dots_symmetric<e4m3_t, cuda_backend_t>,
-          nk_dots_symmetric_e4m3_blackwell);
-    check("dots_packed_e3m2_blackwell", test_dots_packed<e3m2_t, cuda_backend_t>, nk_dots_pack_size_e3m2_blackwell,
-          nk_dots_pack_e3m2_blackwell,
-          with_workspace(nk_dots_packed_e3m2_blackwell, nk_dots_packed_workspace_size_e3m2_blackwell));
-    check("dots_pack_e3m2_blackwell",
-          test_dots_pack_layout<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_blackwell,
-                                nk_dots_packed_shape_e3m2_blackwell, nk_dots_pack_e3m2_blackwell>);
-    check("dots_contract_e3m2_blackwell",
-          test_dots_launch_contract<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_blackwell,
-                                    nk_dots_packed_e3m2_blackwell, nk_dots_symmetric_e3m2_blackwell>);
-    check("dots_symmetric_e3m2_blackwell", test_dots_symmetric<e3m2_t, cuda_backend_t>,
-          nk_dots_symmetric_e3m2_blackwell);
-    check("dots_packed_e2m3_blackwell", test_dots_packed<e2m3_t, cuda_backend_t>, nk_dots_pack_size_e2m3_blackwell,
-          nk_dots_pack_e2m3_blackwell,
-          with_workspace(nk_dots_packed_e2m3_blackwell, nk_dots_packed_workspace_size_e2m3_blackwell));
-    check("dots_pack_e2m3_blackwell",
-          test_dots_pack_layout<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_blackwell,
-                                nk_dots_packed_shape_e2m3_blackwell, nk_dots_pack_e2m3_blackwell>);
-    check("dots_contract_e2m3_blackwell",
-          test_dots_launch_contract<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_blackwell,
-                                    nk_dots_packed_e2m3_blackwell, nk_dots_symmetric_e2m3_blackwell>);
-    check("dots_symmetric_e2m3_blackwell", test_dots_symmetric<e2m3_t, cuda_backend_t>,
-          nk_dots_symmetric_e2m3_blackwell);
-    check("dots_packed_e2m1_blackwell", test_dots_packed<e2m1x2_t, cuda_backend_t>, nk_dots_pack_size_e2m1_blackwell,
-          nk_dots_pack_e2m1_blackwell,
-          with_workspace(nk_dots_packed_e2m1_blackwell, nk_dots_packed_workspace_size_e2m1_blackwell));
-    check("dots_pack_e2m1_blackwell",
-          test_dots_pack_layout<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_blackwell,
-                                nk_dots_packed_shape_e2m1_blackwell, nk_dots_pack_e2m1_blackwell>);
-    check("dots_contract_e2m1_blackwell",
-          test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_blackwell,
-                                    nk_dots_packed_e2m1_blackwell, nk_dots_symmetric_e2m1_blackwell>);
-    check("dots_symmetric_e2m1_blackwell", test_dots_symmetric<e2m1x2_t, cuda_backend_t>,
-          nk_dots_symmetric_e2m1_blackwell);
-    check("dots_packed_nvfp4_blackwell", test_dots_packed<nvfp4_t, cuda_backend_t>, nk_dots_pack_size_nvfp4_blackwell,
-          nk_dots_pack_nvfp4_blackwell, nk_dots_packed_nvfp4_blackwell);
-    check("dots_pack_nvfp4_blackwell",
-          test_dots_pack_layout<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_blackwell,
-                                nk_dots_packed_shape_nvfp4_blackwell, nk_dots_pack_nvfp4_blackwell>);
-    check("dots_contract_nvfp4_blackwell",
-          test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_blackwell,
-                                    nk_dots_packed_nvfp4_blackwell, nk_dots_symmetric_nvfp4_blackwell>);
-    check("dots_symmetric_nvfp4_blackwell", test_dots_symmetric<nvfp4_t, cuda_backend_t>,
-          nk_dots_symmetric_nvfp4_blackwell);
-    check("dots_packed_mxfp4_blackwell", test_dots_packed<mxfp4_t, cuda_backend_t>, nk_dots_pack_size_mxfp4_blackwell,
-          nk_dots_pack_mxfp4_blackwell, nk_dots_packed_mxfp4_blackwell);
-    check("dots_pack_mxfp4_blackwell",
-          test_dots_pack_layout<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_blackwell,
-                                nk_dots_packed_shape_mxfp4_blackwell, nk_dots_pack_mxfp4_blackwell>);
-    check("dots_contract_mxfp4_blackwell",
-          test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_blackwell,
-                                    nk_dots_packed_mxfp4_blackwell, nk_dots_symmetric_mxfp4_blackwell>);
-    check("dots_symmetric_mxfp4_blackwell", test_dots_symmetric<mxfp4_t, cuda_backend_t>,
-          nk_dots_symmetric_mxfp4_blackwell);
-    check("dots_packed_mxfp8e4m3_blackwell", test_dots_packed<mxfp8e4m3_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp8e4m3_blackwell, nk_dots_pack_mxfp8e4m3_blackwell, nk_dots_packed_mxfp8e4m3_blackwell);
-    check("dots_pack_mxfp8e4m3_blackwell",
-          test_dots_pack_layout<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_blackwell,
-                                nk_dots_packed_shape_mxfp8e4m3_blackwell, nk_dots_pack_mxfp8e4m3_blackwell>);
-    check("dots_contract_mxfp8e4m3_blackwell",
-          test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_blackwell,
-                                    nk_dots_packed_mxfp8e4m3_blackwell, nk_dots_symmetric_mxfp8e4m3_blackwell>);
-    check("dots_symmetric_mxfp8e4m3_blackwell", test_dots_symmetric<mxfp8e4m3_t, cuda_backend_t>,
-          nk_dots_symmetric_mxfp8e4m3_blackwell);
-    check("dots_packed_mxfp8e5m2_blackwell", test_dots_packed<mxfp8e5m2_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell, nk_dots_packed_mxfp8e5m2_blackwell);
-    check("dots_pack_mxfp8e5m2_blackwell",
-          test_dots_pack_layout<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_blackwell,
-                                nk_dots_packed_shape_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell>);
-    check("dots_contract_mxfp8e5m2_blackwell",
-          test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_blackwell,
-                                    nk_dots_packed_mxfp8e5m2_blackwell, nk_dots_symmetric_mxfp8e5m2_blackwell>);
-    check("dots_symmetric_mxfp8e5m2_blackwell", test_dots_symmetric<mxfp8e5m2_t, cuda_backend_t>,
-          nk_dots_symmetric_mxfp8e5m2_blackwell);
-    check("angulars_packed_bf16_blackwell", test_angulars_packed<bf16_t, cuda_backend_t>,
-          nk_dots_pack_size_bf16_blackwell, nk_dots_pack_bf16_blackwell, nk_angulars_packed_bf16_blackwell);
-    check("angulars_symmetric_bf16_blackwell", test_angulars_symmetric<bf16_t, cuda_backend_t>,
-          nk_angulars_symmetric_bf16_blackwell);
-    check("euclideans_packed_bf16_blackwell", test_euclideans_packed<bf16_t, cuda_backend_t>,
-          nk_dots_pack_size_bf16_blackwell, nk_dots_pack_bf16_blackwell, nk_euclideans_packed_bf16_blackwell);
-    check("euclideans_symmetric_bf16_blackwell", test_euclideans_symmetric<bf16_t, cuda_backend_t>,
-          nk_euclideans_symmetric_bf16_blackwell);
-    check("angulars_packed_f16_blackwell", test_angulars_packed<f16_t, cuda_backend_t>, nk_dots_pack_size_f16_blackwell,
-          nk_dots_pack_f16_blackwell, nk_angulars_packed_f16_blackwell);
-    check("angulars_symmetric_f16_blackwell", test_angulars_symmetric<f16_t, cuda_backend_t>,
-          nk_angulars_symmetric_f16_blackwell);
-    check("euclideans_packed_f16_blackwell", test_euclideans_packed<f16_t, cuda_backend_t>,
-          nk_dots_pack_size_f16_blackwell, nk_dots_pack_f16_blackwell, nk_euclideans_packed_f16_blackwell);
-    check("euclideans_symmetric_f16_blackwell", test_euclideans_symmetric<f16_t, cuda_backend_t>,
-          nk_euclideans_symmetric_f16_blackwell);
-    check("angulars_packed_e5m2_blackwell", test_angulars_packed<e5m2_t, cuda_backend_t>,
-          nk_dots_pack_size_e5m2_blackwell, nk_dots_pack_e5m2_blackwell, nk_angulars_packed_e5m2_blackwell);
-    check("angulars_symmetric_e5m2_blackwell", test_angulars_symmetric<e5m2_t, cuda_backend_t>,
-          nk_angulars_symmetric_e5m2_blackwell);
-    check("euclideans_packed_e5m2_blackwell", test_euclideans_packed<e5m2_t, cuda_backend_t>,
-          nk_dots_pack_size_e5m2_blackwell, nk_dots_pack_e5m2_blackwell, nk_euclideans_packed_e5m2_blackwell);
-    check("euclideans_symmetric_e5m2_blackwell", test_euclideans_symmetric<e5m2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e5m2_blackwell);
-    check("angulars_packed_e4m3_blackwell", test_angulars_packed<e4m3_t, cuda_backend_t>,
-          nk_dots_pack_size_e4m3_blackwell, nk_dots_pack_e4m3_blackwell, nk_angulars_packed_e4m3_blackwell);
-    check("angulars_symmetric_e4m3_blackwell", test_angulars_symmetric<e4m3_t, cuda_backend_t>,
-          nk_angulars_symmetric_e4m3_blackwell);
-    check("euclideans_packed_e4m3_blackwell", test_euclideans_packed<e4m3_t, cuda_backend_t>,
-          nk_dots_pack_size_e4m3_blackwell, nk_dots_pack_e4m3_blackwell, nk_euclideans_packed_e4m3_blackwell);
-    check("euclideans_symmetric_e4m3_blackwell", test_euclideans_symmetric<e4m3_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e4m3_blackwell);
-    check("angulars_packed_e3m2_blackwell", test_angulars_packed<e3m2_t, cuda_backend_t>,
-          nk_dots_pack_size_e3m2_blackwell, nk_dots_pack_e3m2_blackwell, nk_angulars_packed_e3m2_blackwell);
-    check("angulars_symmetric_e3m2_blackwell", test_angulars_symmetric<e3m2_t, cuda_backend_t>,
-          nk_angulars_symmetric_e3m2_blackwell);
-    check("euclideans_packed_e3m2_blackwell", test_euclideans_packed<e3m2_t, cuda_backend_t>,
-          nk_dots_pack_size_e3m2_blackwell, nk_dots_pack_e3m2_blackwell, nk_euclideans_packed_e3m2_blackwell);
-    check("euclideans_symmetric_e3m2_blackwell", test_euclideans_symmetric<e3m2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e3m2_blackwell);
-    check("angulars_packed_e2m3_blackwell", test_angulars_packed<e2m3_t, cuda_backend_t>,
-          nk_dots_pack_size_e2m3_blackwell, nk_dots_pack_e2m3_blackwell, nk_angulars_packed_e2m3_blackwell);
-    check("angulars_symmetric_e2m3_blackwell", test_angulars_symmetric<e2m3_t, cuda_backend_t>,
-          nk_angulars_symmetric_e2m3_blackwell);
-    check("euclideans_packed_e2m3_blackwell", test_euclideans_packed<e2m3_t, cuda_backend_t>,
-          nk_dots_pack_size_e2m3_blackwell, nk_dots_pack_e2m3_blackwell, nk_euclideans_packed_e2m3_blackwell);
-    check("euclideans_symmetric_e2m3_blackwell", test_euclideans_symmetric<e2m3_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e2m3_blackwell);
-    check("angulars_packed_e2m1_blackwell", test_angulars_packed<e2m1x2_t, cuda_backend_t>,
-          nk_dots_pack_size_e2m1_blackwell, nk_dots_pack_e2m1_blackwell, nk_angulars_packed_e2m1_blackwell);
-    check("angulars_symmetric_e2m1_blackwell", test_angulars_symmetric<e2m1x2_t, cuda_backend_t>,
-          nk_angulars_symmetric_e2m1_blackwell);
-    check("euclideans_packed_e2m1_blackwell", test_euclideans_packed<e2m1x2_t, cuda_backend_t>,
-          nk_dots_pack_size_e2m1_blackwell, nk_dots_pack_e2m1_blackwell, nk_euclideans_packed_e2m1_blackwell);
-    check("euclideans_symmetric_e2m1_blackwell", test_euclideans_symmetric<e2m1x2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e2m1_blackwell);
-    check("angulars_packed_nvfp4_blackwell", test_angulars_packed<nvfp4_t, cuda_backend_t>,
-          nk_dots_pack_size_nvfp4_blackwell, nk_dots_pack_nvfp4_blackwell, nk_angulars_packed_nvfp4_blackwell);
-    check("angulars_symmetric_nvfp4_blackwell", test_angulars_symmetric<nvfp4_t, cuda_backend_t>,
-          nk_angulars_symmetric_nvfp4_blackwell);
-    check("euclideans_packed_nvfp4_blackwell", test_euclideans_packed<nvfp4_t, cuda_backend_t>,
-          nk_dots_pack_size_nvfp4_blackwell, nk_dots_pack_nvfp4_blackwell, nk_euclideans_packed_nvfp4_blackwell);
-    check("euclideans_symmetric_nvfp4_blackwell", test_euclideans_symmetric<nvfp4_t, cuda_backend_t>,
-          nk_euclideans_symmetric_nvfp4_blackwell);
-    check("angulars_packed_mxfp4_blackwell", test_angulars_packed<mxfp4_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp4_blackwell, nk_dots_pack_mxfp4_blackwell, nk_angulars_packed_mxfp4_blackwell);
-    check("angulars_symmetric_mxfp4_blackwell", test_angulars_symmetric<mxfp4_t, cuda_backend_t>,
-          nk_angulars_symmetric_mxfp4_blackwell);
-    check("euclideans_packed_mxfp4_blackwell", test_euclideans_packed<mxfp4_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp4_blackwell, nk_dots_pack_mxfp4_blackwell, nk_euclideans_packed_mxfp4_blackwell);
-    check("euclideans_symmetric_mxfp4_blackwell", test_euclideans_symmetric<mxfp4_t, cuda_backend_t>,
-          nk_euclideans_symmetric_mxfp4_blackwell);
-    check("angulars_packed_mxfp8e4m3_blackwell", test_angulars_packed<mxfp8e4m3_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp8e4m3_blackwell, nk_dots_pack_mxfp8e4m3_blackwell,
-          nk_angulars_packed_mxfp8e4m3_blackwell);
-    check("angulars_symmetric_mxfp8e4m3_blackwell", test_angulars_symmetric<mxfp8e4m3_t, cuda_backend_t>,
-          nk_angulars_symmetric_mxfp8e4m3_blackwell);
-    check("euclideans_packed_mxfp8e4m3_blackwell", test_euclideans_packed<mxfp8e4m3_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp8e4m3_blackwell, nk_dots_pack_mxfp8e4m3_blackwell,
-          nk_euclideans_packed_mxfp8e4m3_blackwell);
-    check("euclideans_symmetric_mxfp8e4m3_blackwell", test_euclideans_symmetric<mxfp8e4m3_t, cuda_backend_t>,
-          nk_euclideans_symmetric_mxfp8e4m3_blackwell);
-    check("angulars_packed_mxfp8e5m2_blackwell", test_angulars_packed<mxfp8e5m2_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell,
-          nk_angulars_packed_mxfp8e5m2_blackwell);
-    check("angulars_symmetric_mxfp8e5m2_blackwell", test_angulars_symmetric<mxfp8e5m2_t, cuda_backend_t>,
-          nk_angulars_symmetric_mxfp8e5m2_blackwell);
-    check("euclideans_packed_mxfp8e5m2_blackwell", test_euclideans_packed<mxfp8e5m2_t, cuda_backend_t>,
-          nk_dots_pack_size_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell,
-          nk_euclideans_packed_mxfp8e5m2_blackwell);
-    check("euclideans_symmetric_mxfp8e5m2_blackwell", test_euclideans_symmetric<mxfp8e5m2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_mxfp8e5m2_blackwell);
-    check("dots_packed_i8_blackwell", test_dots_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_blackwell,
-          nk_dots_pack_i8_blackwell, nk_dots_packed_i8_blackwell);
-    check("dots_pack_i8_blackwell",
-          test_dots_pack_layout<i8_t, cuda_backend_t, nk_dots_pack_size_i8_blackwell, nk_dots_packed_shape_i8_blackwell,
-                                nk_dots_pack_i8_blackwell>);
-    check("dots_contract_i8_blackwell",
-          test_dots_launch_contract<i8_t, cuda_backend_t, nk_dots_pack_size_i8_blackwell, nk_dots_packed_i8_blackwell,
-                                    nk_dots_symmetric_i8_blackwell>);
-    check("dots_symmetric_i8_blackwell", test_dots_symmetric<i8_t, cuda_backend_t>, nk_dots_symmetric_i8_blackwell);
-    check("dots_packed_u8_blackwell", test_dots_packed<u8_t, cuda_backend_t>, nk_dots_pack_size_u8_blackwell,
-          nk_dots_pack_u8_blackwell, nk_dots_packed_u8_blackwell);
-    check("dots_pack_u8_blackwell",
-          test_dots_pack_layout<u8_t, cuda_backend_t, nk_dots_pack_size_u8_blackwell, nk_dots_packed_shape_u8_blackwell,
-                                nk_dots_pack_u8_blackwell>);
-    check("dots_contract_u8_blackwell",
-          test_dots_launch_contract<u8_t, cuda_backend_t, nk_dots_pack_size_u8_blackwell, nk_dots_packed_u8_blackwell,
-                                    nk_dots_symmetric_u8_blackwell>);
-    check("dots_symmetric_u8_blackwell", test_dots_symmetric<u8_t, cuda_backend_t>, nk_dots_symmetric_u8_blackwell);
-    check("dots_packed_i4_blackwell", test_dots_packed<i4x2_t, cuda_backend_t>, nk_dots_pack_size_i4_blackwell,
-          nk_dots_pack_i4_blackwell, nk_dots_packed_i4_blackwell);
-    check("dots_pack_i4_blackwell",
-          test_dots_pack_layout<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_blackwell,
-                                nk_dots_packed_shape_i4_blackwell, nk_dots_pack_i4_blackwell>);
-    check("dots_contract_i4_blackwell",
-          test_dots_launch_contract<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_blackwell, nk_dots_packed_i4_blackwell,
-                                    nk_dots_symmetric_i4_blackwell>);
-    check("dots_symmetric_i4_blackwell", test_dots_symmetric<i4x2_t, cuda_backend_t>, nk_dots_symmetric_i4_blackwell);
-    check("dots_packed_u4_blackwell", test_dots_packed<u4x2_t, cuda_backend_t>, nk_dots_pack_size_u4_blackwell,
-          nk_dots_pack_u4_blackwell, nk_dots_packed_u4_blackwell);
-    check("dots_pack_u4_blackwell",
-          test_dots_pack_layout<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_blackwell,
-                                nk_dots_packed_shape_u4_blackwell, nk_dots_pack_u4_blackwell>);
-    check("dots_contract_u4_blackwell",
-          test_dots_launch_contract<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_blackwell, nk_dots_packed_u4_blackwell,
-                                    nk_dots_symmetric_u4_blackwell>);
-    check("dots_symmetric_u4_blackwell", test_dots_symmetric<u4x2_t, cuda_backend_t>, nk_dots_symmetric_u4_blackwell);
-    check("angulars_packed_i8_blackwell", test_angulars_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_blackwell,
-          nk_dots_pack_i8_blackwell, nk_angulars_packed_i8_blackwell);
-    check("angulars_symmetric_i8_blackwell", test_angulars_symmetric<i8_t, cuda_backend_t>,
-          nk_angulars_symmetric_i8_blackwell);
-    check("euclideans_packed_i8_blackwell", test_euclideans_packed<i8_t, cuda_backend_t>,
-          nk_dots_pack_size_i8_blackwell, nk_dots_pack_i8_blackwell, nk_euclideans_packed_i8_blackwell);
-    check("euclideans_symmetric_i8_blackwell", test_euclideans_symmetric<i8_t, cuda_backend_t>,
-          nk_euclideans_symmetric_i8_blackwell);
-    check("angulars_packed_u8_blackwell", test_angulars_packed<u8_t, cuda_backend_t>, nk_dots_pack_size_u8_blackwell,
-          nk_dots_pack_u8_blackwell, nk_angulars_packed_u8_blackwell);
-    check("angulars_symmetric_u8_blackwell", test_angulars_symmetric<u8_t, cuda_backend_t>,
-          nk_angulars_symmetric_u8_blackwell);
-    check("euclideans_packed_u8_blackwell", test_euclideans_packed<u8_t, cuda_backend_t>,
-          nk_dots_pack_size_u8_blackwell, nk_dots_pack_u8_blackwell, nk_euclideans_packed_u8_blackwell);
-    check("euclideans_symmetric_u8_blackwell", test_euclideans_symmetric<u8_t, cuda_backend_t>,
-          nk_euclideans_symmetric_u8_blackwell);
-    check("angulars_packed_i4_blackwell", test_angulars_packed<i4x2_t, cuda_backend_t>, nk_dots_pack_size_i4_blackwell,
-          nk_dots_pack_i4_blackwell, nk_angulars_packed_i4_blackwell);
-    check("angulars_symmetric_i4_blackwell", test_angulars_symmetric<i4x2_t, cuda_backend_t>,
-          nk_angulars_symmetric_i4_blackwell);
-    check("euclideans_packed_i4_blackwell", test_euclideans_packed<i4x2_t, cuda_backend_t>,
-          nk_dots_pack_size_i4_blackwell, nk_dots_pack_i4_blackwell, nk_euclideans_packed_i4_blackwell);
-    check("euclideans_symmetric_i4_blackwell", test_euclideans_symmetric<i4x2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_i4_blackwell);
-    check("angulars_packed_u4_blackwell", test_angulars_packed<u4x2_t, cuda_backend_t>, nk_dots_pack_size_u4_blackwell,
-          nk_dots_pack_u4_blackwell, nk_angulars_packed_u4_blackwell);
-    check("angulars_symmetric_u4_blackwell", test_angulars_symmetric<u4x2_t, cuda_backend_t>,
-          nk_angulars_symmetric_u4_blackwell);
-    check("euclideans_packed_u4_blackwell", test_euclideans_packed<u4x2_t, cuda_backend_t>,
-          nk_dots_pack_size_u4_blackwell, nk_dots_pack_u4_blackwell, nk_euclideans_packed_u4_blackwell);
-    check("euclideans_symmetric_u4_blackwell", test_euclideans_symmetric<u4x2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_u4_blackwell);
-    check("attention_packed_bf16_blackwell",
-          test_attention_packed<bf16_t, cuda_backend_t, attention_weights_t::bits_8_k>,
-          nk_attention_pack_size_bf16_blackwell, nk_attention_pack_bf16_blackwell, nk_attention_packed_bf16_blackwell);
-    check("attention_packed_f16_blackwell",
-          test_attention_packed<f16_t, cuda_backend_t, attention_weights_t::bits_11_k>,
-          nk_attention_pack_size_f16_blackwell, nk_attention_pack_f16_blackwell, nk_attention_packed_f16_blackwell);
-    check("attention_packed_e4m3_blackwell",
-          test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_4_k>,
-          nk_attention_pack_size_e4m3_blackwell, nk_attention_pack_e4m3_blackwell, nk_attention_packed_e4m3_blackwell);
-    check("attention_packed_i8_blackwell", test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>,
-          nk_attention_pack_size_i8_blackwell, nk_attention_pack_i8_blackwell, nk_attention_packed_i8_blackwell);
-    check("attention_packed_gradients_bf16_blackwell", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
-          nk_attention_pack_size_bf16_blackwell, nk_attention_pack_bf16_blackwell,
-          nk_attention_packed_gradients_bf16_blackwell);
-    check("rmsds_packed_f16_blackwell", test_rmsds_packed<f16_t, cuda_backend_t>, nk_rmsds_packed_f16_blackwell);
-    check("chamfers_packed_f16_blackwell", test_shapes_flips<f16_t, nk_kernel_chamfers_packed_k, cuda_backend_t>,
-          nk_chamfers_packed_f16_blackwell);
-    check("hausdorffs_packed_f16_blackwell", test_shapes_flips<f16_t, nk_kernel_hausdorffs_packed_k, cuda_backend_t>,
-          nk_hausdorffs_packed_f16_blackwell);
+    auto const blackwell = nk_cap_blackwell_k;
+    run_kernel_case("nk_dots_packed_bf16_blackwell", test_dots_packed<bf16_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_bf16_blackwell, nk_dots_pack_bf16_blackwell,
+                    with_workspace(nk_dots_packed_bf16_blackwell, nk_dots_packed_workspace_size_bf16_blackwell));
+    run_kernel_case("nk_dots_pack_bf16_blackwell",
+                    test_dots_pack_layout<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_blackwell,
+                                          nk_dots_packed_shape_bf16_blackwell, nk_dots_pack_bf16_blackwell>,
+                    blackwell);
+    run_kernel_case("test_dots_launch_contract<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_blackwell, " //
+                    "nk_dots_packed_bf16_blackwell, nk_dots_symmetric_bf16_blackwell>",
+                    test_dots_launch_contract<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_blackwell,
+                                              nk_dots_packed_bf16_blackwell, nk_dots_symmetric_bf16_blackwell>,
+                    blackwell);
+    run_kernel_case("nk_dots_symmetric_bf16_blackwell", test_dots_symmetric<bf16_t, cuda_backend_t>, blackwell,
+                    nk_dots_symmetric_bf16_blackwell);
+    run_kernel_case("nk_dots_packed_f16_blackwell", test_dots_packed<f16_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_f16_blackwell, nk_dots_pack_f16_blackwell,
+                    with_workspace(nk_dots_packed_f16_blackwell, nk_dots_packed_workspace_size_f16_blackwell));
+    run_kernel_case("nk_dots_pack_f16_blackwell",
+                    test_dots_pack_layout<f16_t, cuda_backend_t, nk_dots_pack_size_f16_blackwell,
+                                          nk_dots_packed_shape_f16_blackwell, nk_dots_pack_f16_blackwell>,
+                    blackwell);
+    run_kernel_case("test_dots_launch_contract<f16_t, cuda_backend_t, nk_dots_pack_size_f16_blackwell, " //
+                    "nk_dots_packed_f16_blackwell, nk_dots_symmetric_f16_blackwell>",
+                    test_dots_launch_contract<f16_t, cuda_backend_t, nk_dots_pack_size_f16_blackwell,
+                                              nk_dots_packed_f16_blackwell, nk_dots_symmetric_f16_blackwell>,
+                    blackwell);
+    run_kernel_case("nk_dots_symmetric_f16_blackwell", test_dots_symmetric<f16_t, cuda_backend_t>, blackwell,
+                    nk_dots_symmetric_f16_blackwell);
+    run_kernel_case("nk_dots_packed_e5m2_blackwell", test_dots_packed<e5m2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_e5m2_blackwell, nk_dots_pack_e5m2_blackwell,
+                    with_workspace(nk_dots_packed_e5m2_blackwell, nk_dots_packed_workspace_size_e5m2_blackwell));
+    run_kernel_case("nk_dots_pack_e5m2_blackwell",
+                    test_dots_pack_layout<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_blackwell,
+                                          nk_dots_packed_shape_e5m2_blackwell, nk_dots_pack_e5m2_blackwell>,
+                    blackwell);
+    run_kernel_case("test_dots_launch_contract<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_blackwell, " //
+                    "nk_dots_packed_e5m2_blackwell, nk_dots_symmetric_e5m2_blackwell>",
+                    test_dots_launch_contract<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_blackwell,
+                                              nk_dots_packed_e5m2_blackwell, nk_dots_symmetric_e5m2_blackwell>,
+                    blackwell);
+    run_kernel_case("nk_dots_symmetric_e5m2_blackwell", test_dots_symmetric<e5m2_t, cuda_backend_t>, blackwell,
+                    nk_dots_symmetric_e5m2_blackwell);
+    run_kernel_case("nk_dots_packed_e4m3_blackwell", test_dots_packed<e4m3_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_e4m3_blackwell, nk_dots_pack_e4m3_blackwell,
+                    with_workspace(nk_dots_packed_e4m3_blackwell, nk_dots_packed_workspace_size_e4m3_blackwell));
+    run_kernel_case("nk_dots_pack_e4m3_blackwell",
+                    test_dots_pack_layout<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_blackwell,
+                                          nk_dots_packed_shape_e4m3_blackwell, nk_dots_pack_e4m3_blackwell>,
+                    blackwell);
+    run_kernel_case("test_dots_launch_contract<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_blackwell, " //
+                    "nk_dots_packed_e4m3_blackwell, nk_dots_symmetric_e4m3_blackwell>",
+                    test_dots_launch_contract<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_blackwell,
+                                              nk_dots_packed_e4m3_blackwell, nk_dots_symmetric_e4m3_blackwell>,
+                    blackwell);
+    run_kernel_case("nk_dots_symmetric_e4m3_blackwell", test_dots_symmetric<e4m3_t, cuda_backend_t>, blackwell,
+                    nk_dots_symmetric_e4m3_blackwell);
+    run_kernel_case("nk_dots_packed_e3m2_blackwell", test_dots_packed<e3m2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_e3m2_blackwell, nk_dots_pack_e3m2_blackwell,
+                    with_workspace(nk_dots_packed_e3m2_blackwell, nk_dots_packed_workspace_size_e3m2_blackwell));
+    run_kernel_case("nk_dots_pack_e3m2_blackwell",
+                    test_dots_pack_layout<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_blackwell,
+                                          nk_dots_packed_shape_e3m2_blackwell, nk_dots_pack_e3m2_blackwell>,
+                    blackwell);
+    run_kernel_case("test_dots_launch_contract<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_blackwell, " //
+                    "nk_dots_packed_e3m2_blackwell, nk_dots_symmetric_e3m2_blackwell>",
+                    test_dots_launch_contract<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_blackwell,
+                                              nk_dots_packed_e3m2_blackwell, nk_dots_symmetric_e3m2_blackwell>,
+                    blackwell);
+    run_kernel_case("nk_dots_symmetric_e3m2_blackwell", test_dots_symmetric<e3m2_t, cuda_backend_t>, blackwell,
+                    nk_dots_symmetric_e3m2_blackwell);
+    run_kernel_case("nk_dots_packed_e2m3_blackwell", test_dots_packed<e2m3_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_e2m3_blackwell, nk_dots_pack_e2m3_blackwell,
+                    with_workspace(nk_dots_packed_e2m3_blackwell, nk_dots_packed_workspace_size_e2m3_blackwell));
+    run_kernel_case("nk_dots_pack_e2m3_blackwell",
+                    test_dots_pack_layout<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_blackwell,
+                                          nk_dots_packed_shape_e2m3_blackwell, nk_dots_pack_e2m3_blackwell>,
+                    blackwell);
+    run_kernel_case("test_dots_launch_contract<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_blackwell, " //
+                    "nk_dots_packed_e2m3_blackwell, nk_dots_symmetric_e2m3_blackwell>",
+                    test_dots_launch_contract<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_blackwell,
+                                              nk_dots_packed_e2m3_blackwell, nk_dots_symmetric_e2m3_blackwell>,
+                    blackwell);
+    run_kernel_case("nk_dots_symmetric_e2m3_blackwell", test_dots_symmetric<e2m3_t, cuda_backend_t>, blackwell,
+                    nk_dots_symmetric_e2m3_blackwell);
+    run_kernel_case("nk_dots_packed_e2m1_blackwell", test_dots_packed<e2m1x2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_e2m1_blackwell, nk_dots_pack_e2m1_blackwell,
+                    with_workspace(nk_dots_packed_e2m1_blackwell, nk_dots_packed_workspace_size_e2m1_blackwell));
+    run_kernel_case("nk_dots_pack_e2m1_blackwell",
+                    test_dots_pack_layout<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_blackwell,
+                                          nk_dots_packed_shape_e2m1_blackwell, nk_dots_pack_e2m1_blackwell>,
+                    blackwell);
+    run_kernel_case("test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_blackwell, " //
+                    "nk_dots_packed_e2m1_blackwell, nk_dots_symmetric_e2m1_blackwell>",
+                    test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_blackwell,
+                                              nk_dots_packed_e2m1_blackwell, nk_dots_symmetric_e2m1_blackwell>,
+                    blackwell);
+    run_kernel_case("nk_dots_symmetric_e2m1_blackwell", test_dots_symmetric<e2m1x2_t, cuda_backend_t>, blackwell,
+                    nk_dots_symmetric_e2m1_blackwell);
+    run_kernel_case("nk_dots_packed_nvfp4_blackwell", test_dots_packed<nvfp4_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_nvfp4_blackwell, nk_dots_pack_nvfp4_blackwell, nk_dots_packed_nvfp4_blackwell);
+    run_kernel_case("nk_dots_pack_nvfp4_blackwell",
+                    test_dots_pack_layout<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_blackwell,
+                                          nk_dots_packed_shape_nvfp4_blackwell, nk_dots_pack_nvfp4_blackwell>,
+                    blackwell);
+    run_kernel_case("test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_blackwell, " //
+                    "nk_dots_packed_nvfp4_blackwell, nk_dots_symmetric_nvfp4_blackwell>",
+                    test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_blackwell,
+                                              nk_dots_packed_nvfp4_blackwell, nk_dots_symmetric_nvfp4_blackwell>,
+                    blackwell);
+    run_kernel_case("nk_dots_symmetric_nvfp4_blackwell", test_dots_symmetric<nvfp4_t, cuda_backend_t>, blackwell,
+                    nk_dots_symmetric_nvfp4_blackwell);
+    run_kernel_case("nk_dots_packed_mxfp4_blackwell", test_dots_packed<mxfp4_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_mxfp4_blackwell, nk_dots_pack_mxfp4_blackwell, nk_dots_packed_mxfp4_blackwell);
+    run_kernel_case("nk_dots_pack_mxfp4_blackwell",
+                    test_dots_pack_layout<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_blackwell,
+                                          nk_dots_packed_shape_mxfp4_blackwell, nk_dots_pack_mxfp4_blackwell>,
+                    blackwell);
+    run_kernel_case("test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_blackwell, " //
+                    "nk_dots_packed_mxfp4_blackwell, nk_dots_symmetric_mxfp4_blackwell>",
+                    test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_blackwell,
+                                              nk_dots_packed_mxfp4_blackwell, nk_dots_symmetric_mxfp4_blackwell>,
+                    blackwell);
+    run_kernel_case("nk_dots_symmetric_mxfp4_blackwell", test_dots_symmetric<mxfp4_t, cuda_backend_t>, blackwell,
+                    nk_dots_symmetric_mxfp4_blackwell);
+    run_kernel_case("nk_dots_packed_mxfp8e4m3_blackwell", test_dots_packed<mxfp8e4m3_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_mxfp8e4m3_blackwell, nk_dots_pack_mxfp8e4m3_blackwell,
+                    nk_dots_packed_mxfp8e4m3_blackwell);
+    run_kernel_case("nk_dots_pack_mxfp8e4m3_blackwell",
+                    test_dots_pack_layout<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_blackwell,
+                                          nk_dots_packed_shape_mxfp8e4m3_blackwell, nk_dots_pack_mxfp8e4m3_blackwell>,
+                    blackwell);
+    run_kernel_case(
+        "test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_blackwell, " //
+        "nk_dots_packed_mxfp8e4m3_blackwell, nk_dots_symmetric_mxfp8e4m3_blackwell>",
+        test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_blackwell,
+                                  nk_dots_packed_mxfp8e4m3_blackwell, nk_dots_symmetric_mxfp8e4m3_blackwell>,
+        blackwell);
+    run_kernel_case("nk_dots_symmetric_mxfp8e4m3_blackwell", test_dots_symmetric<mxfp8e4m3_t, cuda_backend_t>,
+                    blackwell, nk_dots_symmetric_mxfp8e4m3_blackwell);
+    run_kernel_case("nk_dots_packed_mxfp8e5m2_blackwell", test_dots_packed<mxfp8e5m2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell,
+                    nk_dots_packed_mxfp8e5m2_blackwell);
+    run_kernel_case("nk_dots_pack_mxfp8e5m2_blackwell",
+                    test_dots_pack_layout<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_blackwell,
+                                          nk_dots_packed_shape_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell>,
+                    blackwell);
+    run_kernel_case(
+        "test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_blackwell, " //
+        "nk_dots_packed_mxfp8e5m2_blackwell, nk_dots_symmetric_mxfp8e5m2_blackwell>",
+        test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_blackwell,
+                                  nk_dots_packed_mxfp8e5m2_blackwell, nk_dots_symmetric_mxfp8e5m2_blackwell>,
+        blackwell);
+    run_kernel_case("nk_dots_symmetric_mxfp8e5m2_blackwell", test_dots_symmetric<mxfp8e5m2_t, cuda_backend_t>,
+                    blackwell, nk_dots_symmetric_mxfp8e5m2_blackwell);
+    run_kernel_case("nk_angulars_packed_bf16_blackwell", test_angulars_packed<bf16_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_bf16_blackwell, nk_dots_pack_bf16_blackwell, nk_angulars_packed_bf16_blackwell);
+    run_kernel_case("nk_angulars_symmetric_bf16_blackwell", test_angulars_symmetric<bf16_t, cuda_backend_t>, blackwell,
+                    nk_angulars_symmetric_bf16_blackwell);
+    run_kernel_case("nk_euclideans_packed_bf16_blackwell", test_euclideans_packed<bf16_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_bf16_blackwell, nk_dots_pack_bf16_blackwell, nk_euclideans_packed_bf16_blackwell);
+    run_kernel_case("nk_euclideans_symmetric_bf16_blackwell", test_euclideans_symmetric<bf16_t, cuda_backend_t>,
+                    blackwell, nk_euclideans_symmetric_bf16_blackwell);
+    run_kernel_case("nk_angulars_packed_f16_blackwell", test_angulars_packed<f16_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_f16_blackwell, nk_dots_pack_f16_blackwell, nk_angulars_packed_f16_blackwell);
+    run_kernel_case("nk_angulars_symmetric_f16_blackwell", test_angulars_symmetric<f16_t, cuda_backend_t>, blackwell,
+                    nk_angulars_symmetric_f16_blackwell);
+    run_kernel_case("nk_euclideans_packed_f16_blackwell", test_euclideans_packed<f16_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_f16_blackwell, nk_dots_pack_f16_blackwell, nk_euclideans_packed_f16_blackwell);
+    run_kernel_case("nk_euclideans_symmetric_f16_blackwell", test_euclideans_symmetric<f16_t, cuda_backend_t>,
+                    blackwell, nk_euclideans_symmetric_f16_blackwell);
+    run_kernel_case("nk_angulars_packed_e5m2_blackwell", test_angulars_packed<e5m2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_e5m2_blackwell, nk_dots_pack_e5m2_blackwell, nk_angulars_packed_e5m2_blackwell);
+    run_kernel_case("nk_angulars_symmetric_e5m2_blackwell", test_angulars_symmetric<e5m2_t, cuda_backend_t>, blackwell,
+                    nk_angulars_symmetric_e5m2_blackwell);
+    run_kernel_case("nk_euclideans_packed_e5m2_blackwell", test_euclideans_packed<e5m2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_e5m2_blackwell, nk_dots_pack_e5m2_blackwell, nk_euclideans_packed_e5m2_blackwell);
+    run_kernel_case("nk_euclideans_symmetric_e5m2_blackwell", test_euclideans_symmetric<e5m2_t, cuda_backend_t>,
+                    blackwell, nk_euclideans_symmetric_e5m2_blackwell);
+    run_kernel_case("nk_angulars_packed_e4m3_blackwell", test_angulars_packed<e4m3_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_e4m3_blackwell, nk_dots_pack_e4m3_blackwell, nk_angulars_packed_e4m3_blackwell);
+    run_kernel_case("nk_angulars_symmetric_e4m3_blackwell", test_angulars_symmetric<e4m3_t, cuda_backend_t>, blackwell,
+                    nk_angulars_symmetric_e4m3_blackwell);
+    run_kernel_case("nk_euclideans_packed_e4m3_blackwell", test_euclideans_packed<e4m3_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_e4m3_blackwell, nk_dots_pack_e4m3_blackwell, nk_euclideans_packed_e4m3_blackwell);
+    run_kernel_case("nk_euclideans_symmetric_e4m3_blackwell", test_euclideans_symmetric<e4m3_t, cuda_backend_t>,
+                    blackwell, nk_euclideans_symmetric_e4m3_blackwell);
+    run_kernel_case("nk_angulars_packed_e3m2_blackwell", test_angulars_packed<e3m2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_e3m2_blackwell, nk_dots_pack_e3m2_blackwell, nk_angulars_packed_e3m2_blackwell);
+    run_kernel_case("nk_angulars_symmetric_e3m2_blackwell", test_angulars_symmetric<e3m2_t, cuda_backend_t>, blackwell,
+                    nk_angulars_symmetric_e3m2_blackwell);
+    run_kernel_case("nk_euclideans_packed_e3m2_blackwell", test_euclideans_packed<e3m2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_e3m2_blackwell, nk_dots_pack_e3m2_blackwell, nk_euclideans_packed_e3m2_blackwell);
+    run_kernel_case("nk_euclideans_symmetric_e3m2_blackwell", test_euclideans_symmetric<e3m2_t, cuda_backend_t>,
+                    blackwell, nk_euclideans_symmetric_e3m2_blackwell);
+    run_kernel_case("nk_angulars_packed_e2m3_blackwell", test_angulars_packed<e2m3_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_e2m3_blackwell, nk_dots_pack_e2m3_blackwell, nk_angulars_packed_e2m3_blackwell);
+    run_kernel_case("nk_angulars_symmetric_e2m3_blackwell", test_angulars_symmetric<e2m3_t, cuda_backend_t>, blackwell,
+                    nk_angulars_symmetric_e2m3_blackwell);
+    run_kernel_case("nk_euclideans_packed_e2m3_blackwell", test_euclideans_packed<e2m3_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_e2m3_blackwell, nk_dots_pack_e2m3_blackwell, nk_euclideans_packed_e2m3_blackwell);
+    run_kernel_case("nk_euclideans_symmetric_e2m3_blackwell", test_euclideans_symmetric<e2m3_t, cuda_backend_t>,
+                    blackwell, nk_euclideans_symmetric_e2m3_blackwell);
+    run_kernel_case("nk_angulars_packed_e2m1_blackwell", test_angulars_packed<e2m1x2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_e2m1_blackwell, nk_dots_pack_e2m1_blackwell, nk_angulars_packed_e2m1_blackwell);
+    run_kernel_case("nk_angulars_symmetric_e2m1_blackwell", test_angulars_symmetric<e2m1x2_t, cuda_backend_t>,
+                    blackwell, nk_angulars_symmetric_e2m1_blackwell);
+    run_kernel_case("nk_euclideans_packed_e2m1_blackwell", test_euclideans_packed<e2m1x2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_e2m1_blackwell, nk_dots_pack_e2m1_blackwell, nk_euclideans_packed_e2m1_blackwell);
+    run_kernel_case("nk_euclideans_symmetric_e2m1_blackwell", test_euclideans_symmetric<e2m1x2_t, cuda_backend_t>,
+                    blackwell, nk_euclideans_symmetric_e2m1_blackwell);
+    run_kernel_case("nk_angulars_packed_nvfp4_blackwell", test_angulars_packed<nvfp4_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_nvfp4_blackwell, nk_dots_pack_nvfp4_blackwell,
+                    nk_angulars_packed_nvfp4_blackwell);
+    run_kernel_case("nk_angulars_symmetric_nvfp4_blackwell", test_angulars_symmetric<nvfp4_t, cuda_backend_t>,
+                    blackwell, nk_angulars_symmetric_nvfp4_blackwell);
+    run_kernel_case("nk_euclideans_packed_nvfp4_blackwell", test_euclideans_packed<nvfp4_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_nvfp4_blackwell, nk_dots_pack_nvfp4_blackwell,
+                    nk_euclideans_packed_nvfp4_blackwell);
+    run_kernel_case("nk_euclideans_symmetric_nvfp4_blackwell", test_euclideans_symmetric<nvfp4_t, cuda_backend_t>,
+                    blackwell, nk_euclideans_symmetric_nvfp4_blackwell);
+    run_kernel_case("nk_angulars_packed_mxfp4_blackwell", test_angulars_packed<mxfp4_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_mxfp4_blackwell, nk_dots_pack_mxfp4_blackwell,
+                    nk_angulars_packed_mxfp4_blackwell);
+    run_kernel_case("nk_angulars_symmetric_mxfp4_blackwell", test_angulars_symmetric<mxfp4_t, cuda_backend_t>,
+                    blackwell, nk_angulars_symmetric_mxfp4_blackwell);
+    run_kernel_case("nk_euclideans_packed_mxfp4_blackwell", test_euclideans_packed<mxfp4_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_mxfp4_blackwell, nk_dots_pack_mxfp4_blackwell,
+                    nk_euclideans_packed_mxfp4_blackwell);
+    run_kernel_case("nk_euclideans_symmetric_mxfp4_blackwell", test_euclideans_symmetric<mxfp4_t, cuda_backend_t>,
+                    blackwell, nk_euclideans_symmetric_mxfp4_blackwell);
+    run_kernel_case("nk_angulars_packed_mxfp8e4m3_blackwell", test_angulars_packed<mxfp8e4m3_t, cuda_backend_t>,
+                    blackwell, nk_dots_pack_size_mxfp8e4m3_blackwell, nk_dots_pack_mxfp8e4m3_blackwell,
+                    nk_angulars_packed_mxfp8e4m3_blackwell);
+    run_kernel_case("nk_angulars_symmetric_mxfp8e4m3_blackwell", test_angulars_symmetric<mxfp8e4m3_t, cuda_backend_t>,
+                    blackwell, nk_angulars_symmetric_mxfp8e4m3_blackwell);
+    run_kernel_case("nk_euclideans_packed_mxfp8e4m3_blackwell", test_euclideans_packed<mxfp8e4m3_t, cuda_backend_t>,
+                    blackwell, nk_dots_pack_size_mxfp8e4m3_blackwell, nk_dots_pack_mxfp8e4m3_blackwell,
+                    nk_euclideans_packed_mxfp8e4m3_blackwell);
+    run_kernel_case("nk_euclideans_symmetric_mxfp8e4m3_blackwell",
+                    test_euclideans_symmetric<mxfp8e4m3_t, cuda_backend_t>, blackwell,
+                    nk_euclideans_symmetric_mxfp8e4m3_blackwell);
+    run_kernel_case("nk_angulars_packed_mxfp8e5m2_blackwell", test_angulars_packed<mxfp8e5m2_t, cuda_backend_t>,
+                    blackwell, nk_dots_pack_size_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell,
+                    nk_angulars_packed_mxfp8e5m2_blackwell);
+    run_kernel_case("nk_angulars_symmetric_mxfp8e5m2_blackwell", test_angulars_symmetric<mxfp8e5m2_t, cuda_backend_t>,
+                    blackwell, nk_angulars_symmetric_mxfp8e5m2_blackwell);
+    run_kernel_case("nk_euclideans_packed_mxfp8e5m2_blackwell", test_euclideans_packed<mxfp8e5m2_t, cuda_backend_t>,
+                    blackwell, nk_dots_pack_size_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell,
+                    nk_euclideans_packed_mxfp8e5m2_blackwell);
+    run_kernel_case("nk_euclideans_symmetric_mxfp8e5m2_blackwell",
+                    test_euclideans_symmetric<mxfp8e5m2_t, cuda_backend_t>, blackwell,
+                    nk_euclideans_symmetric_mxfp8e5m2_blackwell);
+    run_kernel_case("nk_dots_packed_i8_blackwell", test_dots_packed<i8_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_i8_blackwell, nk_dots_pack_i8_blackwell, nk_dots_packed_i8_blackwell);
+    run_kernel_case("nk_dots_pack_i8_blackwell",
+                    test_dots_pack_layout<i8_t, cuda_backend_t, nk_dots_pack_size_i8_blackwell,
+                                          nk_dots_packed_shape_i8_blackwell, nk_dots_pack_i8_blackwell>,
+                    blackwell);
+    run_kernel_case("test_dots_launch_contract<i8_t, cuda_backend_t, nk_dots_pack_size_i8_blackwell, " //
+                    "nk_dots_packed_i8_blackwell, nk_dots_symmetric_i8_blackwell>",
+                    test_dots_launch_contract<i8_t, cuda_backend_t, nk_dots_pack_size_i8_blackwell,
+                                              nk_dots_packed_i8_blackwell, nk_dots_symmetric_i8_blackwell>,
+                    blackwell);
+    run_kernel_case("nk_dots_symmetric_i8_blackwell", test_dots_symmetric<i8_t, cuda_backend_t>, blackwell,
+                    nk_dots_symmetric_i8_blackwell);
+    run_kernel_case("nk_dots_packed_u8_blackwell", test_dots_packed<u8_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_u8_blackwell, nk_dots_pack_u8_blackwell, nk_dots_packed_u8_blackwell);
+    run_kernel_case("nk_dots_pack_u8_blackwell",
+                    test_dots_pack_layout<u8_t, cuda_backend_t, nk_dots_pack_size_u8_blackwell,
+                                          nk_dots_packed_shape_u8_blackwell, nk_dots_pack_u8_blackwell>,
+                    blackwell);
+    run_kernel_case("test_dots_launch_contract<u8_t, cuda_backend_t, nk_dots_pack_size_u8_blackwell, " //
+                    "nk_dots_packed_u8_blackwell, nk_dots_symmetric_u8_blackwell>",
+                    test_dots_launch_contract<u8_t, cuda_backend_t, nk_dots_pack_size_u8_blackwell,
+                                              nk_dots_packed_u8_blackwell, nk_dots_symmetric_u8_blackwell>,
+                    blackwell);
+    run_kernel_case("nk_dots_symmetric_u8_blackwell", test_dots_symmetric<u8_t, cuda_backend_t>, blackwell,
+                    nk_dots_symmetric_u8_blackwell);
+    run_kernel_case("nk_dots_packed_i4_blackwell", test_dots_packed<i4x2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_i4_blackwell, nk_dots_pack_i4_blackwell, nk_dots_packed_i4_blackwell);
+    run_kernel_case("nk_dots_pack_i4_blackwell",
+                    test_dots_pack_layout<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_blackwell,
+                                          nk_dots_packed_shape_i4_blackwell, nk_dots_pack_i4_blackwell>,
+                    blackwell);
+    run_kernel_case("test_dots_launch_contract<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_blackwell, " //
+                    "nk_dots_packed_i4_blackwell, nk_dots_symmetric_i4_blackwell>",
+                    test_dots_launch_contract<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_blackwell,
+                                              nk_dots_packed_i4_blackwell, nk_dots_symmetric_i4_blackwell>,
+                    blackwell);
+    run_kernel_case("nk_dots_symmetric_i4_blackwell", test_dots_symmetric<i4x2_t, cuda_backend_t>, blackwell,
+                    nk_dots_symmetric_i4_blackwell);
+    run_kernel_case("nk_dots_packed_u4_blackwell", test_dots_packed<u4x2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_u4_blackwell, nk_dots_pack_u4_blackwell, nk_dots_packed_u4_blackwell);
+    run_kernel_case("nk_dots_pack_u4_blackwell",
+                    test_dots_pack_layout<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_blackwell,
+                                          nk_dots_packed_shape_u4_blackwell, nk_dots_pack_u4_blackwell>,
+                    blackwell);
+    run_kernel_case("test_dots_launch_contract<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_blackwell, " //
+                    "nk_dots_packed_u4_blackwell, nk_dots_symmetric_u4_blackwell>",
+                    test_dots_launch_contract<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_blackwell,
+                                              nk_dots_packed_u4_blackwell, nk_dots_symmetric_u4_blackwell>,
+                    blackwell);
+    run_kernel_case("nk_dots_symmetric_u4_blackwell", test_dots_symmetric<u4x2_t, cuda_backend_t>, blackwell,
+                    nk_dots_symmetric_u4_blackwell);
+    run_kernel_case("nk_angulars_packed_i8_blackwell", test_angulars_packed<i8_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_i8_blackwell, nk_dots_pack_i8_blackwell, nk_angulars_packed_i8_blackwell);
+    run_kernel_case("nk_angulars_symmetric_i8_blackwell", test_angulars_symmetric<i8_t, cuda_backend_t>, blackwell,
+                    nk_angulars_symmetric_i8_blackwell);
+    run_kernel_case("nk_euclideans_packed_i8_blackwell", test_euclideans_packed<i8_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_i8_blackwell, nk_dots_pack_i8_blackwell, nk_euclideans_packed_i8_blackwell);
+    run_kernel_case("nk_euclideans_symmetric_i8_blackwell", test_euclideans_symmetric<i8_t, cuda_backend_t>, blackwell,
+                    nk_euclideans_symmetric_i8_blackwell);
+    run_kernel_case("nk_angulars_packed_u8_blackwell", test_angulars_packed<u8_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_u8_blackwell, nk_dots_pack_u8_blackwell, nk_angulars_packed_u8_blackwell);
+    run_kernel_case("nk_angulars_symmetric_u8_blackwell", test_angulars_symmetric<u8_t, cuda_backend_t>, blackwell,
+                    nk_angulars_symmetric_u8_blackwell);
+    run_kernel_case("nk_euclideans_packed_u8_blackwell", test_euclideans_packed<u8_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_u8_blackwell, nk_dots_pack_u8_blackwell, nk_euclideans_packed_u8_blackwell);
+    run_kernel_case("nk_euclideans_symmetric_u8_blackwell", test_euclideans_symmetric<u8_t, cuda_backend_t>, blackwell,
+                    nk_euclideans_symmetric_u8_blackwell);
+    run_kernel_case("nk_angulars_packed_i4_blackwell", test_angulars_packed<i4x2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_i4_blackwell, nk_dots_pack_i4_blackwell, nk_angulars_packed_i4_blackwell);
+    run_kernel_case("nk_angulars_symmetric_i4_blackwell", test_angulars_symmetric<i4x2_t, cuda_backend_t>, blackwell,
+                    nk_angulars_symmetric_i4_blackwell);
+    run_kernel_case("nk_euclideans_packed_i4_blackwell", test_euclideans_packed<i4x2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_i4_blackwell, nk_dots_pack_i4_blackwell, nk_euclideans_packed_i4_blackwell);
+    run_kernel_case("nk_euclideans_symmetric_i4_blackwell", test_euclideans_symmetric<i4x2_t, cuda_backend_t>,
+                    blackwell, nk_euclideans_symmetric_i4_blackwell);
+    run_kernel_case("nk_angulars_packed_u4_blackwell", test_angulars_packed<u4x2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_u4_blackwell, nk_dots_pack_u4_blackwell, nk_angulars_packed_u4_blackwell);
+    run_kernel_case("nk_angulars_symmetric_u4_blackwell", test_angulars_symmetric<u4x2_t, cuda_backend_t>, blackwell,
+                    nk_angulars_symmetric_u4_blackwell);
+    run_kernel_case("nk_euclideans_packed_u4_blackwell", test_euclideans_packed<u4x2_t, cuda_backend_t>, blackwell,
+                    nk_dots_pack_size_u4_blackwell, nk_dots_pack_u4_blackwell, nk_euclideans_packed_u4_blackwell);
+    run_kernel_case("nk_euclideans_symmetric_u4_blackwell", test_euclideans_symmetric<u4x2_t, cuda_backend_t>,
+                    blackwell, nk_euclideans_symmetric_u4_blackwell);
+    run_kernel_case("nk_attention_packed_bf16_blackwell",
+                    test_attention_packed<bf16_t, cuda_backend_t, attention_weights_t::bits_8_k>, blackwell,
+                    nk_attention_pack_size_bf16_blackwell, nk_attention_pack_bf16_blackwell,
+                    nk_attention_packed_bf16_blackwell);
+    run_kernel_case("nk_attention_packed_f16_blackwell",
+                    test_attention_packed<f16_t, cuda_backend_t, attention_weights_t::bits_11_k>, blackwell,
+                    nk_attention_pack_size_f16_blackwell, nk_attention_pack_f16_blackwell,
+                    nk_attention_packed_f16_blackwell);
+    run_kernel_case("nk_attention_packed_e4m3_blackwell",
+                    test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_4_k>, blackwell,
+                    nk_attention_pack_size_e4m3_blackwell, nk_attention_pack_e4m3_blackwell,
+                    nk_attention_packed_e4m3_blackwell);
+    run_kernel_case("nk_attention_packed_i8_blackwell",
+                    test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>, blackwell,
+                    nk_attention_pack_size_i8_blackwell, nk_attention_pack_i8_blackwell,
+                    nk_attention_packed_i8_blackwell);
+    run_kernel_case("nk_attention_packed_gradients_bf16_blackwell",
+                    test_attention_packed_gradients<bf16_t, cuda_backend_t>, blackwell,
+                    nk_attention_pack_size_bf16_blackwell, nk_attention_pack_bf16_blackwell,
+                    nk_attention_packed_gradients_bf16_blackwell);
+    run_kernel_case("nk_rmsds_packed_f16_blackwell", test_rmsds_packed<f16_t, cuda_backend_t>, blackwell,
+                    nk_rmsds_packed_f16_blackwell);
+    run_kernel_case("nk_chamfers_packed_f16_blackwell",
+                    test_shapes_flips<f16_t, nk_kernel_chamfers_packed_k, cuda_backend_t>, blackwell,
+                    nk_chamfers_packed_f16_blackwell);
+    run_kernel_case("nk_hausdorffs_packed_f16_blackwell",
+                    test_shapes_flips<f16_t, nk_kernel_hausdorffs_packed_k, cuda_backend_t>, blackwell,
+                    nk_hausdorffs_packed_f16_blackwell);
 #endif // NUMKONG_TARGET_BLACKWELL
 
 #if NUMKONG_TARGET_BLACKWELLRTX
-    check.section("Cross Blackwell RTX", nk_cap_blackwellrtx_k);
-    check("dots_packed_e5m2_blackwellrtx", test_dots_packed<e5m2_t, cuda_backend_t>,
-          nk_dots_pack_size_e5m2_blackwellrtx, nk_dots_pack_e5m2_blackwellrtx, nk_dots_packed_e5m2_blackwellrtx);
-    check("dots_pack_e5m2_blackwellrtx",
-          test_dots_pack_layout<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_blackwellrtx,
-                                nk_dots_packed_shape_e5m2_blackwellrtx, nk_dots_pack_e5m2_blackwellrtx>);
-    check("dots_contract_e5m2_blackwellrtx",
-          test_dots_launch_contract<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_blackwellrtx,
-                                    nk_dots_packed_e5m2_blackwellrtx, nk_dots_symmetric_e5m2_blackwellrtx>);
-    check("dots_symmetric_e5m2_blackwellrtx", test_dots_symmetric<e5m2_t, cuda_backend_t>,
-          nk_dots_symmetric_e5m2_blackwellrtx);
-    check("dots_packed_e4m3_blackwellrtx", test_dots_packed<e4m3_t, cuda_backend_t>,
-          nk_dots_pack_size_e4m3_blackwellrtx, nk_dots_pack_e4m3_blackwellrtx, nk_dots_packed_e4m3_blackwellrtx);
-    check("dots_pack_e4m3_blackwellrtx",
-          test_dots_pack_layout<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_blackwellrtx,
-                                nk_dots_packed_shape_e4m3_blackwellrtx, nk_dots_pack_e4m3_blackwellrtx>);
-    check("dots_contract_e4m3_blackwellrtx",
-          test_dots_launch_contract<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_blackwellrtx,
-                                    nk_dots_packed_e4m3_blackwellrtx, nk_dots_symmetric_e4m3_blackwellrtx>);
-    check("dots_symmetric_e4m3_blackwellrtx", test_dots_symmetric<e4m3_t, cuda_backend_t>,
-          nk_dots_symmetric_e4m3_blackwellrtx);
-    check("dots_packed_e3m2_blackwellrtx", test_dots_packed<e3m2_t, cuda_backend_t>,
-          nk_dots_pack_size_e3m2_blackwellrtx, nk_dots_pack_e3m2_blackwellrtx, nk_dots_packed_e3m2_blackwellrtx);
-    check("dots_pack_e3m2_blackwellrtx",
-          test_dots_pack_layout<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_blackwellrtx,
-                                nk_dots_packed_shape_e3m2_blackwellrtx, nk_dots_pack_e3m2_blackwellrtx>);
-    check("dots_contract_e3m2_blackwellrtx",
-          test_dots_launch_contract<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_blackwellrtx,
-                                    nk_dots_packed_e3m2_blackwellrtx, nk_dots_symmetric_e3m2_blackwellrtx>);
-    check("dots_symmetric_e3m2_blackwellrtx", test_dots_symmetric<e3m2_t, cuda_backend_t>,
-          nk_dots_symmetric_e3m2_blackwellrtx);
-    check("dots_packed_e2m3_blackwellrtx", test_dots_packed<e2m3_t, cuda_backend_t>,
-          nk_dots_pack_size_e2m3_blackwellrtx, nk_dots_pack_e2m3_blackwellrtx, nk_dots_packed_e2m3_blackwellrtx);
-    check("dots_pack_e2m3_blackwellrtx",
-          test_dots_pack_layout<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_blackwellrtx,
-                                nk_dots_packed_shape_e2m3_blackwellrtx, nk_dots_pack_e2m3_blackwellrtx>);
-    check("dots_contract_e2m3_blackwellrtx",
-          test_dots_launch_contract<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_blackwellrtx,
-                                    nk_dots_packed_e2m3_blackwellrtx, nk_dots_symmetric_e2m3_blackwellrtx>);
-    check("dots_symmetric_e2m3_blackwellrtx", test_dots_symmetric<e2m3_t, cuda_backend_t>,
-          nk_dots_symmetric_e2m3_blackwellrtx);
-    check("dots_packed_e2m1_blackwellrtx", test_dots_packed<e2m1x2_t, cuda_backend_t>,
-          nk_dots_pack_size_e2m1_blackwellrtx, nk_dots_pack_e2m1_blackwellrtx, nk_dots_packed_e2m1_blackwellrtx);
-    check("dots_pack_e2m1_blackwellrtx",
-          test_dots_pack_layout<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_blackwellrtx,
-                                nk_dots_packed_shape_e2m1_blackwellrtx, nk_dots_pack_e2m1_blackwellrtx>);
-    check("dots_contract_e2m1_blackwellrtx",
-          test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_blackwellrtx,
-                                    nk_dots_packed_e2m1_blackwellrtx, nk_dots_symmetric_e2m1_blackwellrtx>);
-    check("dots_symmetric_e2m1_blackwellrtx", test_dots_symmetric<e2m1x2_t, cuda_backend_t>,
-          nk_dots_symmetric_e2m1_blackwellrtx);
-    check("angulars_packed_e5m2_blackwellrtx", test_angulars_packed<e5m2_t, cuda_backend_t>,
-          nk_dots_pack_size_e5m2_blackwellrtx, nk_dots_pack_e5m2_blackwellrtx, nk_angulars_packed_e5m2_blackwellrtx);
-    check("angulars_symmetric_e5m2_blackwellrtx", test_angulars_symmetric<e5m2_t, cuda_backend_t>,
-          nk_angulars_symmetric_e5m2_blackwellrtx);
-    check("euclideans_packed_e5m2_blackwellrtx", test_euclideans_packed<e5m2_t, cuda_backend_t>,
-          nk_dots_pack_size_e5m2_blackwellrtx, nk_dots_pack_e5m2_blackwellrtx, nk_euclideans_packed_e5m2_blackwellrtx);
-    check("euclideans_symmetric_e5m2_blackwellrtx", test_euclideans_symmetric<e5m2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e5m2_blackwellrtx);
-    check("angulars_packed_e4m3_blackwellrtx", test_angulars_packed<e4m3_t, cuda_backend_t>,
-          nk_dots_pack_size_e4m3_blackwellrtx, nk_dots_pack_e4m3_blackwellrtx, nk_angulars_packed_e4m3_blackwellrtx);
-    check("angulars_symmetric_e4m3_blackwellrtx", test_angulars_symmetric<e4m3_t, cuda_backend_t>,
-          nk_angulars_symmetric_e4m3_blackwellrtx);
-    check("euclideans_packed_e4m3_blackwellrtx", test_euclideans_packed<e4m3_t, cuda_backend_t>,
-          nk_dots_pack_size_e4m3_blackwellrtx, nk_dots_pack_e4m3_blackwellrtx, nk_euclideans_packed_e4m3_blackwellrtx);
-    check("euclideans_symmetric_e4m3_blackwellrtx", test_euclideans_symmetric<e4m3_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e4m3_blackwellrtx);
-    check("angulars_packed_e3m2_blackwellrtx", test_angulars_packed<e3m2_t, cuda_backend_t>,
-          nk_dots_pack_size_e3m2_blackwellrtx, nk_dots_pack_e3m2_blackwellrtx, nk_angulars_packed_e3m2_blackwellrtx);
-    check("angulars_symmetric_e3m2_blackwellrtx", test_angulars_symmetric<e3m2_t, cuda_backend_t>,
-          nk_angulars_symmetric_e3m2_blackwellrtx);
-    check("euclideans_packed_e3m2_blackwellrtx", test_euclideans_packed<e3m2_t, cuda_backend_t>,
-          nk_dots_pack_size_e3m2_blackwellrtx, nk_dots_pack_e3m2_blackwellrtx, nk_euclideans_packed_e3m2_blackwellrtx);
-    check("euclideans_symmetric_e3m2_blackwellrtx", test_euclideans_symmetric<e3m2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e3m2_blackwellrtx);
-    check("angulars_packed_e2m3_blackwellrtx", test_angulars_packed<e2m3_t, cuda_backend_t>,
-          nk_dots_pack_size_e2m3_blackwellrtx, nk_dots_pack_e2m3_blackwellrtx, nk_angulars_packed_e2m3_blackwellrtx);
-    check("angulars_symmetric_e2m3_blackwellrtx", test_angulars_symmetric<e2m3_t, cuda_backend_t>,
-          nk_angulars_symmetric_e2m3_blackwellrtx);
-    check("euclideans_packed_e2m3_blackwellrtx", test_euclideans_packed<e2m3_t, cuda_backend_t>,
-          nk_dots_pack_size_e2m3_blackwellrtx, nk_dots_pack_e2m3_blackwellrtx, nk_euclideans_packed_e2m3_blackwellrtx);
-    check("euclideans_symmetric_e2m3_blackwellrtx", test_euclideans_symmetric<e2m3_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e2m3_blackwellrtx);
-    check("angulars_packed_e2m1_blackwellrtx", test_angulars_packed<e2m1x2_t, cuda_backend_t>,
-          nk_dots_pack_size_e2m1_blackwellrtx, nk_dots_pack_e2m1_blackwellrtx, nk_angulars_packed_e2m1_blackwellrtx);
-    check("angulars_symmetric_e2m1_blackwellrtx", test_angulars_symmetric<e2m1x2_t, cuda_backend_t>,
-          nk_angulars_symmetric_e2m1_blackwellrtx);
-    check("euclideans_packed_e2m1_blackwellrtx", test_euclideans_packed<e2m1x2_t, cuda_backend_t>,
-          nk_dots_pack_size_e2m1_blackwellrtx, nk_dots_pack_e2m1_blackwellrtx, nk_euclideans_packed_e2m1_blackwellrtx);
-    check("euclideans_symmetric_e2m1_blackwellrtx", test_euclideans_symmetric<e2m1x2_t, cuda_backend_t>,
-          nk_euclideans_symmetric_e2m1_blackwellrtx);
-    check("attention_packed_e4m3_blackwellrtx",
-          test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_4_k>,
-          nk_attention_pack_size_e4m3_blackwellrtx, nk_attention_pack_e4m3_blackwellrtx,
-          nk_attention_packed_e4m3_blackwellrtx);
+    auto const blackwellrtx = nk_cap_blackwellrtx_k;
+    run_kernel_case("nk_dots_packed_e5m2_blackwellrtx", test_dots_packed<e5m2_t, cuda_backend_t>, blackwellrtx,
+                    nk_dots_pack_size_e5m2_blackwellrtx, nk_dots_pack_e5m2_blackwellrtx,
+                    nk_dots_packed_e5m2_blackwellrtx);
+    run_kernel_case("nk_dots_pack_e5m2_blackwellrtx",
+                    test_dots_pack_layout<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_blackwellrtx,
+                                          nk_dots_packed_shape_e5m2_blackwellrtx, nk_dots_pack_e5m2_blackwellrtx>,
+                    blackwellrtx);
+    run_kernel_case("test_dots_launch_contract<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_blackwellrtx, " //
+                    "nk_dots_packed_e5m2_blackwellrtx, nk_dots_symmetric_e5m2_blackwellrtx>",
+                    test_dots_launch_contract<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_blackwellrtx,
+                                              nk_dots_packed_e5m2_blackwellrtx, nk_dots_symmetric_e5m2_blackwellrtx>,
+                    blackwellrtx);
+    run_kernel_case("nk_dots_symmetric_e5m2_blackwellrtx", test_dots_symmetric<e5m2_t, cuda_backend_t>, blackwellrtx,
+                    nk_dots_symmetric_e5m2_blackwellrtx);
+    run_kernel_case("nk_dots_packed_e4m3_blackwellrtx", test_dots_packed<e4m3_t, cuda_backend_t>, blackwellrtx,
+                    nk_dots_pack_size_e4m3_blackwellrtx, nk_dots_pack_e4m3_blackwellrtx,
+                    nk_dots_packed_e4m3_blackwellrtx);
+    run_kernel_case("nk_dots_pack_e4m3_blackwellrtx",
+                    test_dots_pack_layout<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_blackwellrtx,
+                                          nk_dots_packed_shape_e4m3_blackwellrtx, nk_dots_pack_e4m3_blackwellrtx>,
+                    blackwellrtx);
+    run_kernel_case("test_dots_launch_contract<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_blackwellrtx, " //
+                    "nk_dots_packed_e4m3_blackwellrtx, nk_dots_symmetric_e4m3_blackwellrtx>",
+                    test_dots_launch_contract<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_blackwellrtx,
+                                              nk_dots_packed_e4m3_blackwellrtx, nk_dots_symmetric_e4m3_blackwellrtx>,
+                    blackwellrtx);
+    run_kernel_case("nk_dots_symmetric_e4m3_blackwellrtx", test_dots_symmetric<e4m3_t, cuda_backend_t>, blackwellrtx,
+                    nk_dots_symmetric_e4m3_blackwellrtx);
+    run_kernel_case("nk_dots_packed_e3m2_blackwellrtx", test_dots_packed<e3m2_t, cuda_backend_t>, blackwellrtx,
+                    nk_dots_pack_size_e3m2_blackwellrtx, nk_dots_pack_e3m2_blackwellrtx,
+                    nk_dots_packed_e3m2_blackwellrtx);
+    run_kernel_case("nk_dots_pack_e3m2_blackwellrtx",
+                    test_dots_pack_layout<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_blackwellrtx,
+                                          nk_dots_packed_shape_e3m2_blackwellrtx, nk_dots_pack_e3m2_blackwellrtx>,
+                    blackwellrtx);
+    run_kernel_case("test_dots_launch_contract<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_blackwellrtx, " //
+                    "nk_dots_packed_e3m2_blackwellrtx, nk_dots_symmetric_e3m2_blackwellrtx>",
+                    test_dots_launch_contract<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_blackwellrtx,
+                                              nk_dots_packed_e3m2_blackwellrtx, nk_dots_symmetric_e3m2_blackwellrtx>,
+                    blackwellrtx);
+    run_kernel_case("nk_dots_symmetric_e3m2_blackwellrtx", test_dots_symmetric<e3m2_t, cuda_backend_t>, blackwellrtx,
+                    nk_dots_symmetric_e3m2_blackwellrtx);
+    run_kernel_case("nk_dots_packed_e2m3_blackwellrtx", test_dots_packed<e2m3_t, cuda_backend_t>, blackwellrtx,
+                    nk_dots_pack_size_e2m3_blackwellrtx, nk_dots_pack_e2m3_blackwellrtx,
+                    nk_dots_packed_e2m3_blackwellrtx);
+    run_kernel_case("nk_dots_pack_e2m3_blackwellrtx",
+                    test_dots_pack_layout<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_blackwellrtx,
+                                          nk_dots_packed_shape_e2m3_blackwellrtx, nk_dots_pack_e2m3_blackwellrtx>,
+                    blackwellrtx);
+    run_kernel_case("test_dots_launch_contract<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_blackwellrtx, " //
+                    "nk_dots_packed_e2m3_blackwellrtx, nk_dots_symmetric_e2m3_blackwellrtx>",
+                    test_dots_launch_contract<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_blackwellrtx,
+                                              nk_dots_packed_e2m3_blackwellrtx, nk_dots_symmetric_e2m3_blackwellrtx>,
+                    blackwellrtx);
+    run_kernel_case("nk_dots_symmetric_e2m3_blackwellrtx", test_dots_symmetric<e2m3_t, cuda_backend_t>, blackwellrtx,
+                    nk_dots_symmetric_e2m3_blackwellrtx);
+    run_kernel_case("nk_dots_packed_e2m1_blackwellrtx", test_dots_packed<e2m1x2_t, cuda_backend_t>, blackwellrtx,
+                    nk_dots_pack_size_e2m1_blackwellrtx, nk_dots_pack_e2m1_blackwellrtx,
+                    nk_dots_packed_e2m1_blackwellrtx);
+    run_kernel_case("nk_dots_pack_e2m1_blackwellrtx",
+                    test_dots_pack_layout<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_blackwellrtx,
+                                          nk_dots_packed_shape_e2m1_blackwellrtx, nk_dots_pack_e2m1_blackwellrtx>,
+                    blackwellrtx);
+    run_kernel_case("test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_blackwellrtx, " //
+                    "nk_dots_packed_e2m1_blackwellrtx, nk_dots_symmetric_e2m1_blackwellrtx>",
+                    test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_blackwellrtx,
+                                              nk_dots_packed_e2m1_blackwellrtx, nk_dots_symmetric_e2m1_blackwellrtx>,
+                    blackwellrtx);
+    run_kernel_case("nk_dots_symmetric_e2m1_blackwellrtx", test_dots_symmetric<e2m1x2_t, cuda_backend_t>, blackwellrtx,
+                    nk_dots_symmetric_e2m1_blackwellrtx);
+    run_kernel_case("nk_angulars_packed_e5m2_blackwellrtx", test_angulars_packed<e5m2_t, cuda_backend_t>, blackwellrtx,
+                    nk_dots_pack_size_e5m2_blackwellrtx, nk_dots_pack_e5m2_blackwellrtx,
+                    nk_angulars_packed_e5m2_blackwellrtx);
+    run_kernel_case("nk_angulars_symmetric_e5m2_blackwellrtx", test_angulars_symmetric<e5m2_t, cuda_backend_t>,
+                    blackwellrtx, nk_angulars_symmetric_e5m2_blackwellrtx);
+    run_kernel_case("nk_euclideans_packed_e5m2_blackwellrtx", test_euclideans_packed<e5m2_t, cuda_backend_t>,
+                    blackwellrtx, nk_dots_pack_size_e5m2_blackwellrtx, nk_dots_pack_e5m2_blackwellrtx,
+                    nk_euclideans_packed_e5m2_blackwellrtx);
+    run_kernel_case("nk_euclideans_symmetric_e5m2_blackwellrtx", test_euclideans_symmetric<e5m2_t, cuda_backend_t>,
+                    blackwellrtx, nk_euclideans_symmetric_e5m2_blackwellrtx);
+    run_kernel_case("nk_angulars_packed_e4m3_blackwellrtx", test_angulars_packed<e4m3_t, cuda_backend_t>, blackwellrtx,
+                    nk_dots_pack_size_e4m3_blackwellrtx, nk_dots_pack_e4m3_blackwellrtx,
+                    nk_angulars_packed_e4m3_blackwellrtx);
+    run_kernel_case("nk_angulars_symmetric_e4m3_blackwellrtx", test_angulars_symmetric<e4m3_t, cuda_backend_t>,
+                    blackwellrtx, nk_angulars_symmetric_e4m3_blackwellrtx);
+    run_kernel_case("nk_euclideans_packed_e4m3_blackwellrtx", test_euclideans_packed<e4m3_t, cuda_backend_t>,
+                    blackwellrtx, nk_dots_pack_size_e4m3_blackwellrtx, nk_dots_pack_e4m3_blackwellrtx,
+                    nk_euclideans_packed_e4m3_blackwellrtx);
+    run_kernel_case("nk_euclideans_symmetric_e4m3_blackwellrtx", test_euclideans_symmetric<e4m3_t, cuda_backend_t>,
+                    blackwellrtx, nk_euclideans_symmetric_e4m3_blackwellrtx);
+    run_kernel_case("nk_angulars_packed_e3m2_blackwellrtx", test_angulars_packed<e3m2_t, cuda_backend_t>, blackwellrtx,
+                    nk_dots_pack_size_e3m2_blackwellrtx, nk_dots_pack_e3m2_blackwellrtx,
+                    nk_angulars_packed_e3m2_blackwellrtx);
+    run_kernel_case("nk_angulars_symmetric_e3m2_blackwellrtx", test_angulars_symmetric<e3m2_t, cuda_backend_t>,
+                    blackwellrtx, nk_angulars_symmetric_e3m2_blackwellrtx);
+    run_kernel_case("nk_euclideans_packed_e3m2_blackwellrtx", test_euclideans_packed<e3m2_t, cuda_backend_t>,
+                    blackwellrtx, nk_dots_pack_size_e3m2_blackwellrtx, nk_dots_pack_e3m2_blackwellrtx,
+                    nk_euclideans_packed_e3m2_blackwellrtx);
+    run_kernel_case("nk_euclideans_symmetric_e3m2_blackwellrtx", test_euclideans_symmetric<e3m2_t, cuda_backend_t>,
+                    blackwellrtx, nk_euclideans_symmetric_e3m2_blackwellrtx);
+    run_kernel_case("nk_angulars_packed_e2m3_blackwellrtx", test_angulars_packed<e2m3_t, cuda_backend_t>, blackwellrtx,
+                    nk_dots_pack_size_e2m3_blackwellrtx, nk_dots_pack_e2m3_blackwellrtx,
+                    nk_angulars_packed_e2m3_blackwellrtx);
+    run_kernel_case("nk_angulars_symmetric_e2m3_blackwellrtx", test_angulars_symmetric<e2m3_t, cuda_backend_t>,
+                    blackwellrtx, nk_angulars_symmetric_e2m3_blackwellrtx);
+    run_kernel_case("nk_euclideans_packed_e2m3_blackwellrtx", test_euclideans_packed<e2m3_t, cuda_backend_t>,
+                    blackwellrtx, nk_dots_pack_size_e2m3_blackwellrtx, nk_dots_pack_e2m3_blackwellrtx,
+                    nk_euclideans_packed_e2m3_blackwellrtx);
+    run_kernel_case("nk_euclideans_symmetric_e2m3_blackwellrtx", test_euclideans_symmetric<e2m3_t, cuda_backend_t>,
+                    blackwellrtx, nk_euclideans_symmetric_e2m3_blackwellrtx);
+    run_kernel_case("nk_angulars_packed_e2m1_blackwellrtx", test_angulars_packed<e2m1x2_t, cuda_backend_t>,
+                    blackwellrtx, nk_dots_pack_size_e2m1_blackwellrtx, nk_dots_pack_e2m1_blackwellrtx,
+                    nk_angulars_packed_e2m1_blackwellrtx);
+    run_kernel_case("nk_angulars_symmetric_e2m1_blackwellrtx", test_angulars_symmetric<e2m1x2_t, cuda_backend_t>,
+                    blackwellrtx, nk_angulars_symmetric_e2m1_blackwellrtx);
+    run_kernel_case("nk_euclideans_packed_e2m1_blackwellrtx", test_euclideans_packed<e2m1x2_t, cuda_backend_t>,
+                    blackwellrtx, nk_dots_pack_size_e2m1_blackwellrtx, nk_dots_pack_e2m1_blackwellrtx,
+                    nk_euclideans_packed_e2m1_blackwellrtx);
+    run_kernel_case("nk_euclideans_symmetric_e2m1_blackwellrtx", test_euclideans_symmetric<e2m1x2_t, cuda_backend_t>,
+                    blackwellrtx, nk_euclideans_symmetric_e2m1_blackwellrtx);
+    run_kernel_case("nk_attention_packed_e4m3_blackwellrtx",
+                    test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_4_k>, blackwellrtx,
+                    nk_attention_pack_size_e4m3_blackwellrtx, nk_attention_pack_e4m3_blackwellrtx,
+                    nk_attention_packed_e4m3_blackwellrtx);
 #endif // NUMKONG_TARGET_BLACKWELLRTX
 
 #if NUMKONG_TARGET_BLACKWELLULTRA
-    check.section("Cross Blackwell Ultra", nk_cap_blackwellultra_k);
-    check("attention_packed_bf16_blackwellultra",
-          test_attention_packed<bf16_t, cuda_backend_t, attention_weights_t::bits_8_k>,
-          nk_attention_pack_size_bf16_blackwellultra, nk_attention_pack_bf16_blackwellultra,
-          nk_attention_packed_bf16_blackwellultra);
-    check("attention_packed_f16_blackwellultra",
-          test_attention_packed<f16_t, cuda_backend_t, attention_weights_t::bits_11_k>,
-          nk_attention_pack_size_f16_blackwellultra, nk_attention_pack_f16_blackwellultra,
-          nk_attention_packed_f16_blackwellultra);
-    check("attention_packed_e4m3_blackwellultra",
-          test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_4_k>,
-          nk_attention_pack_size_e4m3_blackwellultra, nk_attention_pack_e4m3_blackwellultra,
-          nk_attention_packed_e4m3_blackwellultra);
-    check("attention_packed_i8_blackwellultra",
-          test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>,
-          nk_attention_pack_size_i8_blackwellultra, nk_attention_pack_i8_blackwellultra,
-          nk_attention_packed_i8_blackwellultra);
-    check("attention_packed_gradients_bf16_blackwellultra", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
-          nk_attention_pack_size_bf16_blackwellultra, nk_attention_pack_bf16_blackwellultra,
-          nk_attention_packed_gradients_bf16_blackwellultra);
+    auto const blackwellultra = nk_cap_blackwellultra_k;
+    run_kernel_case("nk_attention_packed_bf16_blackwellultra",
+                    test_attention_packed<bf16_t, cuda_backend_t, attention_weights_t::bits_8_k>, blackwellultra,
+                    nk_attention_pack_size_bf16_blackwellultra, nk_attention_pack_bf16_blackwellultra,
+                    nk_attention_packed_bf16_blackwellultra);
+    run_kernel_case("nk_attention_packed_f16_blackwellultra",
+                    test_attention_packed<f16_t, cuda_backend_t, attention_weights_t::bits_11_k>, blackwellultra,
+                    nk_attention_pack_size_f16_blackwellultra, nk_attention_pack_f16_blackwellultra,
+                    nk_attention_packed_f16_blackwellultra);
+    run_kernel_case("nk_attention_packed_e4m3_blackwellultra",
+                    test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_4_k>, blackwellultra,
+                    nk_attention_pack_size_e4m3_blackwellultra, nk_attention_pack_e4m3_blackwellultra,
+                    nk_attention_packed_e4m3_blackwellultra);
+    run_kernel_case("nk_attention_packed_i8_blackwellultra",
+                    test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>, blackwellultra,
+                    nk_attention_pack_size_i8_blackwellultra, nk_attention_pack_i8_blackwellultra,
+                    nk_attention_packed_i8_blackwellultra);
+    run_kernel_case("nk_attention_packed_gradients_bf16_blackwellultra",
+                    test_attention_packed_gradients<bf16_t, cuda_backend_t>, blackwellultra,
+                    nk_attention_pack_size_bf16_blackwellultra, nk_attention_pack_bf16_blackwellultra,
+                    nk_attention_packed_gradients_bf16_blackwellultra);
 #endif // NUMKONG_TARGET_BLACKWELLULTRA
 
-    test_cross_dispatch<cuda_backend_t>(check);
+    run_cross_dispatch_cases<cuda_backend_t>();
 }
 
 #else  // !NUMKONG_ARCH_CUDA_
-void test_cross_cuda(error_stats_section_t &) {}
+void run_cross_cuda_cases() {}
 #endif // NUMKONG_ARCH_CUDA_
 
 } // namespace ashvardanian::numkong::test

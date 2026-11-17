@@ -24,7 +24,9 @@
 
 using namespace ashvardanian::numkong::bench;
 
-static std::vector<nk::device_t> select_devices(std::optional<std::vector<device_selection_t>> const &requested) {
+/** The devices @c NUMWARS_DEVICES names, or the first of each kind found when it is unset. */
+static std::vector<nk::device_t> selected_devices(bench_settings_t const &env) {
+    std::optional<std::vector<device_selection_t>> const &requested = env.devices;
     std::vector<nk::device_t> devices;
     if constexpr (NUMKONG_HEADER_ONLY) {
         if (requested) {
@@ -52,7 +54,7 @@ static std::vector<nk::device_t> select_devices(std::optional<std::vector<device
     return devices;
 }
 
-static nk::status_t bench_device(environment_t const &env, nk::device_t device) {
+static nk::status_t bench_device(bench_settings_t const &env, nk::device_t device) {
     auto const capabilities = device.capabilities_enabled();
     if (!capabilities) return capabilities.status;
     auto [stream, stream_status] = nk::stream_t::make(device);
@@ -72,10 +74,11 @@ static nk::status_t bench_device(environment_t const &env, nk::device_t device) 
     }
 }
 
-int main() {
-    environment_t const env {read_settings(), probe_machine()};
-    auto const devices = select_devices(env.settings.devices);
-    [[maybe_unused]] nk_status_t const configured = nk_configure_thread_cpu(env.machine.detected); // Also enables AMX
+int main(int argc, char **argv) {
+    bench_settings_t const env = read_bench_settings(argc, argv);
+    machine_t const machine = probe_machine();
+    auto const devices = selected_devices(env);
+    [[maybe_unused]] nk_status_t const configured = nk_configure_thread_cpu(machine.detected); // Also enables AMX
 
 #if NUMKONG_COMPARE_TO_MKL
     mkl_set_num_threads(1);
@@ -83,8 +86,8 @@ int main() {
     if (openblas_set_num_threads) openblas_set_num_threads(1);
 #endif // NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_BLAS
 
-    print(env.machine);
-    print(env.settings);
+    print(machine);
+    print(env);
     fmt::println("");
 
     // Run all benchmarks from split files

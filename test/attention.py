@@ -3,25 +3,30 @@
 The reference is a float64 NumPy softmax-attention over the same dtype-rounded inputs and an
 explicit visibility mask, so tolerances only cover kernel arithmetic, not input rounding.
 
+Run: python -m pytest test/attention.py
+
 File: test/attention.py
 Author: Ash Vardanian
 Date: July 7, 2026
 """
 
-import numpy as np
 import pytest
 from base import (
     assert_allclose,
     make_nk,
     make_random,
+    numpy_available,
     tolerances_for_dtype,
 )
 
 import numkong as nk
 
 
+if numpy_available:
+    import numpy as np
+
 ATTENTION_DTYPES = [
-    ("bf16", 5e-3),
+    ("bfloat16", 5e-3),
     ("e4m3", 5e-3),
 ]
 
@@ -65,6 +70,7 @@ def reference_attention(
     keys_before=None,
     keys_after=None,
 ):
+    """Masked multi-head attention in float64 over ragged segments, the reference for `attention_packed`."""
     out = np.zeros((q_f64.shape[0], head_count * depth), dtype=np.float64)
     gqa = head_count // key_value_head_count
     for segment in range(len(lengths)):
@@ -86,11 +92,15 @@ def reference_attention(
     return out
 
 
-@pytest.mark.parametrize("dtype,tolerance", ATTENTION_DTYPES)
-@pytest.mark.parametrize("scenario", SCENARIOS.keys())
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(("dtype", "tolerance"), ATTENTION_DTYPES)
 @pytest.mark.parametrize("depth", [64, 128])
+@pytest.mark.parametrize("scenario", SCENARIOS.keys())
 @pytest.mark.parametrize("threads", [1, 0])
-def test_attention_packed(dtype, tolerance, scenario, depth, threads, np_rng: np.random.Generator):
+def test_attention_packed_matches_the_float64_reference(
+    dtype, tolerance, scenario, depth, threads, np_rng: np.random.Generator
+):
+    """Packed keys and values attend within each segment as a float64 softmax does, on one thread or all."""
     lengths = SCENARIOS[scenario]
     offsets = np.array([0, *np.cumsum(lengths)], dtype=np.uint32)
     tokens, head_count, key_value_head_count = int(offsets[-1]), 4, 2
@@ -125,11 +135,12 @@ def test_attention_packed(dtype, tolerance, scenario, depth, threads, np_rng: np
             keys_before,
             keys_after,
         )
-        np.testing.assert_allclose(result, expected, atol=tolerance, rtol=tolerance)
+        assert_allclose(result, expected, atol=tolerance, rtol=tolerance)
 
 
-@pytest.mark.parametrize("dtype,tolerance", ATTENTION_DTYPES)
-def test_attention_spare_slot_capacity(dtype, tolerance, np_rng: np.random.Generator):
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(("dtype", "tolerance"), ATTENTION_DTYPES)
+def test_attention_spare_slots_stay_out_of_the_pack(dtype, tolerance, np_rng: np.random.Generator):
     """Slots wider than their keys, as a decode cache with room to grow has: the spare rows stay out of the pack."""
     lengths, spare, query_counts = [37, 0, 12], [5, 3, 0], [3, 2, 1]
     head_count, depth = 4, 64
@@ -150,12 +161,15 @@ def test_attention_spare_slot_capacity(dtype, tolerance, np_rng: np.random.Gener
     expected = reference_attention(
         *rounded, query_offsets, key_offsets, lengths, head_count, head_count, depth, scale, None, 0
     )
-    np.testing.assert_allclose(np.from_dlpack(out), expected, atol=tolerance, rtol=tolerance)
+    assert_allclose(np.from_dlpack(out), expected, atol=tolerance, rtol=tolerance)
 
 
-@pytest.mark.parametrize("dtype,tolerance", ATTENTION_DTYPES)
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(("dtype", "tolerance"), ATTENTION_DTYPES)
 @pytest.mark.parametrize("keys_before", [None, 4])
-def test_attention_causal_decode(dtype, tolerance, keys_before, np_rng: np.random.Generator):
+def test_attention_decode_queries_align_to_the_end_of_the_keys(
+    dtype, tolerance, keys_before, np_rng: np.random.Generator
+):
     """A few trailing queries per segment against a longer cache: queries align to the end of the keys."""
     length, query_count, segment_count, head_count, depth = 37, 3, 2, 4, 64
     key_offsets = np.arange(segment_count + 1, dtype=np.uint32) * length
@@ -185,11 +199,12 @@ def test_attention_causal_decode(dtype, tolerance, keys_before, np_rng: np.rando
         keys_before,
         0,
     )
-    np.testing.assert_allclose(result, expected, atol=tolerance, rtol=tolerance)
+    assert_allclose(result, expected, atol=tolerance, rtol=tolerance)
 
 
-@pytest.mark.parametrize("dtype,tolerance", ATTENTION_DTYPES)
-def test_attention_pool(dtype, tolerance, np_rng: np.random.Generator):
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(("dtype", "tolerance"), ATTENTION_DTYPES)
+def test_attention_pools_one_query_per_segment(dtype, tolerance, np_rng: np.random.Generator):
     """One query per segment against the full segment KV — the batched pooling shape."""
     lengths = [33, 70, 5]
     kv_offsets = np.array([0, *np.cumsum(lengths)], dtype=np.uint32)
@@ -215,10 +230,11 @@ def test_attention_pool(dtype, tolerance, np_rng: np.random.Generator):
             probabilities = np.exp(scores - scores.max())
             probabilities /= probabilities.sum()
             expected = probabilities @ v_r[first : first + kv_len, sl]
-            np.testing.assert_allclose(result[segment, sl], expected, atol=tolerance, rtol=tolerance)
+            assert_allclose(result[segment, sl], expected, atol=tolerance, rtol=tolerance)
 
 
-def test_attention_i8(np_rng: np.random.Generator):
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_attention_i8_scores_exactly_and_quantizes_its_weights(np_rng: np.random.Generator):
     """I8 contract: exact integer scores, softmax weights quantized to u8, f32 outputs.
 
     The reference uses unquantized weights, so the tolerance is the u8 quantization
@@ -244,7 +260,7 @@ def test_attention_i8(np_rng: np.random.Generator):
             *rounded, offsets, offsets, lengths, head_count, head_count, depth, scale, keys_before, keys_after
         )
         value_scale = np.abs(expected).max()
-        np.testing.assert_allclose(result, expected, atol=0.02 * value_scale)
+        assert_allclose(result, expected, atol=0.02 * value_scale)
 
 
 def reference_attention_gradients(
@@ -286,8 +302,9 @@ def reference_attention_gradients(
     return query_gradient, key_gradient, value_gradient
 
 
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("band", BANDS)
-def test_attention_packed_gradients(band, np_rng: np.random.Generator):
+def test_attention_gradients_match_the_float64_reference(band, np_rng: np.random.Generator):
     """BF16 gradients fed the serial forward's own output and log-sum-exp, over segments that offset
     their queries differently, one without keys, against a float64 reference."""
     lengths, query_counts = [40, 0, 17, 5], [40, 2, 1, 9]
@@ -298,10 +315,12 @@ def test_attention_packed_gradients(band, np_rng: np.random.Generator):
     scale = 1.0 / np.sqrt(depth)
     keys_before, keys_after = band
 
-    q = nk.Tensor((np_rng.standard_normal((query_tokens, head_count * depth)) * 0.3).astype(np.float32)).astype("bf16")
+    q = nk.Tensor((np_rng.standard_normal((query_tokens, head_count * depth)) * 0.3).astype(np.float32)).astype(
+        "bfloat16"
+    )
     k, v = (
         nk.Tensor((np_rng.standard_normal((key_tokens, key_value_head_count * depth)) * 0.3).astype(np.float32)).astype(
-            "bf16"
+            "bfloat16"
         )
         for _ in range(2)
     )
@@ -331,26 +350,28 @@ def test_attention_packed_gradients(band, np_rng: np.random.Generator):
         *rounded, output_gradient, query_offsets, key_offsets, head_count, key_value_head_count, depth, scale, band
     )
     for result, reference in zip(gradients, expected):
-        np.testing.assert_allclose(np.from_dlpack(result), reference, atol=1e-4 * max(1.0, np.abs(reference).max()))
+        assert_allclose(np.from_dlpack(result), reference, atol=1e-4 * max(1.0, np.abs(reference).max()))
     assert np.isnan(np.from_dlpack(query_gradient_buffer)[:, head_count * depth :]).all()
 
 
-def test_attention_validation():
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_attention_refuses_malformed_offsets_and_operands():
+    """Malformed operands and offsets, and the retired diagonal and window keywords, raise before any kernel runs."""
     offsets = np.array([0, 4], dtype=np.uint32)
-    matrix = nk.Tensor(np.zeros((4, 128), dtype=np.float32)).astype("bf16")
+    matrix = nk.Tensor(np.zeros((4, 128), dtype=np.float32)).astype("bfloat16")
     kv = nk.attention_pack(matrix, matrix, key_offsets=offsets, depth=128, threads=1)
 
     with pytest.raises(TypeError):
         nk.attention_packed(matrix, "not-packed", query_offsets=offsets)
-    with pytest.raises(ValueError):  # wrong offsets length
+    with pytest.raises(ValueError, match="query_offsets must have"):  # wrong offsets length
         nk.attention_packed(matrix, kv, query_offsets=np.array([0, 2, 4], dtype=np.uint32))
-    with pytest.raises(ValueError):  # offsets past the query token count
+    with pytest.raises(ValueError, match="exceed the number of provided query tokens"):
         nk.attention_packed(matrix, kv, query_offsets=np.array([0, 9], dtype=np.uint32), keys_after=0)
     with pytest.raises(TypeError):  # the old diagonal and window keywords are gone
         nk.attention_packed(matrix, kv, query_offsets=offsets, window=4)
-    with pytest.raises(ValueError):  # decreasing key offsets
+    with pytest.raises(ValueError, match="key_offsets must not decrease"):
         nk.attention_pack(matrix, matrix, key_offsets=np.array([0, 4, 2], dtype=np.uint32), depth=128)
-    with pytest.raises(ValueError):  # a length past its slot
+    with pytest.raises(ValueError, match="must fit between adjacent key_offsets"):  # a length past its slot
         nk.attention_pack(matrix, matrix, key_offsets=offsets, key_lengths=np.array([5], dtype=np.uint32), depth=128)
     with pytest.raises(TypeError):  # missing depth for a 2-D input
         nk.attention_pack(matrix, matrix, key_offsets=offsets)
@@ -371,16 +392,17 @@ def baseline_rope(x, cos, sin, head_count, depth):
 
 
 # (rows, head_count, depth)
-@pytest.mark.parametrize("geom", [(4, 1, 8), (3, 2, 16), (5, 1, 128), (2, 3, 40)])
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize(
     "dtype",
     [
         pytest.param("float32", id="f32"),
-        pytest.param("bf16", id="bf16"),
+        pytest.param("bfloat16", id="bf16"),
         pytest.param("e4m3", id="e4m3"),
     ],
 )
-def test_attention_rope(capabilities, geom, dtype, np_rng: np.random.Generator):
+@pytest.mark.parametrize("geom", [(4, 1, 8), (3, 2, 16), (5, 1, 128), (2, 3, 40)])
+def test_rope_rotates_halves_out_of_place_and_in_place(capabilities, geom, dtype, np_rng: np.random.Generator):
     """Test nk.attention_rope() out-of-place and in-place (out == x) against a float64 rotate-half reference."""
     rows, head_count, depth = geom
     width = head_count * depth

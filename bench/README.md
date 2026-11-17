@@ -53,31 +53,31 @@ NUMWARS_FILTER=dot build_release/numkong_bench                 # filter by name
 NUMWARS_TIME_LIMIT=30s build_release/numkong_bench             # longer runs for stable results
 ```
 
-The binary takes no arguments; the environment configures it.
+Each setting is an environment variable that its flag overrides, as `--time-limit 30s`.
 The linked runner uses device zero of each available compiled GPU backend by default.
 An explicit device list selects all listed devices and rejects unavailable backends or ordinals.
 Each benchmark prints one line: its name, calls per second, and its counters.
 
 ### Environment Variables
 
-| Variable                       | Default | Description                                                                         |
-| :----------------------------- | ------: | :---------------------------------------------------------------------------------- |
-| `NUMWARS_DEVICES`              |    auto | Comma-separated vendor-local devices, for example `cuda:0,rocm:1`                   |
-| `NUMWARS_FILTER`               |   unset | ECMAScript regex searched in benchmark names; an invalid one matches as a substring |
-| `NUMWARS_SEED`                 |    `42` | RNG seed for reproducible inputs, or `random` to draw one                           |
-| `NUMWARS_WARMUP`               |    `1s` | Untimed run per benchmark, `<int>ms` or `<int>s`                                    |
-| `NUMWARS_TIME_LIMIT`           |   `10s` | Timed run per benchmark, `<int>ms` or `<int>s`                                      |
-| `NUMWARS_BATCH_PER_CORE`       |  `2048` | Elements, pairs or points per call for each, cast, reduce, trigonometry, geospatial |
-| `NUMWARS_DIMS`                 |  `1536` | Vector dimension for dot/spatial benchmarks                                         |
-| `NUMWARS_DIMS_HEIGHT`          |  `1024` | GEMM M dimension, dataset size in kNN                                               |
-| `NUMWARS_DIMS_WIDTH`           |   `128` | GEMM N dimension, query count in kNN                                                |
-| `NUMWARS_DIMS_DEPTH`           |  `1536` | GEMM K dimension, vector dimension in kNN                                           |
-| `NUMKONG_CURVED_DIMS`          |    `64` | Vector dimension for curved / bilinear form benchmarks                              |
-| `NUMKONG_SHAPE_POINTS`         |    `32` | Points per cloud for shape benchmarks                                               |
-| `NUMKONG_SPARSE_FIRST_LENGTH`  |  `1024` | First set size for sparse benchmarks                                                |
-| `NUMKONG_SPARSE_SECOND_LENGTH` |  `8192` | Second set size for sparse benchmarks                                               |
-| `NUMKONG_SPARSE_INTERSECTION`  |   `0.5` | Intersection share in (0, 1] for sparse benchmarks                                  |
-| `NUMKONG_MAX_COORD_ANGLE`      |   `180` | Maximum angle in degrees for geospatial benchmarks                                  |
+| Variable                       | Flag                     | Default | Description                                                                         |
+| :----------------------------- | :----------------------- | ------: | :---------------------------------------------------------------------------------- |
+| `NUMWARS_DEVICES`              | `--devices`              |    auto | Comma-separated vendor-local devices, for example `cuda:0,rocm:1`                   |
+| `NUMWARS_FILTER`               | `--filter`               |   unset | ECMAScript regex searched in benchmark names; an invalid one matches as a substring |
+| `NUMWARS_SEED`                 | `--seed`                 |    `42` | RNG seed for reproducible inputs, or `random` to draw one                           |
+| `NUMWARS_WARMUP`               | `--warmup`               |    `1s` | Untimed run per benchmark, `<int>ms` or `<int>s`                                    |
+| `NUMWARS_TIME_LIMIT`           | `--time-limit`           |   `10s` | Timed run per benchmark, `<int>ms` or `<int>s`                                      |
+| `NUMWARS_BATCH_PER_CORE`       | `--batch-per-core`       |  `2048` | Elements, pairs or points per call for each, cast, reduce, trigonometry, geospatial |
+| `NUMWARS_DIMS`                 | `--dims`                 |  `1536` | Vector dimension for dot/spatial benchmarks                                         |
+| `NUMWARS_DIMS_HEIGHT`          | `--dims-height`          |  `1024` | GEMM M dimension, dataset size in kNN                                               |
+| `NUMWARS_DIMS_WIDTH`           | `--dims-width`           |   `128` | GEMM N dimension, query count in kNN                                                |
+| `NUMWARS_DIMS_DEPTH`           | `--dims-depth`           |  `1536` | GEMM K dimension, vector dimension in kNN                                           |
+| `NUMKONG_CURVED_DIMS`          | `--curved-dims`          |    `64` | Vector dimension for curved / bilinear form benchmarks                              |
+| `NUMKONG_SHAPE_POINTS`         | `--shape-points`         |    `32` | Points per cloud for shape benchmarks                                               |
+| `NUMKONG_SPARSE_FIRST_LENGTH`  | `--sparse-first-length`  |  `1024` | First set size for sparse benchmarks                                                |
+| `NUMKONG_SPARSE_SECOND_LENGTH` | `--sparse-second-length` |  `8192` | Second set size for sparse benchmarks                                               |
+| `NUMKONG_SPARSE_INTERSECTION`  | `--sparse-intersection`  |   `0.5` | Intersection share in (0, 1] for sparse benchmarks                                  |
+| `NUMKONG_MAX_COORD_ANGLE`      | `--max-coord-angle`      |   `180` | Maximum angle in degrees for geospatial benchmarks                                  |
 
 The seed in use opens the output as `- Seed: <n>`, so a `random` draw replays.
 

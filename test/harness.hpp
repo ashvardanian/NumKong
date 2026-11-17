@@ -5,31 +5,36 @@
  *  @brief C++ test suite with precision analysis using double-double arithmetic.
  *
  *  This test suite compares NumKong operations against high-precision references, like our
- *  @c f118_t double-double type, and reports ULP, absolute, and relative error statistics.
+ *  @c f118_t double-double type, and reports ULP, absolute, and relative error statistics. Every
+ *  kernel is a case labelled @c family.dtype.capability , like @c dot.f32.haswell , skipped on a
+ *  machine without that capability.
  *
- *  Environment Variables:
+ *  Environment Variables, each overridden by its flag, like <tt>--time-limit 200ms</tt>:
  *
  *  @verbatim
- *  Variable                     Default    Meaning
- *  NUMKONG_DEVICES              auto       Comma-separated backend:ordinal, like cuda:0,rocm:1
- *  NUMKONG_FILTER               none       Regex over kernel names, or a substring if not a regex
- *  NUMKONG_SEED                 42         32-bit seed for random inputs, or random
- *  NUMKONG_TIME_LIMIT           1s         Randomized trials per kernel, like 200ms or 1s
- *  NUMKONG_DIMS                 1536       Vector dimension for dot and spatial tests, the first of a list
- *  NUMKONG_CURVED_DIMS          64         Vector dimension for curved tests, the first of a list
- *  NUMKONG_SPARSE_DIMS          256        Vector dimension for sparse tests, the first of a list
- *  NUMKONG_SHAPE_POINTS         32         Points per cloud for shape tests
- *  NUMKONG_DIMS_HEIGHT          1024       GEMM M dimension, the first of a list
- *  NUMKONG_DIMS_WIDTH           128        GEMM N dimension, the first of a list
- *  NUMKONG_DIMS_DEPTH           1536       GEMM K dimension, the first of a list
- *  NUMKONG_IN_QEMU              0          Shrink shapes for emulated runs: 0, 1, true or false
- *  NUMKONG_ASSERT               1          Exit 1 on a failed accuracy check; 0 only reports it
- *  NUMKONG_ULP_THRESHOLD_F32    4          Max allowed ULP for f32
- *  NUMKONG_ULP_THRESHOLD_F16    32         Max allowed ULP for f16
- *  NUMKONG_ULP_THRESHOLD_BF16   256        Max allowed ULP for bf16
- *  NUMKONG_SCALE_THRESHOLD      0.02       Max error over the largest reference, for attention
- *  NUMKONG_MAX_COORD_ANGLE      180        Max geospatial angular separation in degrees, in [0, 180]
- *  NUMKONG_RANDOM_DISTRIBUTION  lognormal  uniform, lognormal or cauchy
+ *  Variable                     Flag                   Default    Meaning
+ *  NUMKONG_SEED                 --seed                 42         Seed for random inputs, any unsigned 64-bit value, or
+ * random NUMKONG_FILTER               --filter               none       Regex over case labels, or a substring if not a
+ * regex NUMKONG_SCALE                --scale                1          Multiplies each case's time limit, like 0.1 or
+ * 10 NUMKONG_TRAP_ON_FAILURE      --trap-on-failure      0          Anything but 0 traps at the first failed check, to
+ * stop under a debugger NUMKONG_NO_SKIPS             --no-skips             0          Anything but 0 exits 3 when a
+ * case skipped NUMKONG_DEVICES              --devices              auto       Comma-separated backend:ordinal, like
+ * cuda:0,rocm:1 NUMKONG_TIME_LIMIT           --time-limit           1s         Randomized trials per case, like 200ms,
+ * 1s or 2m NUMKONG_DIMS                 --dims                 1536       Vector dimension for dot and spatial tests,
+ * the first of a list NUMKONG_CURVED_DIMS          --curved-dims          64         Vector dimension for curved tests,
+ * the first of a list NUMKONG_SPARSE_DIMS          --sparse-dims          256        Vector dimension for sparse tests,
+ * the first of a list NUMKONG_SHAPE_POINTS         --shape-points         32         Points per cloud for shape tests
+ *  NUMKONG_DIMS_HEIGHT          --dims-height          1024       GEMM M dimension, the first of a list
+ *  NUMKONG_DIMS_WIDTH           --dims-width           128        GEMM N dimension, the first of a list
+ *  NUMKONG_DIMS_DEPTH           --dims-depth           1536       GEMM K dimension, the first of a list
+ *  NUMKONG_IN_QEMU              --in-qemu              0          Anything but 0 shrinks shapes for emulated runs
+ *  NUMKONG_ASSERT               --assert               1          0 only reports a failed accuracy check, rather than
+ * failing its case NUMKONG_ULP_THRESHOLD_F32    --ulp-threshold-f32    4          Max allowed ULP for f32
+ *  NUMKONG_ULP_THRESHOLD_F16    --ulp-threshold-f16    32         Max allowed ULP for f16
+ *  NUMKONG_ULP_THRESHOLD_BF16   --ulp-threshold-bf16   256        Max allowed ULP for bf16
+ *  NUMKONG_SCALE_THRESHOLD      --scale-threshold      0.02       Max error over the largest reference, for attention,
+ * in (0, 1] NUMKONG_MAX_COORD_ANGLE      --max-coord-angle      180        Max geospatial angular separation in
+ * degrees, in (0, 180] NUMKONG_RANDOM_DISTRIBUTION  --random-distribution  lognormal  uniform, lognormal or cauchy
  *  @endverbatim
  */
 
@@ -37,33 +42,38 @@
 #ifndef NUMKONG_TEST_HARNESS_HPP
 #define NUMKONG_TEST_HARNESS_HPP
 
-#include <cassert> // `assert`
-#include <cctype>  // `std::tolower`
-#include <cmath>   // `std::fabs`, `std::isnan`, `std::ldexp`, `std::ilogb`
-#include <cstddef> // `std::ptrdiff_t`
-#include <cstdint> // `std::uint64_t`, `std::int32_t`, `std::int64_t`
-#include <cstdio>  // `std::fflush`, `stdout`, `stderr`
-#include <cstdlib> // `std::abort`, `std::exit`, `std::getenv`, `std::strtod`
-#include <cstring> // `std::memcpy`, `std::strcmp`
+#include <cctype>    // `std::tolower`
+#include <cinttypes> // `PRIu64`, `PRIuLEAST32`
+#include <cmath>     // `std::fabs`, `std::isnan`, `std::ldexp`, `std::ilogb`
+#include <cstddef>   // `std::ptrdiff_t`
+#include <cstdint>   // `std::uint64_t`, `std::int32_t`, `std::int64_t`
+#include <cstdio>    // `std::fflush`, `stdout`, `stderr`
+#include <cstdlib>   // `std::abort`, `std::exit`, `std::getenv`, `std::strtod`
+#include <cstring>   // `std::memcpy`, `std::strcmp`
 
-#include <algorithm>    // `std::equal`
-#include <array>        // `std::array`
-#include <charconv>     // `std::from_chars`
-#include <chrono>       // `std::chrono::steady_clock`, `std::chrono::milliseconds`
-#include <complex>      // `std::complex`
-#include <limits>       // `std::numeric_limits`
-#include <memory>       // `std::shared_ptr`, `std::make_shared`
-#include <new>          // `std::bad_alloc`
-#include <optional>     // `std::optional`
-#include <random>       // `std::random_device`
-#include <regex>        // `std::regex`, `std::regex_search`
-#include <string>       // `std::string`, `std::to_string`
-#include <string_view>  // `std::string_view`
-#include <system_error> // `std::errc`
-#include <tuple>        // `std::tuple`, `std::get`
-#include <type_traits>  // `std::is_same_v`
-#include <utility>      // `std::index_sequence`, `std::move`
-#include <vector>       // `std::vector`
+#include <algorithm>       // `std::equal`
+#include <array>           // `std::array`
+#include <atomic>          // `std::atomic`
+#include <bit>             // `std::countr_zero`
+#include <charconv>        // `std::from_chars`
+#include <chrono>          // `std::chrono::steady_clock`, `std::chrono::milliseconds`
+#include <complex>         // `std::complex`
+#include <functional>      // `std::invoke`
+#include <limits>          // `std::numeric_limits`
+#include <memory>          // `std::shared_ptr`, `std::make_shared`
+#include <new>             // `std::bad_alloc`
+#include <optional>        // `std::optional`
+#include <random>          // `std::random_device`
+#include <regex>           // `std::regex`, `std::regex_search`
+#include <source_location> // `std::source_location`
+#include <string>          // `std::string`, `std::to_string`
+#include <string_view>     // `std::string_view`
+#include <system_error>    // `std::errc`
+#include <thread>          // `std::this_thread::yield`
+#include <tuple>           // `std::tuple`, `std::get`
+#include <type_traits>     // `std::is_same_v`
+#include <utility>         // `std::index_sequence`, `std::move`
+#include <vector>          // `std::vector`
 
 #include <fmt/format.h> // `fmt::print`, `fmt::println`, enums with `format_as`
 
@@ -112,6 +122,17 @@
 #include "numkong/random.hpp" // `nk::fill_uniform`
 #include "numkong/vector.hpp" // `nk::vector`
 #include "numkong/memory.hpp" // `nk::allocator`, `nk::stream_t`
+
+#if NUMKONG_OS_WINDOWS_
+#include <csignal> // `std::signal`, `std::raise`
+#include <io.h>    // `_write`
+#elif !NUMKONG_ARCH_WASM_
+#include <csignal>  // `std::signal`, `std::raise`, `SIGTRAP`
+#include <unistd.h> // `write`, `STDERR_FILENO`
+#endif
+#if (defined(__GLIBC__) || NUMKONG_OS_APPLE_) && __has_include(<execinfo.h>)
+#include <execinfo.h> // `backtrace`, `backtrace_symbols_fd`
+#endif
 
 namespace nk = ashvardanian::numkong;
 
@@ -168,40 +189,10 @@ struct deadline_t {
     bool ahead() const noexcept { return steady_clock_t::now() < moment; }
 };
 
-/** A 32-bit generator seed, kept apart from counts so neither passes for the other. */
-struct seed_t {
-    std::uint32_t value = 0;
-};
-
-/** A positive thread count: "0" in the environment resolves to every core this process may use. */
-struct threads_t {
-    std::size_t count = 0;
-};
-
 /** A size in bytes, kept apart from element counts. */
 struct bytes_t {
     std::size_t value = 0;
 };
-
-/** The text of the environment variable @p name, or nothing when it is unset or empty. */
-inline std::optional<std::string_view> env_text(char const *name) noexcept {
-    char const *const text = std::getenv(name);
-    if (!text || !*text) return std::nullopt;
-    return std::string_view(text);
-}
-
-/** Parses the environment variable @p name with @p parse, or returns @p fallback when it is unset
- *  or empty. Text that does not parse prints `NAME="text" does not parse, expected <expected>` and
- *  exits with status 1, which leaves crash handlers quiet. */
-template <typename value_type_, typename parse_type_>
-[[nodiscard]] value_type_ env_parsed(char const *name, value_type_ fallback, parse_type_ &&parse,
-                                     char const *expected) noexcept {
-    std::optional<std::string_view> const text = env_text(name);
-    if (!text) return fallback;
-    if (std::optional<value_type_> value = parse(*text)) return *std::move(value);
-    fmt::println(stderr, "{}=\"{}\" does not parse, expected {}", name, *text, expected);
-    std::exit(1);
-}
 
 /** A positive whole number, like "64". */
 inline std::optional<std::size_t> parse_count(std::string_view text) noexcept {
@@ -209,34 +200,6 @@ inline std::optional<std::size_t> parse_count(std::string_view text) noexcept {
     auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), count);
     if (error != std::errc {} || end != text.data() + text.size() || !count) return std::nullopt;
     return count;
-}
-
-/** A positive duration in whole milliseconds or seconds, like "200ms" or "10s". */
-inline std::optional<std::chrono::milliseconds> parse_duration(std::string_view text) noexcept {
-    std::uint32_t count = 0;
-    auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), count);
-    if (error != std::errc {} || !count) return std::nullopt;
-    std::string_view const unit = text.substr(end - text.data());
-    if (unit == "ms") return std::chrono::milliseconds(count);
-    if (unit == "s") return std::chrono::seconds(count);
-    return std::nullopt;
-}
-
-/** A positive size in whole bytes or binary units of any case, like "4096", "64KB" or "1GB". */
-inline std::optional<bytes_t> parse_size(std::string_view text) noexcept {
-    std::size_t bytes = 0;
-    auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), bytes);
-    if (error != std::errc {} || !bytes) return std::nullopt;
-    std::string_view const unit = text.substr(end - text.data());
-    auto const same_letter = [](char given, char lower) noexcept {
-        return std::tolower(static_cast<unsigned char>(given)) == lower;
-    };
-    for (std::string_view const known : std::array<std::string_view, 5> {"", "kb", "mb", "gb", "tb"}) {
-        if (std::equal(unit.begin(), unit.end(), known.begin(), known.end(), same_letter)) return bytes_t {bytes};
-        if (bytes > (std::numeric_limits<std::size_t>::max)() / 1024) return std::nullopt;
-        bytes *= 1024;
-    }
-    return std::nullopt;
 }
 
 /** Positive counts separated by commas, like "64,128". */
@@ -252,52 +215,10 @@ inline std::optional<std::vector<std::size_t>> parse_dims(std::string_view text)
     }
 }
 
-/** A 32-bit seed, or "random" for a fresh draw from @c std::random_device. */
-inline std::optional<seed_t> parse_seed(std::string_view text) noexcept {
-    if (text == "random") return seed_t {static_cast<std::uint32_t>(std::random_device {}())};
-    std::uint32_t seed = 0;
-    auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), seed);
-    if (error != std::errc {} || end != text.data() + text.size()) return std::nullopt;
-    return seed_t {seed};
-}
-
-inline std::size_t env_count(char const *name, std::size_t fallback) noexcept {
-    return env_parsed(name, fallback, parse_count, "a positive count");
-}
-
-inline std::chrono::milliseconds env_duration(char const *name, std::chrono::milliseconds fallback) noexcept {
-    return env_parsed(name, fallback, parse_duration, "a duration like 200ms or 10s");
-}
-
-inline bytes_t env_size(char const *name, bytes_t fallback) noexcept {
-    return env_parsed(name, fallback, parse_size, "a size like 4096, 64KB or 1GB");
-}
-
-inline bool env_flag(char const *name, bool fallback) noexcept {
-    auto const parse_flag = [](std::string_view text) noexcept -> std::optional<bool> {
-        if (text == "1" || text == "true") return true;
-        if (text == "0" || text == "false") return false;
-        return std::nullopt;
-    };
-    return env_parsed(name, fallback, parse_flag, "0, 1, true or false");
-}
-
-inline seed_t env_seed(char const *name, seed_t fallback) noexcept {
-    return env_parsed(name, fallback, parse_seed, "an unsigned integer or random");
-}
-
 /** Spells @p duration as a user types it: whole seconds as "10s", anything else as "1500ms". */
 inline std::string spell_duration(std::chrono::milliseconds duration) {
     auto const count = duration.count();
     return count % 1000 ? std::to_string(count) + "ms" : std::to_string(count / 1000) + "s";
-}
-
-/** Spells @p size as a user types it, in the largest binary unit dividing it, like "256MB". */
-inline std::string spell_size(bytes_t size) {
-    constexpr std::array<char const *, 5> units {"", "KB", "MB", "GB", "TB"};
-    std::size_t bytes = size.value, power = 0;
-    while (power + 1 != units.size() && bytes && bytes % 1024 == 0) bytes /= 1024, ++power;
-    return std::to_string(bytes) + units[power];
 }
 
 /**
@@ -340,8 +261,6 @@ inline std::optional<distribution_t> parse_distribution(std::string_view text) n
 /** What a kernel failing its accuracy check does to the exit status. */
 enum class on_failure_t : unsigned char { report_k, exit_k };
 
-/** Input shapes: as set, or divided by four for emulated SIMD. */
-enum class emulation_t : unsigned char { native_k, emulated_k };
 enum class comparison_family_t {
     exact_k,
     approximate_k,
@@ -413,197 +332,6 @@ inline std::optional<std::vector<device_selection_t>> parse_devices(std::string_
     return std::nullopt;
 }
 
-/** Every test setting, with its default as the initializer, filled once by @c read_settings. */
-struct settings_t {
-
-    std::optional<std::vector<device_selection_t>> devices;
-    nk::device_t device = nk::device_t::cpu();
-
-    /** Tests to run, by ECMAScript regex or else substring. */
-    std::string_view filter;
-    std::optional<std::regex> filter_regex;
-
-    /** Random seed for reproducible tests. */
-    seed_t seed {42};
-
-    /** How long each kernel's randomized trials run. */
-    std::chrono::milliseconds time_limit_per_kernel = std::chrono::seconds(1);
-
-    /** Random distribution for test inputs. */
-    distribution_t distribution = distribution_t::lognormal_k;
-
-    /** What a failed accuracy check does to the exit status. */
-    on_failure_t on_failure = on_failure_t::exit_k;
-
-    /** Whether to shrink shapes for emulated SIMD. */
-    emulation_t emulation = emulation_t::native_k;
-
-    /** Max allowed ULP for f32. */
-    std::uint64_t ulp_threshold_f32 = 4;
-
-    /** Max allowed ULP for f16. */
-    std::uint64_t ulp_threshold_f16 = 32;
-
-    /** Max allowed ULP for bf16. */
-    std::uint64_t ulp_threshold_bf16 = 256;
-
-    /** Max absolute error as a fraction of the largest reference magnitude, for the
-     *  normalized-reduction family. */
-    nk_f64_t scale_threshold = 0.02;
-
-    /** For dot products, spatial metrics. */
-    std::size_t dense_dimensions = 1536;
-
-    /** GEMM M dimension. */
-    std::size_t matrix_height = 1024;
-
-    /** GEMM N dimension. */
-    std::size_t matrix_width = 128;
-
-    /** GEMM K dimension. */
-    std::size_t matrix_depth = 1536;
-
-    /** For curved metrics, quadratic in dimensions. */
-    std::size_t curved_dimensions = 64;
-
-    /** For sparse set intersection and sparse dot. */
-    std::size_t sparse_dimensions = 256;
-
-    /** Points per cloud for the many-to-many shape distances. */
-    std::size_t shape_points = 32;
-
-    /** Max geospatial angular separation. */
-    float max_coord_angle_degrees = 180.0f;
-
-    /** The binary's @c argv[0], which closes every rerun line. */
-    std::string_view program;
-
-    /** The deadline of trials starting now. */
-    deadline_t deadline() const noexcept { return {steady_clock_t::now() + time_limit_per_kernel}; }
-
-    /** Whether @p name passes the filter. */
-    bool selects(std::string_view name) const {
-        if (filter.empty()) return true;
-        if (filter_regex) return std::regex_search(name.begin(), name.end(), *filter_regex);
-        return name.find(filter) != std::string_view::npos;
-    }
-
-    std::uint64_t ulp_threshold_for(nk_dtype_t dtype) const noexcept {
-        if (dtype == nk_bf16_k) return ulp_threshold_bf16;
-        if (dtype == nk_f16_k) return ulp_threshold_f16;
-        return ulp_threshold_f32;
-    }
-};
-
-/** Reads every @c settings_t variable, rejecting a zero count, for the binary named @p program. */
-inline settings_t read_settings(char const *program) noexcept {
-    settings_t settings;
-    settings.program = program;
-    // Python and JS take a comma list of dimensions, of which C++ runs the first
-    auto const first_dim = [](char const *name, std::size_t fallback) noexcept {
-        return env_parsed(name, std::vector {fallback}, parse_dims, "positive counts like 64,128").front();
-    };
-    auto const env_ulps = [](char const *name, std::uint64_t fallback) noexcept {
-        auto const parse = [](std::string_view text) noexcept -> std::optional<std::uint64_t> {
-            std::uint64_t ulps = 0;
-            auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), ulps);
-            if (error != std::errc {} || end != text.data() + text.size()) return std::nullopt;
-            return ulps;
-        };
-        return env_parsed(name, fallback, parse, "an unsigned integer");
-    };
-    auto const number_within = [](char const *name, double fallback, double low, double high,
-                                  char const *expected) noexcept {
-        auto const parse = [=](std::string_view text) -> std::optional<double> {
-            std::string const terminated(text);
-            char *end = nullptr;
-            double const value = std::strtod(terminated.c_str(), &end);
-            if (end != terminated.c_str() + terminated.size() || !(value >= low && value <= high)) return std::nullopt;
-            return value;
-        };
-        return env_parsed(name, fallback, parse, expected);
-    };
-    if (env_text("NUMKONG_DEVICES"))
-        settings.devices = env_parsed("NUMKONG_DEVICES", std::vector<device_selection_t> {}, parse_devices,
-                                      "comma-separated devices such as cuda:0,rocm:1");
-    settings.filter = env_text("NUMKONG_FILTER").value_or("");
-    if (!settings.filter.empty()) {
-#if defined(__cpp_exceptions) && __cpp_exceptions
-        try {
-            settings.filter_regex.emplace(settings.filter.begin(), settings.filter.end());
-        }
-        catch (std::regex_error const &) {
-        }
-#else
-        settings.filter_regex.emplace(settings.filter.begin(), settings.filter.end());
-#endif
-    }
-    settings.seed = env_seed("NUMKONG_SEED", settings.seed);
-    settings.time_limit_per_kernel = env_duration("NUMKONG_TIME_LIMIT", settings.time_limit_per_kernel);
-    settings.distribution = env_parsed("NUMKONG_RANDOM_DISTRIBUTION", settings.distribution, parse_distribution,
-                                       "uniform, lognormal or cauchy");
-    settings.on_failure = env_flag("NUMKONG_ASSERT", settings.on_failure == on_failure_t::exit_k)
-                              ? on_failure_t::exit_k
-                              : on_failure_t::report_k;
-    settings.emulation = env_flag("NUMKONG_IN_QEMU", settings.emulation == emulation_t::emulated_k)
-                             ? emulation_t::emulated_k
-                             : emulation_t::native_k;
-    settings.ulp_threshold_f32 = env_ulps("NUMKONG_ULP_THRESHOLD_F32", settings.ulp_threshold_f32);
-    settings.ulp_threshold_f16 = env_ulps("NUMKONG_ULP_THRESHOLD_F16", settings.ulp_threshold_f16);
-    settings.ulp_threshold_bf16 = env_ulps("NUMKONG_ULP_THRESHOLD_BF16", settings.ulp_threshold_bf16);
-    settings.scale_threshold = number_within("NUMKONG_SCALE_THRESHOLD", settings.scale_threshold, 0, 1,
-                                             "a number in [0, 1]");
-    settings.dense_dimensions = first_dim("NUMKONG_DIMS", settings.dense_dimensions);
-    settings.matrix_height = first_dim("NUMKONG_DIMS_HEIGHT", settings.matrix_height);
-    settings.matrix_width = first_dim("NUMKONG_DIMS_WIDTH", settings.matrix_width);
-    settings.matrix_depth = first_dim("NUMKONG_DIMS_DEPTH", settings.matrix_depth);
-    settings.curved_dimensions = first_dim("NUMKONG_CURVED_DIMS", settings.curved_dimensions);
-    settings.sparse_dimensions = first_dim("NUMKONG_SPARSE_DIMS", settings.sparse_dimensions);
-    settings.shape_points = env_count("NUMKONG_SHAPE_POINTS", settings.shape_points);
-    settings.max_coord_angle_degrees = static_cast<float>(
-        number_within("NUMKONG_MAX_COORD_ANGLE", settings.max_coord_angle_degrees, 0, 180, "a number in [0, 180]"));
-
-    // Shrink dimensions for QEMU — divides whatever value is currently stored,
-    // so explicit env-var overrides are proportionally reduced too.
-    if (settings.emulation == emulation_t::emulated_k) {
-        settings.dense_dimensions = nk::max_of<std::size_t>(1, settings.dense_dimensions / 4);
-        settings.matrix_height = nk::max_of<std::size_t>(1, settings.matrix_height / 4);
-        settings.matrix_width = nk::max_of<std::size_t>(1, settings.matrix_width / 4);
-        settings.matrix_depth = nk::max_of<std::size_t>(1, settings.matrix_depth / 4);
-        settings.shape_points = nk::max_of<std::size_t>(1, settings.shape_points / 4);
-    }
-    return settings;
-}
-
-/** Prints each setting as "- Name: value", in the grammar it parses from, then a rerun template. */
-inline void print(settings_t const &settings) {
-    if (settings.devices) {
-        for (device_selection_t const &device : *settings.devices)
-            fmt::println("- Device: {}:{}", device_name(device.backend), device.ordinal);
-    }
-    else fmt::println("- Devices: auto");
-    fmt::println("- Seed: {}", settings.seed.value);
-    fmt::println("- Filter: {}", settings.filter.empty() ? std::string_view("none") : settings.filter);
-    fmt::println("- Time limit: {}", spell_duration(settings.time_limit_per_kernel));
-    fmt::println("- Random distribution: {}", settings.distribution);
-    fmt::println("- Assert: {}", settings.on_failure == on_failure_t::exit_k);
-    fmt::println("- In QEMU: {}", settings.emulation == emulation_t::emulated_k);
-    fmt::println("- ULP threshold f32: {}", settings.ulp_threshold_f32);
-    fmt::println("- ULP threshold f16: {}", settings.ulp_threshold_f16);
-    fmt::println("- ULP threshold bf16: {}", settings.ulp_threshold_bf16);
-    fmt::println("- Scale threshold: {}", settings.scale_threshold);
-    fmt::println("- Dims: {}", settings.dense_dimensions);
-    fmt::println("- Dims height: {}", settings.matrix_height);
-    fmt::println("- Dims width: {}", settings.matrix_width);
-    fmt::println("- Dims depth: {}", settings.matrix_depth);
-    fmt::println("- Curved dims: {}", settings.curved_dimensions);
-    fmt::println("- Sparse dims: {}", settings.sparse_dimensions);
-    fmt::println("- Shape points: {}", settings.shape_points);
-    fmt::println("- Max coord angle: {}", settings.max_coord_angle_degrees);
-    fmt::println("- Rerun one test: NUMKONG_SEED={} NUMKONG_FILTER='^<name>$' {}", settings.seed.value,
-                 settings.program);
-}
-
 /** The facts this binary and this machine report: the library version, and the capabilities
  *  compiled in and detected. */
 struct machine_t {
@@ -611,26 +339,6 @@ struct machine_t {
     nk_capability_t compiled = 0;
     nk_capability_t detected = 0;
 };
-
-/** Everything a test reads, built once in @c main and passed down by reference. */
-struct environment_t {
-    settings_t settings;
-    machine_t machine;
-};
-
-inline void print_stats_header(comparison_family_t family) noexcept {
-    comparison_family_spec_t const spec = comparison_family_spec(family);
-    fmt::println("{:<40} {:>12} {:>10} {:>12} {:>12} {:>10}\n", "Kernel", spec.column_labels[0], spec.column_labels[1],
-                 spec.column_labels[2], spec.column_labels[3], spec.column_labels[4]);
-}
-
-struct error_stats_t;
-bool should_fail(settings_t const &settings, error_stats_t const &stats) noexcept;
-void print_stats_row(char const *kernel_name, error_stats_t const &stats) noexcept;
-
-/** Names the running kernel for SIGILL diagnostics: set before each kernel call, cleared after, and
- *  read by the signal handler that main() installs to log the culprit before the process exits. */
-extern char const *volatile nk_test_current_kernel_;
 
 /** The capabilities this CPU runs, whether or not this binary holds them. */
 inline nk_capability_t capabilities_detected_cpu() noexcept {
@@ -662,6 +370,662 @@ inline void print(machine_t const &machine, std::FILE *stream = stdout) {
     fmt::println(stream, "- This machine: {}", detected);
 }
 
+/** Stops in an attached debugger, or dumps core without one; SIGTRAP skips the crash handlers. */
+inline void trap_into_debugger() noexcept {
+#if NUMKONG_OS_WINDOWS_
+    __debugbreak();
+#elif NUMKONG_ARCH_WASM_
+    __builtin_trap();
+#else
+    std::raise(SIGTRAP);
+#endif
+}
+
+/** Arms the crash handlers, defined below the run whose case they name. */
+inline void install_test_signal_handlers() noexcept;
+
+#pragma region Shared Settings
+
+/** Exits with one line naming a setting that does not parse, so a bad value never runs anything. */
+[[noreturn]] inline void exit_unparsed(char const *variable, char const *text, char const *expected) noexcept {
+    std::fprintf(stderr, "%s=\"%s\" does not parse, expected %s\n", variable, text, expected);
+    std::exit(1);
+}
+
+/** The text of a setting: its @p flag when given, else its environment @p variable , else null. */
+inline char const *setting_text(int argc, char **argv, char const *variable, std::string_view flag) noexcept {
+    for (int index = 1; index < argc; ++index) {
+        std::string_view const argument {argv[index]};
+        if (argument == flag)
+            return index + 1 < argc && std::strncmp(argv[index + 1], "--", 2) != 0 ? argv[index + 1] : "1";
+        if (argument.size() > flag.size() && argument.starts_with(flag) && argument[flag.size()] == '=')
+            return argv[index] + flag.size() + 1;
+    }
+    char const *text = std::getenv(variable);
+    return text && *text ? text : nullptr;
+}
+
+/** A switch, @p fallback when unset: 0, false, off and no turn it off, anything else on. */
+inline bool read_flag_setting(int argc, char **argv, char const *variable, std::string_view flag,
+                              bool fallback = false) noexcept {
+    char const *text = setting_text(argc, argv, variable, flag);
+    if (!text) return fallback;
+    for (char const *off : {"0", "false", "off", "no"})
+        if (std::strcmp(text, off) == 0) return false;
+    return true;
+}
+
+/** A whole number, @p fallback when unset. */
+inline std::size_t read_count_setting(int argc, char **argv, char const *variable, std::string_view flag,
+                                      std::size_t fallback) noexcept {
+    char const *text = setting_text(argc, argv, variable, flag);
+    if (!text) return fallback;
+    std::string_view const spelled {text};
+    std::size_t count = 0;
+    auto const [end, error] = std::from_chars(spelled.data(), spelled.data() + spelled.size(), count);
+    if (error != std::errc {} || end != spelled.data() + spelled.size())
+        exit_unparsed(variable, text, "a whole number");
+    return count;
+}
+
+/** A positive real, @p fallback when unset. */
+inline double read_real_setting(int argc, char **argv, char const *variable, std::string_view flag,
+                                double fallback) noexcept {
+    char const *text = setting_text(argc, argv, variable, flag);
+    if (!text) return fallback;
+    char *end = nullptr;
+    double const value = std::strtod(text, &end);
+    if (*end != '\0' || !(value > 0) || !std::isfinite(value))
+        exit_unparsed(variable, text, "a positive number like 0.1 or 10");
+    return value;
+}
+
+/** A positive duration such as 200ms, 10s or 2m, @p fallback when unset. */
+inline std::chrono::milliseconds read_duration_setting(int argc, char **argv, char const *variable,
+                                                       std::string_view flag,
+                                                       std::chrono::milliseconds fallback) noexcept {
+    char const *text = setting_text(argc, argv, variable, flag);
+    if (!text) return fallback;
+    std::string_view const spelled {text};
+    std::uint32_t count = 0;
+    auto const [end, error] = std::from_chars(spelled.data(), spelled.data() + spelled.size(), count);
+    std::string_view const unit = spelled.substr(static_cast<std::size_t>(end - spelled.data()));
+    if (error == std::errc {} && count != 0) {
+        if (unit == "ms") return std::chrono::milliseconds(count);
+        if (unit == "s") return std::chrono::seconds(count);
+        if (unit == "m") return std::chrono::minutes(count);
+    }
+    exit_unparsed(variable, text, "a duration like 200ms, 10s or 2m");
+}
+
+/** The run's seed: 42 when unset, drawn afresh for @c random , else any unsigned 64-bit value. */
+inline std::uint64_t read_seed_setting(int argc, char **argv, char const *variable, std::string_view flag) noexcept {
+    char const *text = setting_text(argc, argv, variable, flag);
+    if (!text) return 42;
+    std::string_view const spelled {text};
+    if (spelled == "random") {
+        std::random_device device;
+        return (static_cast<std::uint64_t>(device()) << 32) ^ device();
+    }
+    std::uint64_t seed = 0;
+    auto const [end, error] = std::from_chars(spelled.data(), spelled.data() + spelled.size(), seed);
+    if (error != std::errc {} || end != spelled.data() + spelled.size())
+        exit_unparsed(variable, text, "an unsigned integer or random");
+    return seed;
+}
+
+/** Which labels a run selects: a regex search when the pattern compiles, else a substring. */
+struct filter_t {
+    std::string pattern;
+    std::optional<std::regex> regex;
+
+    bool selects(std::string_view label) const noexcept {
+        if (pattern.empty()) return true;
+        if (regex) return std::regex_search(label.begin(), label.end(), *regex);
+        return label.find(pattern) != std::string_view::npos;
+    }
+};
+
+/** The filter a setting spells, compiled once; empty, selecting everything, when unset. */
+inline filter_t read_filter_setting(int argc, char **argv, char const *variable, std::string_view flag) noexcept {
+    filter_t filter;
+    char const *text = setting_text(argc, argv, variable, flag);
+    if (!text) return filter;
+    filter.pattern = text;
+#if defined(__cpp_exceptions) && __cpp_exceptions
+    try {
+        filter.regex.emplace(filter.pattern);
+    }
+    catch (std::regex_error const &) {
+    }
+#else
+    filter.regex.emplace(filter.pattern);
+#endif
+    return filter;
+}
+
+/** What every suite and bench reads before its own settings; @c program starts the rerun lines. */
+struct common_settings_t {
+    std::uint64_t seed = 42;
+    filter_t filter;
+    char const *program = "";
+};
+
+/** SplitMix64's finalizer, a bijection that spreads every input bit over all 64 output bits. */
+constexpr std::uint64_t split_mix_bits(std::uint64_t value) noexcept {
+    value = (value ^ (value >> 30)) * 0xBF58476D1CE4E5B9ull;
+    value = (value ^ (value >> 27)) * 0x94D049BB133111EBull;
+    return value ^ (value >> 31);
+}
+
+/** The @p index -th stream of the family @p name under @p seed , identical in every language. */
+constexpr std::uint64_t stream_key(std::uint64_t seed, std::string_view name, std::uint64_t index = 0) noexcept {
+    std::uint64_t hashed = 0xCBF29CE484222325ull;
+    for (char const character : name) hashed = (hashed ^ static_cast<std::uint8_t>(character)) * 0x100000001B3ull;
+    return split_mix_bits(split_mix_bits(seed ^ hashed) + index);
+}
+
+/**
+ *  @brief SplitMix64 over one 64-bit state, seeded by a @ref stream_key , bit-identical to the
+ *      JavaScript generator NumKong ships.
+ *
+ *  Distributions are not specified to draw the same sequence on every standard library, so a
+ *  failure would stop reproducing from its seed when the toolchain changed; @ref below is the
+ *  portable bounded draw.
+ */
+struct split_mix_generator_t {
+    using result_type = std::uint64_t;
+    std::uint64_t state = 0;
+
+    explicit split_mix_generator_t(std::uint64_t key) noexcept : state(key) {}
+    static constexpr result_type(min)() noexcept { return 0; }
+    static constexpr result_type(max)() noexcept { return ~result_type {0}; }
+    result_type operator()() noexcept { return split_mix_bits(state += 0x9E3779B97F4A7C15ull); }
+
+    /** A uniform draw below @p bound , zero for an empty bound, without the bias of a modulo. */
+    std::uint64_t below(std::uint64_t bound) noexcept {
+        if (bound == 0) return 0;
+        std::uint64_t const rejection_floor = (0u - bound) % bound;
+        std::uint64_t draw = (*this)();
+        while (draw < rejection_floor) draw = (*this)();
+        return draw % bound;
+    }
+};
+
+#pragma endregion Shared Settings
+
+/** Every test setting, with its default as the initializer, read once by @c read_test_settings . */
+struct test_settings_t : common_settings_t {
+    double scale = 1.0;
+    bool trap_on_failure = false;
+    bool refuse_skips = false;
+
+    /** GPUs to run on, or every one found when unset. */
+    std::optional<std::vector<device_selection_t>> devices;
+
+    /** How long each case's randomized trials run, before @c NUMKONG_SCALE multiplies it. */
+    std::chrono::milliseconds time_limit = std::chrono::seconds(1);
+
+    /** Random distribution for test inputs. */
+    distribution_t random_distribution = distribution_t::lognormal_k;
+
+    /** What a failed accuracy check does to its case. */
+    on_failure_t on_failure = on_failure_t::exit_k;
+
+    /** Whether to shrink shapes for emulated SIMD. */
+    bool in_qemu = false;
+
+    /** Max allowed ULP for f32. */
+    std::size_t ulp_threshold_f32 = 4;
+
+    /** Max allowed ULP for f16. */
+    std::size_t ulp_threshold_f16 = 32;
+
+    /** Max allowed ULP for bf16. */
+    std::size_t ulp_threshold_bf16 = 256;
+
+    /** Max absolute error as a fraction of the largest reference magnitude, for the
+     *  normalized-reduction family. */
+    double scale_threshold = 0.02;
+
+    /** For dot products, spatial metrics. */
+    std::size_t dense_dimensions = 1536;
+
+    /** GEMM M dimension. */
+    std::size_t matrix_height = 1024;
+
+    /** GEMM N dimension. */
+    std::size_t matrix_width = 128;
+
+    /** GEMM K dimension. */
+    std::size_t matrix_depth = 1536;
+
+    /** For curved metrics, quadratic in dimensions. */
+    std::size_t curved_dimensions = 64;
+
+    /** For sparse set intersection and sparse dot. */
+    std::size_t sparse_dimensions = 256;
+
+    /** Points per cloud for the many-to-many shape distances. */
+    std::size_t shape_points = 32;
+
+    /** Max geospatial angular separation. */
+    float max_coord_angle_degrees = 180.0f;
+
+    /** The device the device cases run on, the CPU before them. */
+    nk::device_t device = nk::device_t::cpu();
+
+    /** What the cases in progress may run: this CPU's capabilities, then each device's ones. */
+    nk_capability_t capabilities = 0;
+
+    /** The deadline of trials starting now. */
+    deadline_t deadline() const noexcept {
+        return {steady_clock_t::now() + std::chrono::duration_cast<steady_clock_t::duration>(time_limit * scale)};
+    }
+
+    std::uint64_t ulp_threshold_for(nk_dtype_t dtype) const noexcept {
+        if (dtype == nk_bf16_k) return ulp_threshold_bf16;
+        if (dtype == nk_f16_k) return ulp_threshold_f16;
+        return ulp_threshold_f32;
+    }
+};
+
+inline test_settings_t read_test_settings(int argc, char **argv) noexcept;
+
+#pragma region Shared Run
+
+/** What a case reports beyond its checks: that it ran, or why it skipped. */
+struct case_result_t {
+    char const *skip_reason = nullptr;
+
+    [[nodiscard]] static constexpr case_result_t skipped(char const *reason) noexcept { return {reason}; }
+};
+
+/**
+ *  @brief The run in progress: the harness's one sanctioned mutable global.
+ *
+ *  Checks fire on worker threads and inside helpers as well as in a case's own body, so the run
+ *  counts failed checks in one place and @ref run_test_case diffs that count around each case,
+ *  rather than threading a tally through every call. After a crash, printing @c test_run from a
+ *  core dump names the case in progress and the last failed check, and the signal handlers print
+ *  the case too.
+ */
+struct test_run_t {
+    test_settings_t settings {};
+    char const *current_case = nullptr;
+    std::atomic<std::size_t> failed_checks {0};
+    std::atomic<char const *> last_failed_file {nullptr};
+    std::atomic<std::uint_least32_t> last_failed_line {0};
+    std::size_t passed_cases = 0;
+    std::size_t failed_cases = 0;
+    std::size_t skipped_cases = 0;
+};
+
+inline test_run_t test_run;
+
+/** How long any wait in a test may take; a passing case never waits it out, so it bounds hangs. */
+inline constexpr std::chrono::seconds wait_limit_k {120};
+
+/** Yields until @p predicate holds; false when @ref wait_limit_k passed first. */
+template <typename predicate_type_>
+bool spin_until(predicate_type_ &&predicate) noexcept {
+    auto const deadline = std::chrono::steady_clock::now() + wait_limit_k;
+    while (!predicate()) {
+        if (std::chrono::steady_clock::now() > deadline) return false;
+        std::this_thread::yield();
+    }
+    return true;
+}
+
+/** @p baseline iterations under the @c SCALE setting, never fewer than one. */
+inline std::size_t scaled_iterations(std::size_t baseline) noexcept {
+    double const scaled = static_cast<double>(baseline) * test_run.settings.scale;
+    return scaled < 1 ? 1 : static_cast<std::size_t>(std::llround(scaled));
+}
+
+/** The step that visits a @p coverage fraction of a sweep, at least one. */
+inline std::size_t sweep_stride(double coverage) noexcept {
+    double const stride = 1.0 / coverage;
+    return stride < 1 ? 1 : static_cast<std::size_t>(std::llround(stride));
+}
+
+/** The @p index -th stream of the case in progress, so a filtered run draws what a full one did. */
+inline std::uint64_t case_stream_key(std::uint64_t index = 0) noexcept {
+    return stream_key(test_run.settings.seed, test_run.current_case ? test_run.current_case : "", index);
+}
+
+/** Line-buffers stdout, prints the machine, reads the settings, arms the crash handlers and
+ *  prints the settings line, before the first case. */
+inline void start_test_run(int argc, char **argv) noexcept {
+    std::setvbuf(stdout, nullptr, _IOLBF, BUFSIZ); // before any output, or the C library keeps its buffering
+    print(probe_machine());
+    test_run.settings = read_test_settings(argc, argv);
+    install_test_signal_handlers();
+    std::printf("- Seed: %" PRIu64 ", scale: %g, filter: %s\n", test_run.settings.seed, test_run.settings.scale,
+                test_run.settings.filter.pattern.empty() ? "none" : test_run.settings.filter.pattern.c_str());
+}
+
+/** Counts one failed check at @p where , and traps when the run asked to stop at the first. */
+inline void record_failed_check(std::source_location where) noexcept {
+    std::fflush(stdout); // so a log that merges both streams keeps the failure under its case
+    std::fprintf(stderr, "  check failed at %s:%" PRIuLEAST32 "\n", where.file_name(), where.line());
+    test_run.last_failed_file.store(where.file_name(), std::memory_order_relaxed);
+    test_run.last_failed_line.store(where.line(), std::memory_order_relaxed);
+    test_run.failed_checks.fetch_add(1, std::memory_order_relaxed);
+    if (test_run.settings.trap_on_failure) trap_into_debugger();
+}
+
+/** Holds when @p is_met does; otherwise counts a failed check at the caller's line. */
+inline bool expect_true(bool is_met, std::source_location where = std::source_location::current()) noexcept {
+    if (!is_met) record_failed_check(where);
+    return is_met;
+}
+
+/** Prints one case's verdict, and the line that reruns it alone when it failed. */
+inline void report_test_case(char const *label, std::size_t failed_checks, char const *skip_reason,
+                             double seconds) noexcept {
+    if (skip_reason) {
+        std::printf("- %s ... skipped: %s\n", label, skip_reason);
+        return;
+    }
+    if (failed_checks == 0) {
+        std::printf("- %s ... ok (%.2f s)\n", label, seconds);
+        return;
+    }
+    std::fflush(stdout);
+    std::fprintf(stderr, "- %s ... FAILED: %zu failed check(s)\n", label, failed_checks);
+    std::fprintf(stderr, "  rerun: %s --seed %" PRIu64 " --filter '^", test_run.settings.program,
+                 test_run.settings.seed);
+    for (char const *character = label; *character; ++character) {
+        if (std::strchr("\\^$.|?*+()[]{}", *character)) std::fputc('\\', stderr); // labels are code, the filter a regex
+        std::fputc(*character, stderr);
+    }
+    std::fputs("$'\n", stderr);
+}
+
+/** Runs one case unless the filter leaves it out, and records whether it passed or skipped. */
+template <typename case_function_type_, typename... argument_types_>
+void run_test_case(char const *label, case_function_type_ &&case_function, argument_types_ &&...arguments) noexcept {
+    if (!test_run.settings.filter.selects(label)) return;
+    test_run.current_case = label;
+    std::size_t const failed_before = test_run.failed_checks.load();
+    auto const started = std::chrono::steady_clock::now();
+    case_result_t result {};
+    using returned_type = std::invoke_result_t<case_function_type_, argument_types_...>;
+    if constexpr (std::is_void_v<returned_type>)
+        std::invoke(case_function, std::forward<argument_types_>(arguments)...);
+    else result = std::invoke(case_function, std::forward<argument_types_>(arguments)...);
+    std::chrono::duration<double> const elapsed = std::chrono::steady_clock::now() - started;
+    std::size_t const failed_checks = test_run.failed_checks.load() - failed_before;
+    if (result.skip_reason) ++test_run.skipped_cases;
+    else if (failed_checks != 0) ++test_run.failed_cases;
+    else ++test_run.passed_cases;
+    report_test_case(label, failed_checks, result.skip_reason, elapsed.count());
+    test_run.current_case = nullptr;
+}
+
+/** The exit code: 1 when a case or a check outside any case failed, or nothing ran; 3 when
+ *  skips are refused and one happened; else 0. */
+inline int finish_test_run() noexcept {
+    std::printf("%zu passed, %zu failed, %zu skipped, seed %" PRIu64 "\n", test_run.passed_cases, test_run.failed_cases,
+                test_run.skipped_cases, test_run.settings.seed);
+    bool const failed = test_run.failed_cases != 0 || test_run.failed_checks.load() != 0;
+    if (failed || test_run.passed_cases + test_run.skipped_cases == 0) return 1;
+    if (test_run.skipped_cases != 0 && test_run.settings.refuse_skips) return 3;
+    return 0;
+}
+
+#pragma endregion Shared Run
+
+/** Reads every @c test_settings_t setting, shrinking the shapes under emulation. */
+inline test_settings_t read_test_settings(int argc, char **argv) noexcept {
+    test_settings_t settings;
+    settings.seed = read_seed_setting(argc, argv, "NUMKONG_SEED", "--seed");
+    settings.filter = read_filter_setting(argc, argv, "NUMKONG_FILTER", "--filter");
+    settings.program = argc != 0 ? argv[0] : "";
+    settings.scale = read_real_setting(argc, argv, "NUMKONG_SCALE", "--scale", 1.0);
+    settings.trap_on_failure = read_flag_setting(argc, argv, "NUMKONG_TRAP_ON_FAILURE", "--trap-on-failure");
+    settings.refuse_skips = read_flag_setting(argc, argv, "NUMKONG_NO_SKIPS", "--no-skips");
+    // Python and JS take a comma list of dimensions, of which C++ runs the first
+    auto const first_dim = [&](char const *variable, std::string_view flag, std::size_t fallback) noexcept {
+        char const *text = setting_text(argc, argv, variable, flag);
+        if (!text) return fallback;
+        std::optional<std::vector<std::size_t>> const dims = parse_dims(text);
+        if (!dims) exit_unparsed(variable, text, "positive counts like 64,128");
+        return dims->front();
+    };
+    if (char const *text = setting_text(argc, argv, "NUMKONG_DEVICES", "--devices")) {
+        settings.devices = parse_devices(text);
+        if (!settings.devices) exit_unparsed("NUMKONG_DEVICES", text, "comma-separated devices such as cuda:0,rocm:1");
+    }
+    settings.time_limit = read_duration_setting(argc, argv, "NUMKONG_TIME_LIMIT", "--time-limit", settings.time_limit);
+    if (char const *text = setting_text(argc, argv, "NUMKONG_RANDOM_DISTRIBUTION", "--random-distribution")) {
+        std::optional<distribution_t> const distribution = parse_distribution(text);
+        if (!distribution) exit_unparsed("NUMKONG_RANDOM_DISTRIBUTION", text, "uniform, lognormal or cauchy");
+        settings.random_distribution = *distribution;
+    }
+    if (!read_flag_setting(argc, argv, "NUMKONG_ASSERT", "--assert", true))
+        settings.on_failure = on_failure_t::report_k;
+    settings.in_qemu = read_flag_setting(argc, argv, "NUMKONG_IN_QEMU", "--in-qemu");
+    settings.ulp_threshold_f32 = read_count_setting(argc, argv, "NUMKONG_ULP_THRESHOLD_F32", "--ulp-threshold-f32",
+                                                    settings.ulp_threshold_f32);
+    settings.ulp_threshold_f16 = read_count_setting(argc, argv, "NUMKONG_ULP_THRESHOLD_F16", "--ulp-threshold-f16",
+                                                    settings.ulp_threshold_f16);
+    settings.ulp_threshold_bf16 = read_count_setting(argc, argv, "NUMKONG_ULP_THRESHOLD_BF16", "--ulp-threshold-bf16",
+                                                     settings.ulp_threshold_bf16);
+    settings.scale_threshold = read_real_setting(argc, argv, "NUMKONG_SCALE_THRESHOLD", "--scale-threshold",
+                                                 settings.scale_threshold);
+    if (settings.scale_threshold > 1)
+        exit_unparsed("NUMKONG_SCALE_THRESHOLD",
+                      setting_text(argc, argv, "NUMKONG_SCALE_THRESHOLD", "--scale-threshold"), "a number in (0, 1]");
+    settings.dense_dimensions = first_dim("NUMKONG_DIMS", "--dims", settings.dense_dimensions);
+    settings.matrix_height = first_dim("NUMKONG_DIMS_HEIGHT", "--dims-height", settings.matrix_height);
+    settings.matrix_width = first_dim("NUMKONG_DIMS_WIDTH", "--dims-width", settings.matrix_width);
+    settings.matrix_depth = first_dim("NUMKONG_DIMS_DEPTH", "--dims-depth", settings.matrix_depth);
+    settings.curved_dimensions = first_dim("NUMKONG_CURVED_DIMS", "--curved-dims", settings.curved_dimensions);
+    settings.sparse_dimensions = first_dim("NUMKONG_SPARSE_DIMS", "--sparse-dims", settings.sparse_dimensions);
+    settings.shape_points = read_count_setting(argc, argv, "NUMKONG_SHAPE_POINTS", "--shape-points",
+                                               settings.shape_points);
+    settings.max_coord_angle_degrees = static_cast<float>(read_real_setting(
+        argc, argv, "NUMKONG_MAX_COORD_ANGLE", "--max-coord-angle", settings.max_coord_angle_degrees));
+    if (settings.max_coord_angle_degrees > 180)
+        exit_unparsed("NUMKONG_MAX_COORD_ANGLE",
+                      setting_text(argc, argv, "NUMKONG_MAX_COORD_ANGLE", "--max-coord-angle"), "a number in (0, 180]");
+
+    // Shrink dimensions for QEMU — divides whatever value is currently stored,
+    // so explicit env-var overrides are proportionally reduced too.
+    if (settings.in_qemu) {
+        settings.dense_dimensions = nk::max_of<std::size_t>(1, settings.dense_dimensions / 4);
+        settings.matrix_height = nk::max_of<std::size_t>(1, settings.matrix_height / 4);
+        settings.matrix_width = nk::max_of<std::size_t>(1, settings.matrix_width / 4);
+        settings.matrix_depth = nk::max_of<std::size_t>(1, settings.matrix_depth / 4);
+        settings.shape_points = nk::max_of<std::size_t>(1, settings.shape_points / 4);
+    }
+    settings.capabilities = capabilities_detected_cpu();
+    return settings;
+}
+
+/** Prints NumKong's own settings as "- Name: value", in the grammar each parses from. */
+inline void print(test_settings_t const &settings) {
+    if (settings.devices) {
+        for (device_selection_t const &device : *settings.devices)
+            fmt::println("- Device: {}:{}", device_name(device.backend), device.ordinal);
+    }
+    else fmt::println("- Devices: auto");
+    fmt::println("- Time limit: {}", spell_duration(settings.time_limit));
+    fmt::println("- Random distribution: {}", settings.random_distribution);
+    fmt::println("- Assert: {}", settings.on_failure == on_failure_t::exit_k);
+    fmt::println("- In QEMU: {}", settings.in_qemu);
+    fmt::println("- ULP threshold f32: {}", settings.ulp_threshold_f32);
+    fmt::println("- ULP threshold f16: {}", settings.ulp_threshold_f16);
+    fmt::println("- ULP threshold bf16: {}", settings.ulp_threshold_bf16);
+    fmt::println("- Scale threshold: {}", settings.scale_threshold);
+    fmt::println("- Dims: {}", settings.dense_dimensions);
+    fmt::println("- Dims height: {}", settings.matrix_height);
+    fmt::println("- Dims width: {}", settings.matrix_width);
+    fmt::println("- Dims depth: {}", settings.matrix_depth);
+    fmt::println("- Curved dims: {}", settings.curved_dimensions);
+    fmt::println("- Sparse dims: {}", settings.sparse_dimensions);
+    fmt::println("- Shape points: {}", settings.shape_points);
+    fmt::println("- Max coord angle: {}", settings.max_coord_angle_degrees);
+}
+
+/** Names the signal and the case in progress through raw writes, which a crashing thread holding
+ *  the stdio lock still gets out, then prints a backtrace where <tt>execinfo</tt> has one, and
+ *  re-raises, so a core still dumps. */
+#if !NUMKONG_ARCH_WASM_
+inline void test_fatal_signal_handler(int signal_number) noexcept {
+    char const *name = "a fatal signal";
+    switch (signal_number) {
+    case SIGSEGV: name = "SIGSEGV"; break;
+    case SIGABRT: name = "SIGABRT"; break;
+    case SIGILL: name = "SIGILL"; break;
+    case SIGFPE: name = "SIGFPE"; break;
+#if defined(SIGBUS)
+    case SIGBUS: name = "SIGBUS"; break;
+#endif
+    }
+    auto const emit = [](char const *text) noexcept {
+#if NUMKONG_OS_WINDOWS_
+        _write(2, text, static_cast<unsigned>(std::strlen(text)));
+#else
+        [[maybe_unused]] auto const written = write(STDERR_FILENO, text, std::strlen(text));
+#endif
+    };
+    emit("\n*** "), emit(name), emit(" in case '"), emit(test_run.current_case ? test_run.current_case : "none");
+    emit("' - backtrace follows ***\n");
+#if (defined(__GLIBC__) || NUMKONG_OS_APPLE_) && __has_include(<execinfo.h>)
+    void *frames[64];
+    int const frames_count = backtrace(frames, static_cast<int>(sizeof(frames) / sizeof(frames[0])));
+    // The `_fd` form writes without allocating, which is what makes it usable from a handler
+    backtrace_symbols_fd(frames, frames_count, STDERR_FILENO);
+#endif
+    std::signal(signal_number, SIG_DFL);
+    std::raise(signal_number);
+}
+#endif
+
+/** Routes every fatal signal but SIGTRAP through @c test_fatal_signal_handler ; WebAssembly has
+ *  none. */
+inline void install_test_signal_handlers() noexcept {
+#if !NUMKONG_ARCH_WASM_
+    std::signal(SIGSEGV, test_fatal_signal_handler);
+    std::signal(SIGABRT, test_fatal_signal_handler);
+    std::signal(SIGILL, test_fatal_signal_handler);
+    std::signal(SIGFPE, test_fatal_signal_handler);
+#if defined(SIGBUS) // Windows has no bus error to catch
+    std::signal(SIGBUS, test_fatal_signal_handler);
+#endif
+#endif
+}
+
+/** Whether the CPU, or the device the cases run on, has @p capability : <tt>#if NUMKONG_TARGET_X</tt>
+ *  says built, this says runnable. */
+inline bool capable(nk_capability_t capability) noexcept { return (test_run.settings.capabilities & capability) != 0; }
+
+/** Why a case skips without @p capability : <tt>needs</tt> and the constant of its lowest one, as
+ *  <tt>nk_cap_haswell_k</tt>. */
+inline char const *needs_capability(nk_capability_t capability) noexcept {
+    static std::array<std::string, 64> const reasons = [] {
+        std::array<std::string, 64> spelled;
+        for (std::size_t bit = 0; bit != spelled.size(); ++bit) {
+            char name[NUMKONG_CAPABILITIES_NAME_CAPACITY];
+            nk_capabilities_name(nk_capability_t {1} << bit, name, sizeof(name));
+            spelled[bit] = std::string("needs nk_cap_") + name + "_k";
+        }
+        return spelled;
+    }();
+    return reasons[static_cast<std::size_t>(std::countr_zero(capability))].c_str();
+}
+
+/** A format string with the @c std::source_location of the call that spelled it, captured by the
+ *  conversion from a string literal, so a check's context can trail its variadic arguments
+ *  without a macro in the call. */
+struct format_at_t {
+    char const *format = nullptr;
+    std::source_location location {};
+
+    format_at_t(char const *format, std::source_location location = std::source_location::current()) noexcept
+        : format(format), location(location) {}
+};
+
+/** Prints @p context formatted with @p args , indented under the location line of a failed
+ *  check. */
+template <typename... args_types_>
+void print_context_(format_at_t context, args_types_ &&...args) {
+    fmt::println(stderr, "    {}", fmt::vformat(context.format, fmt::make_format_args(args...)));
+}
+
+/** Holds when @p held does; otherwise counts a failed check at the caller's line and prints
+ *  @p context , formatted with @p args , under it. */
+template <typename... args_types_>
+bool expect_true(bool is_met, format_at_t context, args_types_ &&...args) {
+    if (is_met) return true;
+    record_failed_check(context.location);
+    print_context_(context, args...);
+    return false;
+}
+
+/** A value as a failed check prints it: as {fmt} spells it, or else as the @c double it converts
+ *  to. */
+template <typename value_type_>
+auto printable_(value_type_ const &value) noexcept {
+    if constexpr (fmt::is_formattable<value_type_>::value) return value;
+    else return static_cast<double>(value);
+}
+
+/** Holds when @p actual equals @p wanted ; otherwise counts a failed check at the caller's line and
+ *  prints both. */
+template <typename actual_type_, typename wanted_type_>
+bool expect_equal(actual_type_ const &actual, wanted_type_ const &wanted,
+                  std::source_location where = std::source_location::current()) {
+    if (actual == wanted) return true;
+    record_failed_check(where);
+    fmt::println(stderr, "    expected {}, got {}", printable_(wanted), printable_(actual));
+    return false;
+}
+
+/** The same, printing @p context formatted with @p args under both values. */
+template <typename actual_type_, typename wanted_type_, typename... args_types_>
+bool expect_equal(actual_type_ const &actual, wanted_type_ const &wanted, format_at_t context, args_types_ &&...args) {
+    if (actual == wanted) return true;
+    record_failed_check(context.location);
+    fmt::println(stderr, "    expected {}, got {}", printable_(wanted), printable_(actual));
+    print_context_(context, args...);
+    return false;
+}
+
+/** Whether @p actual is within @p tolerance of @p wanted , relative to the largest of 1 and both
+ *  magnitudes. */
+template <typename actual_type_, typename wanted_type_>
+bool near_(actual_type_ const &actual, wanted_type_ const &wanted, double tolerance) noexcept {
+    double const actual_value = static_cast<double>(actual), wanted_value = static_cast<double>(wanted);
+    double const magnitude = std::fmax(1.0, std::fmax(std::fabs(actual_value), std::fabs(wanted_value)));
+    return std::fabs(actual_value - wanted_value) <= tolerance * magnitude;
+}
+
+/** Holds when @p actual is within @p tolerance of @p wanted , relative to the largest of 1 and both
+ *  magnitudes; otherwise counts a failed check at the caller's line and prints both. */
+template <typename actual_type_, typename wanted_type_>
+bool expect_near(actual_type_ const &actual, wanted_type_ const &wanted, double tolerance,
+                 std::source_location where = std::source_location::current()) {
+    if (near_(actual, wanted, tolerance)) return true;
+    record_failed_check(where);
+    fmt::println(stderr, "    expected {} within {}, got {}", printable_(wanted), tolerance, printable_(actual));
+    return false;
+}
+
+/** The same, printing @p context formatted with @p args under both values. */
+template <typename actual_type_, typename wanted_type_, typename... args_types_>
+bool expect_near(actual_type_ const &actual, wanted_type_ const &wanted, double tolerance, format_at_t context,
+                 args_types_ &&...args) {
+    if (near_(actual, wanted, tolerance)) return true;
+    record_failed_check(context.location);
+    fmt::println(stderr, "    expected {} within {}, got {}", printable_(wanted), tolerance, printable_(actual));
+    print_context_(context, args...);
+    return false;
+}
+
 /** A mask of no capability, so the C++ wrappers run their templates: the references every
  *  capability is checked against. */
 inline constexpr nk_capability_t no_tiers_k = 0;
@@ -681,65 +1045,6 @@ nk_status_t call_best(nk_capability_t capabilities, arguments_types_... argument
 template <auto best_>
 inline constexpr auto cpu_best =
     [](auto... arguments) noexcept { return call_best<best_>(nk::default_capabilities(), arguments...); };
-
-/** Runs each test under the settings, prints its row, and counts the kernels checked and failed:
- *  one per binary, built in @c main and passed to every test family. */
-struct error_stats_section_t {
-    settings_t settings;
-    nk_capability_t available;
-    char const *title = nullptr;
-    nk_capability_t required = nk_cap_serial_k;
-    std::optional<comparison_family_t> last_family = std::nullopt;
-    std::size_t kernel_count = 0;
-    std::size_t failure_count = 0;
-
-    /** Runs only kernels whose family is in @p available: `#if NUMKONG_TARGET_X` says built, this says
-     *  runnable. */
-    error_stats_section_t(settings_t const &settings, nk_capability_t available) noexcept
-        : settings(settings), available(available) {}
-
-    /** Restart under a new heading, for kernels needing @p cap, or say why they skip. */
-    void section(char const *heading, nk_capability_t cap) noexcept {
-        title = heading;
-        required = cap;
-        last_family.reset();
-        if (available & required) return;
-        char missing_names[NUMKONG_CAPABILITIES_NAME_CAPACITY];
-        nk_capabilities_name(required & ~available, missing_names, sizeof(missing_names));
-        fmt::println("\n{}: skipped, {} not detected", heading, missing_names);
-    }
-
-    /** Runs @p test_fn over @p kernels, deducing a scenario's kernel types from the kernels
-     *  themselves. */
-    template <typename stats_type_ = error_stats_t, typename... kernels_types_>
-    void operator()(char const *kernel_name,
-                    std::type_identity_t<stats_type_ (*)(settings_t const &, kernels_types_...)> test_fn,
-                    kernels_types_... kernels) {
-        (*this)(kernel_name, [&](settings_t const &) { return test_fn(settings, kernels...); });
-    }
-
-    template <typename test_function_type_, typename... args_types_>
-    void operator()(char const *kernel_name, test_function_type_ test_fn, args_types_ &&...args) {
-        if ((available & required) == 0 || !settings.selects(kernel_name)) return;
-
-        nk_test_current_kernel_ = kernel_name;
-        auto stats = test_fn(settings, std::forward<args_types_>(args)...);
-        nk_test_current_kernel_ = nullptr;
-
-        if (!last_family && title) fmt::println("\n{}:", title);
-        if (last_family != stats.family) {
-            print_stats_header(stats.family);
-            last_family = stats.family;
-        }
-        print_stats_row(kernel_name, stats);
-        ++kernel_count;
-        if (should_fail(settings, stats)) {
-            ++failure_count;
-            fmt::println("  rerun: NUMKONG_SEED={} NUMKONG_FILTER='^{}$' {}", settings.seed.value, kernel_name,
-                         settings.program);
-        }
-    }
-};
 
 /**
  *  @brief Compute the ULP, Units in Last Place, distance between two floating-point values.
@@ -922,16 +1227,9 @@ struct error_stats_t {
     /** The type of the results recorded, which picks their ULP threshold. */
     nk_dtype_t result_dtype = nk_dtype_unknown_k;
 
-    nk_f64_t min_abs_err = (std::numeric_limits<nk_f64_t>::max)();
-    nk_f64_t max_abs_err = 0;
+    nk_f64_t max_absolute_error = 0;
+    nk_f64_t max_relative_error = 0;
     nk_f64_t max_reference = 0;
-    nk_f64_t sum_abs_err = 0;
-
-    nk_f64_t min_rel_err = (std::numeric_limits<nk_f64_t>::max)();
-    nk_f64_t max_rel_err = 0;
-    nk_f64_t sum_rel_err = 0;
-
-    std::uint64_t min_ulp = (std::numeric_limits<std::uint64_t>::max)();
     std::uint64_t max_ulp = 0;
     f118_t sum_ulp = f118_t();
 
@@ -955,22 +1253,33 @@ struct error_stats_t {
         : family(term_error_bound == 0 ? comparison_family_t::exact_k : comparison_family_t::bounded_k),
           term_error_bound(term_error_bound), sum_error_bound(sum_error_bound) {}
 
-    /** Record a boolean property; @p property names it in the report when it does not hold. */
-    void expect(bool held, char const *property) noexcept {
-        if (!held && !first_failure) first_failure = property;
-        failed_expectations += !held;
-        accumulate(static_cast<int>(held), 1);
+    /** Records a boolean property, which @p property names when it does not hold. Only the first
+     *  property to fail records a failed check at @p where , as a property can fail on every trial,
+     *  and none does under @c NUMKONG_ASSERT=0. */
+    bool expect_true(bool is_met, char const *property,
+                     std::source_location where = std::source_location::current()) noexcept {
+        if (!is_met && !first_failure) {
+            first_failure = property;
+            if (test_run.settings.on_failure == on_failure_t::exit_k) {
+                record_failed_check(where);
+                fmt::println(stderr, "    {}", property);
+            }
+        }
+        failed_expectations += !is_met;
+        accumulate(static_cast<int>(is_met), 1);
+        return is_met;
     }
 
-    /** Record a kernel's @p status, failing it by the status's name when it wrote no result, and
-     *  return whether it succeeded. */
-    bool expect(nk_status_t status) noexcept {
-        if (status != nk_success_k) expect(false, nk_status_name(status));
-        return status == nk_success_k;
+    /** Records a kernel's @p status, failing it by the status's name when it wrote no result, and
+     *  returns whether it succeeded. */
+    bool expect_status(nk_status_t status, std::source_location where = std::source_location::current()) noexcept {
+        return expect_true(status == nk_success_k, nk_status_name(status), where);
     }
 
-    /** Record a C++ wrapper's @p status, like the C one. */
-    bool expect(nk::status_t status) noexcept { return expect(static_cast<nk_status_t>(status)); }
+    /** Records a C++ wrapper's @p status, like the C one. */
+    bool expect_status(nk::status_t status, std::source_location where = std::source_location::current()) noexcept {
+        return expect_status(static_cast<nk_status_t>(status), where);
+    }
 
     /** Records one result against its reference, failing on NaN or when the error exceeds @p bound
      *  plus the rounding into @p actual_type_. Past that type's finite range, a saturated or
@@ -1034,7 +1343,7 @@ struct error_stats_t {
         // A NaN reference makes the distance meaningless; a NaN result against a number fails
         if constexpr (!nk::is_integral_dtype<actual_type_>())
             if (ulps == (std::numeric_limits<std::uint64_t>::max)()) {
-                if (!std::isnan(static_cast<double>(expected_as_actual))) expect(false, "NaN result for a number");
+                if (!std::isnan(static_cast<double>(expected_as_actual))) expect_true(false, "NaN result for a number");
                 return;
             }
 
@@ -1045,20 +1354,15 @@ struct error_stats_t {
             nk_f64_t exp_f64 = static_cast<nk_f64_t>(expected_as_actual);
             nk_f64_t act_f64 = static_cast<nk_f64_t>(actual);
 
-            nk_f64_t abs_err = std::fabs(exp_f64 - act_f64);
-            nk_f64_t rel_err = exp_f64 != 0 ? abs_err / std::fabs(exp_f64) : abs_err;
+            nk_f64_t absolute_error = std::fabs(exp_f64 - act_f64);
+            nk_f64_t relative_error = exp_f64 != 0 ? absolute_error / std::fabs(exp_f64) : absolute_error;
 
-            min_abs_err = nk::min_of(min_abs_err, abs_err);
-            max_abs_err = nk::max_of(max_abs_err, abs_err);
+            max_absolute_error = nk::max_of(max_absolute_error, absolute_error);
+            max_relative_error = nk::max_of(max_relative_error, relative_error);
             max_reference = nk::max_of(max_reference, std::fabs(exp_f64));
-            sum_abs_err += abs_err;
-            min_rel_err = nk::min_of(min_rel_err, rel_err);
-            max_rel_err = nk::max_of(max_rel_err, rel_err);
-            sum_rel_err += rel_err;
         }
 
         // Always update ULP metrics (works for both integer and float)
-        min_ulp = nk::min_of(min_ulp, ulps);
         max_ulp = nk::max_of(max_ulp, ulps);
         sum_ulp += f118_t(ulps);
 
@@ -1066,8 +1370,6 @@ struct error_stats_t {
         if (ulps == 0) exact_matches++;
     }
 
-    nk_f64_t mean_abs_err() const noexcept { return count > 0 ? sum_abs_err / count : 0; }
-    nk_f64_t mean_rel_err() const noexcept { return count > 0 ? sum_rel_err / count : 0; }
     nk_f64_t mean_ulp() const noexcept {
         // On 32-bit WASM we need this ugly casting sequence to avoid adding more `f118_t` constructors
         return count > 0 ? static_cast<double>(sum_ulp / f118_t(static_cast<double>(count))) : 0;
@@ -1083,15 +1385,10 @@ struct error_stats_t {
     void merge(error_stats_t const &other) noexcept {
         if (other.count == 0) return;
         if (count == 0) family = other.family, term_error_bound = other.term_error_bound;
-        else assert(family == other.family && "Can't merge stats from different comparison families");
-        min_abs_err = nk::min_of(min_abs_err, other.min_abs_err);
-        max_abs_err = nk::max_of(max_abs_err, other.max_abs_err);
+        else expect_true(family == other.family, "merged stats of another comparison family");
+        max_absolute_error = nk::max_of(max_absolute_error, other.max_absolute_error);
+        max_relative_error = nk::max_of(max_relative_error, other.max_relative_error);
         max_reference = nk::max_of(max_reference, other.max_reference);
-        sum_abs_err += other.sum_abs_err;
-        min_rel_err = nk::min_of(min_rel_err, other.min_rel_err);
-        max_rel_err = nk::max_of(max_rel_err, other.max_rel_err);
-        sum_rel_err += other.sum_rel_err;
-        min_ulp = nk::min_of(min_ulp, other.min_ulp);
         max_ulp = nk::max_of(max_ulp, other.max_ulp);
         sum_ulp += other.sum_ulp;
         max_bound_ratio = nk::max_of(max_bound_ratio, other.max_bound_ratio);
@@ -1107,50 +1404,89 @@ struct error_stats_t {
 /** The header-only stub of @p best_, called with the arguments of its capability kernels, which it
  *  never reads, reports the missing library over every mask. */
 template <auto best_, typename... arguments_types_>
-error_stats_t test_missing_library(settings_t const &, arguments_types_... arguments) {
+error_stats_t test_missing_library(arguments_types_... arguments) {
     error_stats_t stats(comparison_family_t::exact_k);
-    stats.expect(call_best<best_>(nk_cap_any_k, arguments...) == nk_missing_library_k,
-                 "a header-only dispatch point ran a kernel");
+    stats.expect_true(call_best<best_>(nk_cap_any_k, arguments...) == nk_missing_library_k,
+                      "a header-only dispatch point ran a kernel");
     return stats;
 }
 #endif // NUMKONG_HEADER_ONLY
 
-inline bool should_fail(settings_t const &settings, error_stats_t const &stats) noexcept {
+/** Whether @p stats break their family's bound, or a property they recorded failed. */
+inline bool should_fail(error_stats_t const &stats) noexcept {
     if (stats.failed_expectations) return true;
     comparison_family_spec_t const spec = comparison_family_spec(stats.family);
     switch (spec.failure_mode) {
     case comparison_failure_mode_t::exact_distance_k:
         if (!stats.saw_floating_distance) return stats.max_ulp > 0;
-        return stats.max_ulp > settings.ulp_threshold_for(stats.result_dtype);
+        return stats.max_ulp > test_run.settings.ulp_threshold_for(stats.result_dtype);
     case comparison_failure_mode_t::ulp_threshold_k:
-        return stats.max_ulp > settings.ulp_threshold_for(stats.result_dtype);
+        return stats.max_ulp > test_run.settings.ulp_threshold_for(stats.result_dtype);
     case comparison_failure_mode_t::scale_threshold_k:
-        return stats.max_abs_err > settings.scale_threshold * stats.max_reference;
+        return stats.max_absolute_error > test_run.settings.scale_threshold * stats.max_reference;
     case comparison_failure_mode_t::bound_threshold_k: return !(stats.max_bound_ratio <= 1);
     }
     return false;
 }
 
-inline void print_stats_row(char const *kernel_name, error_stats_t const &stats) noexcept {
+/** Prints @p stats under their case's verdict, each figure after the name of its family's
+ *  column. */
+inline void print_stats_row(error_stats_t const &stats) noexcept {
+    std::array<char const *, 5> const &names = comparison_family_spec(stats.family).column_labels;
     switch (stats.family) {
     case comparison_family_t::exact_k:
-        fmt::println("{:<40} {:>12} {:>10.1f} {:>12.2e} {:>12} {:>10}", kernel_name, stats.max_ulp, stats.mean_ulp(),
-                     stats.max_abs_err, stats.mismatches(), stats.exact_matches);
+        fmt::println("    {} {}, {} {:.1f}, {} {:.2e}, {} {}, {} {}", names[0], stats.max_ulp, names[1],
+                     stats.mean_ulp(), names[2], stats.max_absolute_error, names[3], stats.mismatches(), names[4],
+                     stats.exact_matches);
         break;
     case comparison_family_t::approximate_k:
     case comparison_family_t::normalized_reduction_k:
-        fmt::println("{:<40} {:>12.2e} {:>10.2e} {:>12.2e} {:>12} {:>10}", kernel_name, stats.max_abs_err,
-                     stats.max_rel_err, stats.mean_ulp(), stats.max_ulp, stats.exact_matches);
+        fmt::println("    {} {:.2e}, {} {:.2e}, {} {:.2e}, {} {}, {} {}", names[0], stats.max_absolute_error, names[1],
+                     stats.max_relative_error, names[2], stats.mean_ulp(), names[3], stats.max_ulp, names[4],
+                     stats.exact_matches);
         break;
     case comparison_family_t::bounded_k:
-        fmt::println("{:<40} {:>12.2e} {:>10.2e} {:>12.2e} {:>12} {:>10}", kernel_name, stats.max_abs_err,
-                     stats.max_rel_err, stats.max_bound_ratio, stats.max_ulp, stats.exact_matches);
+        fmt::println("    {} {:.2e}, {} {:.2e}, {} {:.2e}, {} {}, {} {}", names[0], stats.max_absolute_error, names[1],
+                     stats.max_relative_error, names[2], stats.max_bound_ratio, names[3], stats.max_ulp, names[4],
+                     stats.exact_matches);
         break;
     }
     // The counters say how many properties failed; this says which one.
     if (stats.first_failure && (stats.mismatches() || stats.failed_expectations))
         fmt::println("    first failure: {}", stats.first_failure);
+    if (test_run.settings.on_failure == on_failure_t::report_k && should_fail(stats))
+        fmt::println("    fails its accuracy check, which NUMKONG_ASSERT=0 only reports");
     std::fflush(stdout);
+}
+
+/**
+ *  @brief Runs @p test_fn over @p arguments as the case @p label , skipped without @p capability ,
+ *      and prints the statistics it returns beneath the case's verdict.
+ *
+ *  Statistics past their family's bound fail the case unless @c NUMKONG_ASSERT=0.
+ */
+template <typename test_function_type_, typename... arguments_types_>
+void run_kernel_case(char const *label, test_function_type_ test_fn, nk_capability_t capability,
+                     arguments_types_ &&...arguments) {
+    std::optional<error_stats_t> stats;
+    run_test_case(label, [&]() -> case_result_t {
+        if (!capable(capability)) return case_result_t::skipped(needs_capability(capability));
+        std::size_t const failed_before = test_run.failed_checks.load();
+        stats = test_fn(std::forward<arguments_types_>(arguments)...);
+        // A kernel failing only its statistics still records a check, so a trap stops after it too
+        if (test_run.failed_checks.load() == failed_before && test_run.settings.on_failure == on_failure_t::exit_k)
+            expect_true(!should_fail(*stats), "the statistics below break their family's bound");
+        return {};
+    });
+    if (stats) print_stats_row(*stats);
+}
+
+/** The same for a test templated or overloaded on its kernels' types, which @p kernels pick. */
+template <typename stats_type_ = error_stats_t,
+          typename... kernels_types_> // ! `stats_type_` makes this the more specialized
+void run_kernel_case(char const *label, std::type_identity_t<stats_type_ (*)(kernels_types_...)> test_fn,
+                     nk_capability_t capability, kernels_types_... kernels) {
+    run_kernel_case(label, [&] { return test_fn(kernels...); }, capability);
 }
 
 /** Factory function to allocate vectors, potentially raising bad-allocs. */
@@ -1168,13 +1504,13 @@ template <typename type_>
 /**
  *  @brief Fill buffer with random values, respecting the distribution setting.
  *
- *  Dispatches to the matching `nk::fill_*` library function based on @p settings.
+ *  Dispatches to the matching @c nk::fill_* library function based on
+ *  @c NUMKONG_RANDOM_DISTRIBUTION.
  *  Infers sensible bounds from type's representable range.
  */
 template <typename scalar_type_, typename allocator_type_, typename generator_type_>
-void fill_random(settings_t const &settings, generator_type_ &generator,
-                 nk::vector<scalar_type_, allocator_type_> &vector) {
-    switch (settings.distribution) {
+void fill_random(generator_type_ &generator, nk::vector<scalar_type_, allocator_type_> &vector) {
+    switch (test_run.settings.random_distribution) {
     case distribution_t::uniform_k: nk::fill_uniform(generator, vector.values_data(), vector.size_values()); break;
     case distribution_t::lognormal_k: nk::fill_lognormal(generator, vector.values_data(), vector.size_values()); break;
     case distribution_t::cauchy_k: nk::fill_cauchy(generator, vector.values_data(), vector.size_values()); break;
@@ -1228,33 +1564,6 @@ struct host_backend_t {
     /** Returns and clears the first failure since the last call to it. */
     nk_status_t synchronize() noexcept { return std::exchange(failure, nk_success_k); }
 };
-
-#if NUMKONG_ARCH_CUDA_
-inline bool cuda_check_(cudaError_t error, char const *expression, char const *file, int line) {
-    if (error == cudaSuccess) return true;
-    fmt::println(stderr, "CUDA error {} at {}:{}: {}", expression, file, line, cudaGetErrorString(error));
-    return false;
-}
-
-#define nk_cuda_assert_(expression)                                                    \
-    do {                                                                               \
-        if (!cuda_check_((expression), #expression, __FILE__, __LINE__)) return false; \
-    } while (0)
-
-struct cuda_device_scope_t {
-    int caller = 0;
-    cudaError_t status;
-
-    explicit cuda_device_scope_t(nk_size_t ordinal) noexcept : status(cudaGetDevice(&caller)) {
-        if (status == cudaSuccess) status = cudaSetDevice(static_cast<int>(ordinal));
-    }
-    cuda_device_scope_t(cuda_device_scope_t const &) = delete;
-    cuda_device_scope_t &operator=(cuda_device_scope_t const &) = delete;
-    ~cuda_device_scope_t() noexcept {
-        if (status == cudaSuccess) cudaSetDevice(caller);
-    }
-};
-#endif // NUMKONG_ARCH_CUDA_
 
 /** Runs one vendor's kernels on an owned stream over unified memory. */
 template <auto synchronize_>
@@ -1359,9 +1668,9 @@ using metal_backend_t = device_backend<nk_stream_synchronize_metal>;
 #endif // NUMKONG_ARCH_METAL_
 
 template <typename backend_type_>
-backend_type_ make_backend(settings_t const &settings) {
+backend_type_ make_backend() {
     if constexpr (std::is_same_v<backend_type_, host_backend_t>) return {};
-    else return backend_type_(settings.device);
+    else return backend_type_(test_run.settings.device);
 }
 
 /** The allocator @p backend hands out @p value_type_ from: stateless, unless the backend's memory
@@ -1383,48 +1692,48 @@ template <typename value_type_, typename backend_type_>
 
 #pragma endregion Backends
 
-/** Forward declarations for test modules. */
-void test_casts(error_stats_section_t &check);
-void test_reduce(error_stats_section_t &check);
-void test_dot(error_stats_section_t &check);
-void test_spatial(error_stats_section_t &check);
-void test_set(error_stats_section_t &check);
-void test_curved(error_stats_section_t &check);
-void test_probability(error_stats_section_t &check);
-void test_each(error_stats_section_t &check);
-void test_trigonometry(error_stats_section_t &check);
-void test_geospatial(error_stats_section_t &check);
-void test_shapes(error_stats_section_t &check);
-void test_sparse(error_stats_section_t &check);
-void test_vector_types(error_stats_section_t &check);
-void test_tensor_ops(error_stats_section_t &check);
-void test_maxsim(error_stats_section_t &check);
-void test_each_cuda(error_stats_section_t &check);
-void test_each_rocm(error_stats_section_t &check);
-void test_each_metal(error_stats_section_t &check);
-void test_cast_cuda(error_stats_section_t &check);
-void test_cast_rocm(error_stats_section_t &check);
-void test_cast_metal(error_stats_section_t &check);
-void test_reduce_cuda(error_stats_section_t &check);
-void test_shapes_cuda(error_stats_section_t &check);
-void test_shapes_rocm(error_stats_section_t &check);
-void test_shapes_metal(error_stats_section_t &check);
-void test_tensor_cuda(error_stats_section_t &check);
+/** The cases of each test module, which register them through @c run_kernel_case . */
+void run_cast_cases();
+void run_reduce_cases();
+void run_dot_cases();
+void run_spatial_cases();
+void run_set_cases();
+void run_curved_cases();
+void run_probability_cases();
+void run_each_cases();
+void run_trigonometry_cases();
+void run_geospatial_cases();
+void run_shapes_cases();
+void run_sparse_cases();
+void run_vector_cases();
+void run_tensor_cases();
+void run_maxsim_cases();
+void run_each_cuda_cases();
+void run_each_rocm_cases();
+void run_each_metal_cases();
+void run_cast_cuda_cases();
+void run_cast_rocm_cases();
+void run_cast_metal_cases();
+void run_reduce_cuda_cases();
+void run_shapes_cuda_cases();
+void run_shapes_rocm_cases();
+void run_shapes_metal_cases();
+void run_tensor_cuda_cases();
 
-/** Forward declarations for cross/batch tests, ISA-family files. */
-void test_cross_serial(error_stats_section_t &check);
-void test_cross_runtime(error_stats_section_t &check);
-void test_cross_x8664(error_stats_section_t &check);
-void test_cross_x8664amx(error_stats_section_t &check);
-void test_cross_arm64(error_stats_section_t &check);
-void test_cross_blas(error_stats_section_t &check);
-void test_cross_riscv64(error_stats_section_t &check);
-void test_cross_ppc64(error_stats_section_t &check);
-void test_cross_loongarch64(error_stats_section_t &check);
-void test_cross_wasm(error_stats_section_t &check);
-void test_cross_cuda(error_stats_section_t &check);
-void test_cross_rocm(error_stats_section_t &check);
-void test_cross_metal(error_stats_section_t &check);
+/** The cross/batch cases, one ISA-family file each. */
+void run_cross_serial_cases();
+void run_cross_runtime_cases();
+void run_cross_x8664_cases();
+void run_cross_x8664amx_cases();
+void run_cross_arm64_cases();
+void run_cross_blas_cases();
+void run_cross_riscv64_cases();
+void run_cross_ppc64_cases();
+void run_cross_loongarch64_cases();
+void run_cross_wasm_cases();
+void run_cross_cuda_cases();
+void run_cross_rocm_cases();
+void run_cross_metal_cases();
 
 } // namespace ashvardanian::numkong::test
 

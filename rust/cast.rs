@@ -859,12 +859,10 @@ impl<'a, F: BlockScaledFormat, A: Allocator + Clone> ScaledTensorView<'a, F, A> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{
-        FloatLike, StorageElement, TestableType, assert_close, bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c,
-        f64c,
-    };
+    use crate::testing::{TestableType, assert_close};
+    use crate::types::{FloatLike, StorageElement, bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c};
 
-    fn check_cast_roundtrip<T: FloatLike + TestableType + CastDType>(values: &[f32]) {
+    fn check_cast_round_trip<T: FloatLike + TestableType + CastDType>(values: &[f32]) {
         let src: Vec<T> = values.iter().map(|&v| T::from_f32(v)).collect();
         let mut dst = vec![0.0f32; src.len()];
         cast(&src, &mut dst).unwrap();
@@ -874,22 +872,22 @@ mod tests {
                 expected as f64,
                 T::atol(),
                 T::rtol(),
-                &format!("cast_roundtrip<{}>[{i}]", core::any::type_name::<T>()),
+                &format!("cast round trip<{}>[{i}]", core::any::type_name::<T>()),
             );
         }
     }
 
     #[test]
-    fn cast_roundtrip() {
-        check_cast_roundtrip::<f16>(&[1.0, 0.5, -1.0]);
-        check_cast_roundtrip::<bf16>(&[1.0, 0.5, -1.0]);
-        check_cast_roundtrip::<e4m3>(&[1.0, 0.5, -1.0]);
-        check_cast_roundtrip::<e5m2>(&[1.0, 0.5, -1.0]);
-        check_cast_roundtrip::<e2m3>(&[1.0, 0.5, -1.0]);
-        check_cast_roundtrip::<e3m2>(&[1.0, 0.5, -1.0]);
+    fn casts_round_trip_through_every_narrow_float() {
+        check_cast_round_trip::<f16>(&[1.0, 0.5, -1.0]);
+        check_cast_round_trip::<bf16>(&[1.0, 0.5, -1.0]);
+        check_cast_round_trip::<e4m3>(&[1.0, 0.5, -1.0]);
+        check_cast_round_trip::<e5m2>(&[1.0, 0.5, -1.0]);
+        check_cast_round_trip::<e2m3>(&[1.0, 0.5, -1.0]);
+        check_cast_round_trip::<e3m2>(&[1.0, 0.5, -1.0]);
     }
 
-    fn check_special_roundtrip<T: FloatLike + CastDType>() {
+    fn check_special_round_trip<T: FloatLike + CastDType>() {
         // NaN, +Inf, -Inf, then a few finite values.
         let specials = [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, 1.5, -2.0];
         let src: Vec<T> = specials.iter().map(|&v| T::from_f32(v)).collect();
@@ -907,12 +905,12 @@ mod tests {
     #[test]
     fn cast_preserves_nan_inf() {
         // f16/bf16 carry IEEE specials end-to-end; the narrower fp8/fp6 formats saturate instead.
-        check_special_roundtrip::<f16>();
-        check_special_roundtrip::<bf16>();
+        check_special_round_trip::<f16>();
+        check_special_round_trip::<bf16>();
     }
 
     #[test]
-    fn cast_f32_to_f16() {
+    fn cast_writes_f32_ones_as_f16_bit_patterns() {
         let src = [1.0f32, -1.0];
         let mut dst = [f16(0); 2];
         cast(&src, &mut dst).unwrap();
@@ -920,14 +918,14 @@ mod tests {
     }
 
     #[test]
-    fn cast_length_mismatch() {
+    fn cast_rejects_mismatched_lengths() {
         let src = [f16(0x3C00)];
         let mut dst = [0.0f32; 2];
         assert_eq!(cast(&src, &mut dst), Err(Error::ShapeMismatch { axis: 0, expected: 1, got: 2 }));
     }
 
     #[test]
-    fn cast_real_to_complex() {
+    fn cast_widens_reals_into_complex_with_zero_imaginary_parts() {
         let src = [1.25f32, -2.5];
         let mut dst = [f32c::zero(); 2];
         cast(&src, &mut dst).unwrap();
@@ -944,7 +942,7 @@ mod tests {
     }
 
     #[test]
-    fn cast_complex_to_real() {
+    fn cast_drops_the_imaginary_parts_into_reals() {
         let src = [f64c::from_real_imag(1.25, 9.0), f64c::from_real_imag(-2.5, -7.0)];
         let mut dst = [0.0f64; 2];
         cast(&src, &mut dst).unwrap();
@@ -952,7 +950,7 @@ mod tests {
     }
 
     #[test]
-    fn cast_complex_to_complex() {
+    fn cast_widens_and_narrows_complex_pairs() {
         let src = [f32c::from_real_imag(1.25, -2.5), f32c::from_real_imag(-3.5, 4.25)];
         let mut widened = [f64c::zero(); 2];
         cast(&src, &mut widened).unwrap();
@@ -968,7 +966,7 @@ mod tests {
     }
 
     #[test]
-    fn cast_via_tensor_view_round_trip() {
+    fn cast_round_trips_through_a_strided_tensor_view() {
         // Exercises `CastOps::cast` on a strided `TensorView`, mirroring how callers reach the
         // trait through the tensor-shaped wrapper.
         use crate::tensor::{SliceRange, Tensor};
@@ -1006,9 +1004,9 @@ mod tests {
         (data, [rows, columns])
     }
 
-    /// Encode then decode `sample_matrix` through format `F`; assert the dense round-trip error
+    /// Encode then decode `sample_matrix` through format `F`; assert the dense round trip error
     /// stays within `rel_bound` × amax — the per-format element resolution.
-    fn check_roundtrip<F: BlockScaledFormat>(rel_bound: f32) {
+    fn check_round_trip<F: BlockScaledFormat>(rel_bound: f32) {
         let (data, shape) = sample_matrix();
         let dense = Tensor::<f32>::from_slice(&data, &shape).unwrap();
         let scaled = dense.view().cast_to_scaled::<F>().unwrap();
@@ -1020,25 +1018,25 @@ mod tests {
         for (i, (&expected, &actual)) in data.iter().zip(decoded.as_slice()).enumerate() {
             assert!(
                 (expected - actual).abs() <= rel_bound * max_abs + 1e-3,
-                "{} roundtrip[{i}]: expected {expected}, got {actual}",
+                "{} round trip[{i}]: expected {expected}, got {actual}",
                 core::any::type_name::<F>()
             );
         }
     }
 
     #[test]
-    fn roundtrip_bounded_error_all_formats() {
-        check_roundtrip::<Nvfp4>(0.30);
-        check_roundtrip::<Mxfp4>(0.30);
-        check_roundtrip::<Mxfp6E2m3>(0.15);
-        check_roundtrip::<Mxfp6E3m2>(0.25);
-        check_roundtrip::<Mxfp8E4m3>(0.15);
-        check_roundtrip::<Mxfp8E5m2>(0.25);
-        check_roundtrip::<Mxint8>(0.05);
+    fn block_scaled_formats_round_trip_within_their_bounds() {
+        check_round_trip::<Nvfp4>(0.30);
+        check_round_trip::<Mxfp4>(0.30);
+        check_round_trip::<Mxfp6E2m3>(0.15);
+        check_round_trip::<Mxfp6E3m2>(0.25);
+        check_round_trip::<Mxfp8E4m3>(0.15);
+        check_round_trip::<Mxfp8E5m2>(0.25);
+        check_round_trip::<Mxint8>(0.05);
     }
 
     #[test]
-    fn degenerate_blocks() {
+    fn degenerate_blocks_decode_without_poisoning_their_neighbours() {
         let block = Mxfp8E4m3::BLOCK_SIZE;
         // An all-zero block has zero amax → zero scale → all-zero decode — no division by zero / NaN.
         let zeros = Tensor::<f32>::zeros(&[1, block]).unwrap();
@@ -1057,7 +1055,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_scale_present_for_nvfp4_absent_for_mx() {
+    fn only_nvfp4_carries_a_tensor_scale() {
         let (data, shape) = sample_matrix();
         let dense = Tensor::<f32>::from_slice(&data, &shape).unwrap();
 
@@ -1071,7 +1069,7 @@ mod tests {
     }
 
     #[test]
-    fn slice_row_then_materialize() {
+    fn a_sliced_row_materializes_its_own_blocks() {
         let (data, shape) = sample_matrix();
         let dense = Tensor::<f32>::from_slice(&data, &shape).unwrap();
         let scaled = dense.view().cast_to_scaled::<Nvfp4>().unwrap();
@@ -1084,7 +1082,7 @@ mod tests {
         let dense_row = row1.cast::<f32>().unwrap();
         assert_eq!(dense_row.shape(), &[1, 32]);
 
-        // Row 1 of the source should round-trip within FP4 tolerance.
+        // Row 1 of the source should round trip within FP4 tolerance.
         let max_abs = data[32..].iter().fold(0.0f32, |m, &v| m.max(v.abs()));
         for (c, &actual) in dense_row.as_slice().iter().enumerate() {
             let expected = data[32 + c];
@@ -1096,7 +1094,7 @@ mod tests {
     }
 
     #[test]
-    fn transcode_mxfp8e4m3_to_nvfp4() {
+    fn mxfp8e4m3_transcodes_to_nvfp4() {
         let (data, shape) = sample_matrix();
         let dense = Tensor::<f32>::from_slice(&data, &shape).unwrap();
 
@@ -1113,7 +1111,7 @@ mod tests {
         for (i, (&expected, &actual)) in data.iter().zip(decoded.as_slice()).enumerate() {
             assert!(
                 (expected - actual).abs() <= 0.35 * max_abs + 1e-3,
-                "transcode roundtrip[{i}]: expected {expected}, got {actual}"
+                "transcode round trip[{i}]: expected {expected}, got {actual}"
             );
         }
     }
@@ -1147,7 +1145,7 @@ mod tests {
     }
 
     #[test]
-    fn rank1_vector_roundtrips() {
+    fn rank1_vector_round_trips() {
         // A bare 1-D vector, no leading axis: the verbs block the last axis only.
         let columns = 32usize;
         let data: Vec<f32> = (0..columns).map(|c| (c as f32 - 16.0) * 0.25).collect();
@@ -1163,13 +1161,13 @@ mod tests {
         for (i, (&expected, &actual)) in data.iter().zip(decoded.as_slice()).enumerate() {
             assert!(
                 (expected - actual).abs() <= 0.30 * max_abs + 1e-3,
-                "rank-1 roundtrip[{i}]: expected {expected}, got {actual}"
+                "rank-1 round trip[{i}]: expected {expected}, got {actual}"
             );
         }
     }
 
     #[test]
-    fn rank3_batch_roundtrips() {
+    fn rank3_batch_round_trips() {
         // (batch, rows, columns): the rank-general path blocks only the last axis. The old
         // rank-2-only verbs indexed `shape[1]` and errored/panicked on this shape.
         let (batch, rows, columns) = (2usize, 2usize, 32usize);
@@ -1186,13 +1184,13 @@ mod tests {
         for (i, (&expected, &actual)) in data.iter().zip(decoded.as_slice()).enumerate() {
             assert!(
                 (expected - actual).abs() <= 0.20 * max_abs + 1e-3,
-                "rank-3 roundtrip[{i}]: expected {expected}, got {actual}"
+                "rank-3 round trip[{i}]: expected {expected}, got {actual}"
             );
         }
     }
 
     #[test]
-    fn index_block_scales_element() {
+    fn block_scales_index_by_block_coordinates() {
         let (data, shape) = sample_matrix();
         let dense = Tensor::<f32>::from_slice(&data, &shape).unwrap();
         let scaled = dense.view().cast_to_scaled::<Nvfp4>().unwrap();
@@ -1273,7 +1271,7 @@ mod tests {
     }
 
     #[test]
-    fn byte_match_c_all_formats() {
+    fn block_scaled_bytes_match_the_c_kernel() {
         check_byte_match_c::<Nvfp4>();
         check_byte_match_c::<Mxfp4>();
         check_byte_match_c::<Mxfp6E2m3>();
@@ -1299,7 +1297,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_is_idempotent_all_formats() {
+    fn encoding_is_idempotent_in_every_format() {
         check_encode_idempotent::<Nvfp4>();
         check_encode_idempotent::<Mxfp4>();
         check_encode_idempotent::<Mxfp6E2m3>();

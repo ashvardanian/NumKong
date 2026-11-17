@@ -14,7 +14,7 @@ namespace ashvardanian::numkong::bench {
 
 #if NUMKONG_ARCH_CUDA_
 
-void bench_each_cuda([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
+void bench_each_cuda([[maybe_unused]] bench_settings_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
                      [[maybe_unused]] nk_capability_t enabled) {
     [[maybe_unused]] constexpr nk_kernel_kind_t sum_k = nk_kernel_each_sum_k, scale_k = nk_kernel_each_scale_k;
     [[maybe_unused]] constexpr nk_kernel_kind_t blend_k = nk_kernel_each_blend_k, fma_k = nk_kernel_each_fma_k;

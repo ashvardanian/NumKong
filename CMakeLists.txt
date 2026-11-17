@@ -977,7 +977,7 @@ if (NUMKONG_BUILD_TEST)
 #include \"@PROJECT_SOURCE_DIR@/test/shapes_cuda.cu\"
 #else
 #include \"@PROJECT_SOURCE_DIR@/test/harness.hpp\"
-void ashvardanian::numkong::test::test_shapes_rocm(ashvardanian::numkong::test::error_stats_section_t &) {}
+void ashvardanian::numkong::test::run_shapes_rocm_cases() {}
 #endif
 " @ONLY
     )

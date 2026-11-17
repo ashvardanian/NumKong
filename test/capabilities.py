@@ -9,6 +9,8 @@ Conflating the axes is a silent performance cliff rather than a build error, whi
 SIMD-free wheels once shipped with every check green: `detected` is true of the machine no
 matter what was compiled in.
 
+Run: python -m pytest test/capabilities.py
+
 File: test/capabilities.py
 Author: Ash Vardanian
 Date: July 16, 2026
@@ -44,7 +46,7 @@ def baseline_for_this_machine() -> nk.Capability | None:
     return None
 
 
-def test_capability_members_are_the_cpu_capabilities():
+def test_capability_names_match_the_c_table():
     """`Capability` has one member per CPU capability, in bit order, and none for the GPU capabilities.
 
     A name missing or moved here means the names drifted from the `nk_cap_*_k` bits.
@@ -76,6 +78,16 @@ def test_masks_past_this_cpu_are_clamped():
     assert nk.Capability.SERIAL in detected & compiled, "the serial fallback is always both detected and compiled in"
 
 
+BASELINE = baseline_for_this_machine()
+"""The ISA this machine is expected to carry, or None where none is guaranteed."""
+
+
+@pytest.mark.skipif(not SETTINGS.expect_simd, reason="needs NUMKONG_EXPECT_SIMD=1")
+@pytest.mark.skipif(BASELINE is None, reason="needs a 64-bit x86 or Arm machine")
+@pytest.mark.skipif(
+    BASELINE is not None and BASELINE not in nk.capabilities_detected_cpu(),
+    reason=f"needs a CPU with {BASELINE.name if BASELINE else 'a SIMD baseline'}",
+)
 def test_compiled_covers_the_baseline_this_machine_detects():
     """A build whose ISA probes failed is scalar, and only `compiled` can see it.
 
@@ -83,17 +95,8 @@ def test_compiled_covers_the_baseline_this_machine_detects():
     or exotic arch, or a CPU too old for the baseline. Set `NUMKONG_EXPECT_SIMD=0` to skip a
     deliberately scalar build on a SIMD-capable machine.
     """
-    if not SETTINGS.expect_simd:
-        pytest.skip("NUMKONG_EXPECT_SIMD=0: this build is deliberately scalar")
-
-    baseline = baseline_for_this_machine()
-    if baseline is None:
-        pytest.skip(f"no SIMD baseline is guaranteed on {platform.machine()}")
-    if baseline not in nk.capabilities_detected_cpu():
-        pytest.skip(f"this CPU does not report {baseline.name}; nothing to verify")
-
-    assert baseline in nk.capabilities_compiled_cpu(), (
-        f"this CPU reports {baseline.name} but no {baseline.name} kernels were compiled in — "
+    assert BASELINE in nk.capabilities_compiled_cpu(), (
+        f"this CPU reports {BASELINE.name} but no {BASELINE.name} kernels were compiled in — "
         f"the ISA probes failed at build time and this build is scalar"
     )
 
@@ -109,9 +112,9 @@ def test_gpu_producers_refuse_an_ordinal_they_do_not_see(vendor: str):
     enabled = getattr(nk, f"capabilities_enabled_{vendor}")
     compiled = getattr(nk, f"capabilities_compiled_{vendor}")
     for ordinal in (-1, count):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="no device"):
             enabled(ordinal)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="no device"):
             compiled(ordinal)
     if count:
         assert enabled(count - 1) == detected(count - 1) & compiled(count - 1)
@@ -156,5 +159,5 @@ def test_packed_matrix_keeps_the_mask_it_was_packed_with():
     assert nk.dots_packed(vectors, packed) == expected
     assert nk.dots_packed(vectors, serial_packed) == expected
     if serial_packed.nbytes != packed.nbytes:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="packed by another capability"):
             nk.dots_packed(vectors, packed, capabilities=nk.Capability.SERIAL)

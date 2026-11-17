@@ -11,7 +11,7 @@
 
 namespace ashvardanian::numkong::bench {
 
-void bench_probability(environment_t const &env) {
+void bench_probability(bench_settings_t const &env) {
     constexpr nk_dtype_t f32_k = nk_f32_k;
     constexpr nk_dtype_t f16_k = nk_f16_k;
     constexpr nk_dtype_t bf16_k = nk_bf16_k;

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Test elementwise operations: nk.scale, nk.add, nk.blend, nk.fma, nk.multiply.
 
-DTypes: float64, float32, float16, int8, uint8.
+Covers: float64, float32, float16, int8, uint8.
 Baselines: high-precision Decimal per-element, NumPy at native precision.
 Matches C++ suite: test/each.cpp.
+Run: python -m pytest test/each.py
 
 File: test/each.py
 Author: Ash Vardanian
@@ -13,22 +14,11 @@ Date: October 26, 2024
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 import pytest
-
-
-if TYPE_CHECKING:
-    import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
-
-try:
-    import numpy as np
-
-    numpy_available = True
-except Exception:
-    numpy_available = False
-
 from base import (
+    ALGEBRAIC_DTYPES,
+    ALGEBRAIC_NDIMS,
     NUMKONG_ATOL,
     NUMKONG_RTOL,
     SETTINGS,
@@ -46,8 +36,8 @@ from base import (
 import numkong as nk
 
 
-algebraic_dtypes = ["float32", "float64"]
-algebraic_ndims = [7, 97]
+if numpy_available:
+    import numpy as np
 
 
 def normalize_elementwise(r, dtype_new):
@@ -74,6 +64,7 @@ def flatten_for_baseline(x):
 
 
 def get_computation_dtypes(x, y):
+    """Returns the widened dtype a baseline computes in and the promoted dtype it rounds back to."""
     x = np.asarray(x)
     y = np.asarray(y)
     larger_dtype = np.promote_types(x.dtype, y.dtype)
@@ -115,6 +106,7 @@ def baseline_fma(x, y, z, alpha, beta):
 
 
 def baseline_add(x, y, out=None):
+    """Element-wise sum in a widened dtype, the reference for `nk.add`."""
     compute_dtype, final_dtype = get_computation_dtypes(x, y)
     a = x.astype(compute_dtype) if isinstance(x, np.ndarray) else x
     b = y.astype(compute_dtype) if isinstance(y, np.ndarray) else y
@@ -124,6 +116,7 @@ def baseline_add(x, y, out=None):
 
 
 def baseline_multiply(x, y, out=None):
+    """Element-wise product in a widened dtype, the reference for `nk.multiply`."""
     compute_dtype, final_dtype = get_computation_dtypes(x, y)
     a = x.astype(compute_dtype) if isinstance(x, np.ndarray) else x
     b = y.astype(compute_dtype) if isinstance(y, np.ndarray) else y
@@ -220,6 +213,7 @@ KERNELS_EACH: dict[str, tuple[Callable | None, Callable, Callable]] = {
 
 
 def random_coefficients(generator: np.random.Generator, dtype, alpha_div=2, beta_div=2):
+    """Draws `alpha` and `beta` scalars, kept small and positive for integer dtypes so results fit."""
     alpha = float(generator.standard_normal())
     beta = float(generator.standard_normal())
     if np.issubdtype(np.dtype(dtype), np.integer):
@@ -228,9 +222,11 @@ def random_coefficients(generator: np.random.Generator, dtype, alpha_div=2, beta
 
 
 @pytest.mark.repeat(SETTINGS.repetitions)
-@pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
-def test_scale_random_accuracy(stats, capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
+@pytest.mark.parametrize("shape", elementwise_shapes)
+def test_scale_matches_the_precise_reference(
+    stats, capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator
+):
     """scale(alpha * x + beta) across float/int dtypes and ranks against a high-precision Decimal baseline."""
     input_raw, input_baseline = make_random(shape, dtype, np_rng)
 
@@ -270,9 +266,9 @@ def test_scale_random_accuracy(stats, capabilities, shape: tuple, dtype: str, np
 
 
 @pytest.mark.repeat(SETTINGS.repetitions)
-@pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
-def test_add_random_accuracy(stats, capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
+@pytest.mark.parametrize("shape", elementwise_shapes)
+def test_add_matches_the_precise_reference(stats, capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
     """Elementwise addition across float/int dtypes and ranks against a high-precision Decimal baseline."""
     a_raw, a_baseline = make_random(shape, dtype, np_rng)
     b_raw, b_baseline = make_random(shape, dtype, np_rng)
@@ -311,9 +307,11 @@ def test_add_random_accuracy(stats, capabilities, shape: tuple, dtype: str, np_r
 
 
 @pytest.mark.repeat(SETTINGS.repetitions)
-@pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
-def test_blend_random_accuracy(stats, capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
+@pytest.mark.parametrize("shape", elementwise_shapes)
+def test_blend_matches_the_precise_reference(
+    stats, capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator
+):
     """Weighted sum (alpha * x + beta * y) across float/int dtypes and ranks against a Decimal baseline."""
     a_raw, a_baseline = make_random(shape, dtype, np_rng)
     b_raw, b_baseline = make_random(shape, dtype, np_rng)
@@ -361,9 +359,9 @@ def test_blend_random_accuracy(stats, capabilities, shape: tuple, dtype: str, np
 
 
 @pytest.mark.repeat(SETTINGS.repetitions)
-@pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
-def test_fma_random_accuracy(stats, capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
+@pytest.mark.parametrize("shape", elementwise_shapes)
+def test_fma_matches_the_precise_reference(stats, capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
     """Fused multiply-add (alpha * x * y + beta * z) across float/int dtypes and ranks against a Decimal baseline."""
     a_raw, a_baseline = make_random(shape, dtype, np_rng)
     b_raw, b_baseline = make_random(shape, dtype, np_rng)
@@ -420,7 +418,7 @@ def test_fma_random_accuracy(stats, capabilities, shape: tuple, dtype: str, np_r
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize(
-    "first_dtype, second_dtype",
+    ("first_dtype", "second_dtype"),
     [
         ("float64", "int16"),
         ("float64", "uint8"),
@@ -433,7 +431,7 @@ def test_fma_random_accuracy(stats, capabilities, shape: tuple, dtype: str, np_r
     ],
 )
 @pytest.mark.parametrize("kernel", ["add", "multiply"])
-def test_add_multiply_mixed_dtype_promotion(first_dtype: str, second_dtype: str, kernel):
+def test_add_and_multiply_promote_mixed_dtypes_like_numpy(first_dtype: str, second_dtype: str, kernel):
     """Mixed-dtype add and multiply promote like `np.result_type`."""
     _, simd_kernel, _ = KERNELS_EACH[kernel]
     a = np.ones(4, dtype=first_dtype)
@@ -460,7 +458,9 @@ def test_add_multiply_mixed_dtype_promotion(first_dtype: str, second_dtype: str,
     ],
 )
 @pytest.mark.parametrize("kernel", ["add", "multiply"])
-def test_add_multiply_noncontiguous(stats, capabilities, dtype: str, kernel, np_rng: np.random.Generator):
+def test_add_and_multiply_follow_strides_and_shapes(
+    stats, capabilities, dtype: str, kernel, np_rng: np.random.Generator
+):
     """Add and multiply on non-contiguous, strided, and shape-mismatched arrays."""
     baseline_kernel, simd_kernel, _ = KERNELS_EACH[kernel]
     first_dtype, second_dtype, output_dtype = dtype
@@ -498,7 +498,8 @@ def test_add_multiply_noncontiguous(stats, capabilities, dtype: str, kernel, np_
 
         inplace_numpy = np.empty_like(inplace_numkong)
         simd_kernel(a, b, out=inplace_numkong, capabilities=capabilities)
-        baseline_kernel(a, b, out=inplace_numpy)
+        with np.errstate(over="ignore", invalid="ignore"):  # NumPy's unsafe cast into `out` warns on what it wraps
+            baseline_kernel(a, b, out=inplace_numpy)
 
         assert inplace_numkong.size == inplace_numpy.size
         assert inplace_numkong.shape == inplace_numpy.shape
@@ -508,7 +509,8 @@ def test_add_multiply_noncontiguous(stats, capabilities, dtype: str, kernel, np_
         if mismatch_count:
             collect_warnings(f"NumPy overflow in ({a.dtype} {operator} {b.dtype} -> {output_dtype})", stats)
 
-        # out= with nk.Tensor buffer; differing dtypes are covered by test_strided_out_with_dtype_change
+        # out= with nk.Tensor buffer; differing dtypes are covered by
+        # test_strided_out_of_another_dtype_is_scattered
         if first_dtype == second_dtype == output_dtype and inplace_numkong.ndim == 1:
             out_nk = nk.zeros(inplace_numkong.shape, dtype=output_dtype)
             ret = simd_kernel(a, b, out=out_nk, capabilities=capabilities)
@@ -572,28 +574,27 @@ def test_add_multiply_noncontiguous(stats, capabilities, dtype: str, kernel, np_
     # Shape mismatch errors
     a = make_random((10, 47), first_dtype, np_rng)[0]
     b = make_random((10, 46), second_dtype, np_rng)[0]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="could not be broadcast together"):
         baseline_kernel(a, b)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="shapes don't match"):
         simd_kernel(a, b, capabilities=capabilities)
 
     a = make_random((6, 2, 3), first_dtype, np_rng)[0]
     b = make_random((6, 6), second_dtype, np_rng)[0]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="could not be broadcast together"):
         baseline_kernel(a, b)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="ranks don't match"):
         simd_kernel(a, b, capabilities=capabilities)
 
     # Broadcasting not supported
     a = make_random((4, 7, 5, 3), first_dtype, np_rng)[0]
     b = make_random((1, 1, 1, 1), second_dtype, np_rng)[0]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="shapes don't match"):
         simd_kernel(a, b, capabilities=capabilities)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.repetitions)
-@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize(
     "dtype",
     [
@@ -604,8 +605,9 @@ def test_add_multiply_noncontiguous(stats, capabilities, dtype: str, kernel, np_
         ("float32", "float32", "float16"),
     ],
 )
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("kernel", ["add", "multiply"])
-def test_add_multiply_broadcast(capabilities, ndim: int, dtype: str, kernel, np_rng: np.random.Generator):
+def test_add_and_multiply_broadcast_scalars(capabilities, ndim: int, dtype: str, kernel, np_rng: np.random.Generator):
     """Add and multiply with scalar-vector and mixed-dtype broadcasting."""
     first_dtype, second_dtype, output_dtype = dtype
 
@@ -651,9 +653,12 @@ def test_add_multiply_broadcast(capabilities, ndim: int, dtype: str, kernel, np_
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.repetitions)
-@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
-def test_scale_edge_cases(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
+def test_scale_holds_at_zero_and_negative_coefficients(
+    capabilities, ndim: int, dtype: str, np_rng: np.random.Generator
+):
+    """Scale holds at zero and negative coefficients, and writes NumPy, Tensor and strided outputs."""
     baseline_kernel, simd_kernel, _ = KERNELS_EACH["scale"]
 
     a = np_rng.standard_normal(ndim).astype(dtype)
@@ -700,7 +705,7 @@ def test_scale_edge_cases(capabilities, ndim: int, dtype: str, np_rng: np.random
     )
 
     # out= shape mismatch raises
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="shapes don't match"):
         simd_kernel(a, alpha=alpha, beta=beta, out=np.zeros(ndim + 1, dtype=dtype), capabilities=capabilities)
 
     # out= into a non-contiguous 1D buffer is written correctly — the N-D walker honors strides
@@ -718,9 +723,12 @@ def test_scale_edge_cases(capabilities, ndim: int, dtype: str, np_rng: np.random
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.repetitions)
-@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
-def test_add_edge_cases(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
+def test_add_holds_for_zero_equal_and_negative_operands(
+    capabilities, ndim: int, dtype: str, np_rng: np.random.Generator
+):
+    """Add holds when one operand is zeros, both are the same vector, or both are negative."""
     baseline_kernel, simd_kernel, _ = KERNELS_EACH["add"]
 
     # Standard random
@@ -751,7 +759,7 @@ def test_add_edge_cases(capabilities, ndim: int, dtype: str, np_rng: np.random.G
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
-def test_add_numpy_buffer_protocol(dtype: str, np_rng: np.random.Generator):
+def test_add_reads_numpy_buffers(dtype: str, np_rng: np.random.Generator):
     """nk.add() accepts NumPy arrays directly via buffer protocol."""
     a = np_rng.standard_normal(50).astype(dtype)
     b = np_rng.standard_normal(50).astype(dtype)
@@ -767,7 +775,7 @@ def test_add_numpy_buffer_protocol(dtype: str, np_rng: np.random.Generator):
 @pytest.mark.parametrize(
     "dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32"), pytest.param("float16", id="f16")]
 )
-def test_multiply_numpy_buffer_protocol(dtype: str, np_rng: np.random.Generator):
+def test_multiply_reads_numpy_buffers_and_keeps_negative_zeros(dtype: str, np_rng: np.random.Generator):
     """nk.multiply() accepts NumPy arrays directly via buffer protocol and keeps negative zeros."""
     a = np_rng.standard_normal(50).astype(dtype)
     b = np_rng.standard_normal(50).astype(dtype)
@@ -812,7 +820,7 @@ def test_multiply_out_ignores_previous_contents():
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
-def test_blend_numpy_buffer_protocol(dtype: str, np_rng: np.random.Generator):
+def test_blend_reads_and_writes_numpy_buffers(dtype: str, np_rng: np.random.Generator):
     """nk.blend() accepts NumPy arrays directly via buffer protocol, including out=."""
     a = np_rng.standard_normal(50).astype(dtype)
     b = np_rng.standard_normal(50).astype(dtype)
@@ -837,7 +845,7 @@ def test_blend_numpy_buffer_protocol(dtype: str, np_rng: np.random.Generator):
     assert_allclose(np.asarray(out_nk), expected)
 
     # out= shape mismatch raises
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="shapes don't match"):
         nk.blend(a, b, alpha=alpha, beta=beta, out=np.zeros(49, dtype=dtype))
 
     # out= into a non-contiguous 1D buffer is written correctly — the N-D walker honors strides
@@ -846,9 +854,9 @@ def test_blend_numpy_buffer_protocol(dtype: str, np_rng: np.random.Generator):
     assert_allclose(strided_out, expected)
 
 
-@pytest.mark.parametrize("ndim", algebraic_ndims)
-@pytest.mark.parametrize("dtype", algebraic_dtypes)
-def test_add_known(capabilities, ndim: int, dtype: str):
+@pytest.mark.parametrize("dtype", ALGEBRAIC_DTYPES)
+@pytest.mark.parametrize("ndim", ALGEBRAIC_NDIMS)
+def test_add_of_twos_and_threes_is_five(capabilities, ndim: int, dtype: str):
     """add(full(2), full(3)) ~ 5."""
     a = nk.full((ndim,), 2.0, dtype=dtype)
     b = nk.full((ndim,), 3.0, dtype=dtype)
@@ -857,9 +865,9 @@ def test_add_known(capabilities, ndim: int, dtype: str):
         assert abs(result[i] - 5.0) < NUMKONG_ATOL, f"add(2,3)[{i}] = {result[i]}"
 
 
-@pytest.mark.parametrize("ndim", algebraic_ndims)
-@pytest.mark.parametrize("dtype", algebraic_dtypes)
-def test_multiply_known(capabilities, ndim: int, dtype: str):
+@pytest.mark.parametrize("dtype", ALGEBRAIC_DTYPES)
+@pytest.mark.parametrize("ndim", ALGEBRAIC_NDIMS)
+def test_multiply_of_twos_and_threes_is_six(capabilities, ndim: int, dtype: str):
     """multiply(full(2), full(3)) ~ 6."""
     a = nk.full((ndim,), 2.0, dtype=dtype)
     b = nk.full((ndim,), 3.0, dtype=dtype)
@@ -868,9 +876,9 @@ def test_multiply_known(capabilities, ndim: int, dtype: str):
         assert abs(result[i] - 6.0) < NUMKONG_ATOL, f"multiply(2,3)[{i}] = {result[i]}"
 
 
-@pytest.mark.parametrize("ndim", algebraic_ndims)
-@pytest.mark.parametrize("dtype", algebraic_dtypes)
-def test_scale_identity(capabilities, ndim: int, dtype: str):
+@pytest.mark.parametrize("dtype", ALGEBRAIC_DTYPES)
+@pytest.mark.parametrize("ndim", ALGEBRAIC_NDIMS)
+def test_scale_by_one_is_the_identity(capabilities, ndim: int, dtype: str):
     """scale(v, alpha=1, beta=0) ~ v."""
     input_vector = nk.full((ndim,), 7.5, dtype=dtype)
     result = list(nk.scale(input_vector, alpha=1.0, beta=0.0, capabilities=capabilities))
@@ -891,9 +899,9 @@ def test_scale_rejects_mismatched_output_dtype(dtype: str):
     np.testing.assert_array_equal(storage, np.full_like(storage, 0xA5))
 
 
-@pytest.mark.parametrize("ndim", algebraic_ndims)
-@pytest.mark.parametrize("dtype", algebraic_dtypes)
-def test_blend_known(capabilities, ndim: int, dtype: str):
+@pytest.mark.parametrize("dtype", ALGEBRAIC_DTYPES)
+@pytest.mark.parametrize("ndim", ALGEBRAIC_NDIMS)
+def test_blend_of_constants_is_their_weighted_sum(capabilities, ndim: int, dtype: str):
     """blend(full(a), full(b), alpha=2, beta=3) ~ 2a + 3b."""
     a_val, b_val = 4.0, 5.0
     a = nk.full((ndim,), a_val, dtype=dtype)
@@ -905,12 +913,12 @@ def test_blend_known(capabilities, ndim: int, dtype: str):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(
+    "dtype", [pytest.param("float32", id="f32"), pytest.param("bfloat16", id="bf16"), pytest.param("e4m3", id="e4m3")]
+)
 @pytest.mark.parametrize("shape", [(1, 8), (3, 100), (8, 128), (5, 63)])
 @pytest.mark.parametrize("with_up", [False, True])
-@pytest.mark.parametrize(
-    "dtype", [pytest.param("float32", id="f32"), pytest.param("bf16", id="bf16"), pytest.param("e4m3", id="e4m3")]
-)
-def test_swiglu(capabilities, shape, with_up, dtype, np_rng: np.random.Generator):
+def test_swiglu_and_silu_match_the_float64_reference(capabilities, shape, with_up, dtype, np_rng: np.random.Generator):
     """Test nk.swiglu() (and plain SiLU when up=None) against a float64 reference."""
     gate_raw, gate_base = make_random(shape, dtype, np_rng)
     nk_gate = make_nk(gate_raw, dtype)
@@ -934,18 +942,19 @@ def test_swiglu(capabilities, shape, with_up, dtype, np_rng: np.random.Generator
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("shape", [(1, 8), (3, 100), (8, 128), (7, 63)])
-@pytest.mark.parametrize("groups", [1, 2])
-@pytest.mark.parametrize("with_gamma", [False, True])
 @pytest.mark.parametrize(
-    "dtype", [pytest.param("float32", id="f32"), pytest.param("bf16", id="bf16"), pytest.param("e4m3", id="e4m3")]
+    "dtype", [pytest.param("float32", id="f32"), pytest.param("bfloat16", id="bf16"), pytest.param("e4m3", id="e4m3")]
 )
-def test_rmsnorm(capabilities, shape, groups, with_gamma, dtype, np_rng: np.random.Generator):
+@pytest.mark.parametrize(
+    ("shape", "groups"),
+    [(shape, groups) for groups in (1, 2) for shape in [(1, 8), (3, 100), (8, 128), (7, 63)] if shape[1] % groups == 0],
+)
+@pytest.mark.parametrize("with_gamma", [False, True])
+def test_rmsnorm_matches_the_float64_reference(
+    capabilities, shape, groups, with_gamma, dtype, np_rng: np.random.Generator
+):
     """Test nk.rmsnorm() against a float64 reference; low-precision dtypes use dtype-aware tolerances."""
-    _rows, width = shape
-    if width % groups != 0:
-        pytest.skip("width not divisible by groups")
-    columns = width // groups
+    columns = shape[1] // groups
     x_raw, x_base = make_random(shape, dtype, np_rng)
     nk_x = make_nk(x_raw, dtype)
     gamma = make_random((columns,), "float32", np_rng)[0] if with_gamma else None
@@ -962,7 +971,7 @@ def test_rmsnorm(capabilities, shape, groups, with_gamma, dtype, np_rng: np.rand
     assert_allclose(y, expected, atol=atol, rtol=rtol)
 
 
-def test_rmsnorm_strided_qk_norm(np_rng: np.random.Generator):
+def test_rmsnorm_normalizes_a_strided_qk_view(np_rng: np.random.Generator):
     """Unit QK-norm shape: a strided [tokens, depth] view of a fused [tokens, 3*hidden] buffer."""
     tokens, hidden = 5, 96
     qkv = np_rng.standard_normal((tokens, 3 * hidden)).astype(np.float32)
@@ -988,7 +997,7 @@ def test_rmscast_int8_rounds_and_saturates():
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("kernel", ["add", "multiply"])
 @pytest.mark.parametrize("second_is_scalar", [True, False], ids=["scalar_b", "array_b"])
-def test_strided_out_with_dtype_change(capabilities, kernel: str, second_is_scalar: bool):
+def test_strided_out_of_another_dtype_is_scattered(capabilities, kernel: str, second_is_scalar: bool):
     """A strided `out` of a differing dtype must be scattered, not packed over its neighbours.
 
     The scalar and array forms of `b` select different implementations, and each of
@@ -1018,7 +1027,7 @@ def test_strided_out_with_dtype_change(capabilities, kernel: str, second_is_scal
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("kernel", ["add", "multiply"])
-def test_strided_out_multidimensional(kernel: str):
+def test_strided_out_covers_ranks_two_and_three(kernel: str):
     """Rank-2 and rank-3 outputs cover both a fully scattered tail and a partially packed one."""
     simd_kernel = getattr(nk, kernel)
 
@@ -1041,10 +1050,10 @@ def test_strided_out_multidimensional(kernel: str):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize(
-    "dtype,distinct_values",
+    ("dtype", "distinct_values"),
     [pytest.param("uint4", 8, id="uint4"), pytest.param("int4", 8, id="int4"), pytest.param("uint1", 2, id="uint1")],
 )
-def test_packed_out_requires_contiguity(dtype: str, distinct_values: int):
+def test_packed_out_must_be_contiguous(dtype: str, distinct_values: int):
     """Sub-byte dtypes have no per-value byte stride, so only a packed `out` can be filled."""
     first = np.arange(8, dtype=np.uint8) % distinct_values
 

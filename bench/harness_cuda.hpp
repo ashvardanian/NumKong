@@ -42,7 +42,7 @@ struct cuda_backend_t : device_backend_t {
     }
 
     /** Rows a token-row benchmark batches: a 4096-token prefill. */
-    static std::size_t token_rows(environment_t const &) noexcept { return 4096; }
+    static std::size_t token_rows(bench_settings_t const &) noexcept { return 4096; }
 
     nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
         return cudaMemcpy(destination, source, bytes, cudaMemcpyDefault) == cudaSuccess ? nk_success_k
@@ -108,9 +108,9 @@ struct cuda_backend_t : device_backend_t {
 };
 
 /** The element-wise, conversion and reduction CUDA rows, a file per family like the CPU's. */
-void bench_each_cuda(environment_t const &env, cuda_backend_t const &backend, nk_capability_t enabled);
-void bench_cast_cuda(environment_t const &env, cuda_backend_t const &backend, nk_capability_t enabled);
-void bench_reduce_cuda(environment_t const &env, cuda_backend_t const &backend, nk_capability_t enabled);
+void bench_each_cuda(bench_settings_t const &env, cuda_backend_t const &backend, nk_capability_t enabled);
+void bench_cast_cuda(bench_settings_t const &env, cuda_backend_t const &backend, nk_capability_t enabled);
+void bench_reduce_cuda(bench_settings_t const &env, cuda_backend_t const &backend, nk_capability_t enabled);
 
 } // namespace ashvardanian::numkong::bench
 

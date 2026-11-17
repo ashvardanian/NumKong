@@ -4,6 +4,8 @@
  *  @date October 13, 2026
  *  @brief Conversion tests on ROCm.
  */
+#undef NDEBUG // ! A test's oracle must stay live in every build
+
 #include "harness.hpp"
 
 #if NUMKONG_ARCH_ROCM_
@@ -13,14 +15,16 @@
 namespace ashvardanian::numkong::test {
 
 #if NUMKONG_ARCH_ROCM_
-void test_cast_rocm(error_stats_section_t &check) {
-    check.section("Conversions ROCm", nk_cap_rocm_k);
-    check("cast_pairs_rocm", test_cast_pairs<rocm_backend_t>, nk_cast_rocm);
-    check("cast_block_scaled_rocm", test_cast_block_scaled<rocm_backend_t>, nk_cast_rocm);
+void run_cast_rocm_cases() {
+    auto const rocm = nk_cap_rocm_k;
+    run_kernel_case("test_cast_pairs<rocm_backend_t>(nk_cast_rocm)", test_cast_pairs<rocm_backend_t>, rocm,
+                    nk_cast_rocm);
+    run_kernel_case("test_cast_block_scaled<rocm_backend_t>(nk_cast_rocm)", test_cast_block_scaled<rocm_backend_t>,
+                    rocm, nk_cast_rocm);
 }
 
 #else  // !NUMKONG_ARCH_ROCM_
-void test_cast_rocm(error_stats_section_t &) {}
+void run_cast_rocm_cases() {}
 #endif // NUMKONG_ARCH_ROCM_
 
 } // namespace ashvardanian::numkong::test

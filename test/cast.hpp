@@ -93,17 +93,17 @@ struct cast_operand {
  *  is the serial encoding of random F32, a block-scaled destination with a tensor scale runs with a
  *  given scale and with one the kernel derives. */
 template <typename from_type_, typename to_type_, typename backend_type_ = host_backend_t>
-error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
+error_stats_t test_cast(cast_t kernel) {
     using source_t = cast_operand<from_type_, backend_type_>;
     using target_t = cast_operand<to_type_, backend_type_>;
-    backend_type_ backend = make_backend<backend_type_>(settings);
+    backend_type_ backend = make_backend<backend_type_>();
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
 
     // Align to lcm(dims_per_value) so both buffers land on clean storage boundaries.
     std::size_t const aligned_dims = std::lcm(nk::dimensions_per_value<from_type_>(),
                                               nk::dimensions_per_value<to_type_>());
-    std::size_t const dimensions = (settings.dense_dimensions / aligned_dims) * aligned_dims;
+    std::size_t const dimensions = (test_run.settings.dense_dimensions / aligned_dims) * aligned_dims;
 
     source_t source(dimensions, backend);
     target_t target(dimensions, backend), reference(dimensions, backend);
@@ -130,20 +130,20 @@ error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
             for (std::size_t i = 0; i != 16; ++i) source.elements[i].raw_ = halves[i];
             backend.call(kernel, static_cast<void const *>(source_operand), from_type_::dtype(), target_operand,
                          to_type_::dtype(), nk_size_t(16));
-            if (!stats.expect(backend.synchronize())) return stats;
+            if (!stats.expect_status(backend.synchronize())) return stats;
             for (std::size_t i = 0; i != 16; ++i)
                 stats.accumulate(int(read_element_(target.elements, i)),
                                  to_type_::dtype() == nk_i4_k ? signed_codes[i] : unsigned_codes[i]);
         }
 
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
         if constexpr (source_t::scaled) {
-            fill_random(settings, generator, source_floats);
+            fill_random(generator, source_floats);
             source.tensor_scale_value() = 0.0f;
-            stats.expect(nk_cast_serial(source_floats.raw_values_data(), nk_f32_k, source_operand, from_type_::dtype(),
-                                        dimensions, nullptr));
+            stats.expect_status(nk_cast_serial(source_floats.raw_values_data(), nk_f32_k, source_operand,
+                                               from_type_::dtype(), dimensions, nullptr));
         }
-        else if constexpr (target_t::scaled) fill_random(settings, generator, source.elements);
+        else if constexpr (target_t::scaled) fill_random(generator, source.elements);
         else fill_random_bits(generator, source.elements);
         // Midpoints of neighbouring target codes are ties, which random bits almost never meet
         if constexpr (from_type_::dtype() == nk_f32_k && !target_t::scaled)
@@ -151,18 +151,18 @@ error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
                 typename to_type_::raw_t const code = typename to_type_::raw_t(generator());
                 typename to_type_::raw_t const codes[2] = {code, typename to_type_::raw_t(code + 1)};
                 nk_f32_t neighbours[2];
-                stats.expect(nk_cast_serial(codes, to_type_::dtype(), neighbours, nk_f32_k, 2, nullptr));
+                stats.expect_status(nk_cast_serial(codes, to_type_::dtype(), neighbours, nk_f32_k, 2, nullptr));
                 source.elements[i].raw_ = (neighbours[0] + neighbours[1]) / 2;
             }
 
         for (float const tensor_scale : {1.0f, 0.0f}) {
             if (tensor_scale == 0.0f && !target_t::has_tensor_scale) continue;
             target.tensor_scale_value() = reference.tensor_scale_value() = tensor_scale;
-            stats.expect(nk_cast_serial(source_operand, from_type_::dtype(), reference_operand, to_type_::dtype(),
-                                        dimensions, nullptr));
+            stats.expect_status(nk_cast_serial(source_operand, from_type_::dtype(), reference_operand,
+                                               to_type_::dtype(), dimensions, nullptr));
             backend.call(kernel, static_cast<void const *>(source_operand), from_type_::dtype(), target_operand,
                          to_type_::dtype(), static_cast<nk_size_t>(dimensions));
-            if (!stats.expect(backend.synchronize())) return stats;
+            if (!stats.expect_status(backend.synchronize())) return stats;
 
             if constexpr (target_t::scaled) {
                 compare_bytes(target.elements, reference.elements);
@@ -181,30 +181,30 @@ error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
  *  output byte for byte, NaN payloads included. U1 into signed integers is left out, as the serial
  *  I64 hub reads no U1 and converts whatever its buffers held. */
 template <typename backend_type_ = host_backend_t>
-error_stats_t test_cast_pairs(settings_t const &settings, cast_t kernel) {
+error_stats_t test_cast_pairs(cast_t kernel) {
     nk_dtype_t const dtypes[] = {nk_f64_k,   nk_f32_k,  nk_f16_k,   nk_bf16_k,  nk_e4m3_k, nk_e5m2_k, nk_e2m3_k,
                                  nk_e3m2_k,  nk_e2m1_k, nk_ue8m0_k, nk_ue4m3_k, nk_f64c_k, nk_f32c_k, nk_f16c_k,
                                  nk_bf16c_k, nk_i64_k,  nk_i32_k,   nk_i16_k,   nk_i8_k,   nk_i4_k,   nk_u64_k,
                                  nk_u32_k,   nk_u16_k,  nk_u8_k,    nk_u4_k,    nk_u1_k};
-    backend_type_ backend = make_backend<backend_type_>(settings);
+    backend_type_ backend = make_backend<backend_type_>();
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(settings.seed.value);
-    std::size_t const count = nk::divide_round_up(settings.dense_dimensions, 8) * 8, capacity = count * 16;
+    split_mix_generator_t generator(case_stream_key());
+    std::size_t const count = nk::divide_round_up(test_run.settings.dense_dimensions, 8) * 8, capacity = count * 16;
     auto source = make_vector<u8_t>(backend, capacity), target = make_vector<u8_t>(backend, capacity);
     auto reference = make_vector<u8_t>(capacity);
 
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();)
         for (nk_dtype_t const from_type : dtypes) {
             fill_random_bits(generator, source);
             for (nk_dtype_t const to_type : dtypes) {
                 if (from_type == nk_u1_k && nk_dtype_family(to_type) == nk_dtype_family_int_k) continue;
                 std::memset(target.raw_values_data(), 0, capacity);
                 std::memset(reference.raw_values_data(), 0, capacity);
-                stats.expect(nk_cast_serial(source.raw_values_data(), from_type, reference.raw_values_data(), to_type,
-                                            count, nullptr));
+                stats.expect_status(nk_cast_serial(source.raw_values_data(), from_type, reference.raw_values_data(),
+                                                   to_type, count, nullptr));
                 backend.call(kernel, static_cast<void const *>(source.raw_values_data()), from_type,
                              static_cast<void *>(target.raw_values_data()), to_type, count);
-                if (!stats.expect(backend.synchronize())) return stats;
+                if (!stats.expect_status(backend.synchronize())) return stats;
                 std::size_t const to_bytes = count * nk_dtype_bits(to_type) / NUMKONG_BITS_PER_BYTE;
                 for (std::size_t i = 0; i < to_bytes; ++i) stats.accumulate(target[i], reference[i]);
             }
@@ -217,19 +217,19 @@ error_stats_t test_cast_pairs(settings_t const &settings, cast_t kernel) {
  *  tensor scale, and a widening between two MX formats. The 17 pairs split one kernel's time limit,
  *  and the first pair to fail names the failure. */
 template <typename backend_type_ = host_backend_t>
-error_stats_t test_cast_block_scaled(settings_t const &settings, cast_t kernel) {
+error_stats_t test_cast_block_scaled(cast_t kernel) {
     constexpr int pairs_count = 17;
-    settings_t pair_settings = settings;
-    auto const time_limit_per_pair = settings.time_limit_per_kernel / pairs_count;
-    pair_settings.time_limit_per_kernel = time_limit_per_pair < std::chrono::milliseconds(1)
-                                              ? std::chrono::milliseconds(1)
-                                              : time_limit_per_pair;
+    // Each pair runs its trials for its share of the case's time limit, restored once the pairs ran
+    std::chrono::milliseconds const pair_share = test_run.settings.time_limit / pairs_count;
+    std::chrono::milliseconds const time_limit = std::exchange(
+        test_run.settings.time_limit,
+        pair_share < std::chrono::milliseconds(1) ? std::chrono::milliseconds(1) : pair_share);
     error_stats_t stats(comparison_family_t::exact_k);
     auto pair = [&]<typename from_type_, typename to_type_>() {
         static std::string const name = fmt::format("{} → {}", from_type_::dtype_name(), to_type_::dtype_name());
-        error_stats_t const pair_stats = test_cast<from_type_, to_type_, backend_type_>(pair_settings, kernel);
+        error_stats_t const pair_stats = test_cast<from_type_, to_type_, backend_type_>(kernel);
         stats.merge(pair_stats);
-        if (should_fail(settings, pair_stats)) stats.expect(false, name.c_str());
+        if (should_fail(pair_stats)) stats.expect_true(false, name.c_str());
     };
     [&]<typename... format_types_>(std::type_identity<format_types_>...) {
         ((pair.template operator()<f32_t, format_types_>(), pair.template operator()<format_types_, f32_t>()), ...);
@@ -239,6 +239,7 @@ error_stats_t test_cast_block_scaled(settings_t const &settings, cast_t kernel) 
     pair.template operator()<nvfp4_t, mxfp8e4m3_t>();
     pair.template operator()<mxfp8e4m3_t, nvfp4_t>();
     pair.template operator()<mxfp4_t, mxfp8e5m2_t>();
+    test_run.settings.time_limit = time_limit;
     return stats;
 }
 

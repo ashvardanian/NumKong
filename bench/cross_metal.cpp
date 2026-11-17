@@ -17,7 +17,7 @@ namespace ashvardanian::numkong::bench {
 
 /** Every Metal baseline entry point beside every Apple9 and Apple10 one, so the matrix units'
  *  speedup shows, on devices whose families include each. */
-nk::status_t bench_cross_metal([[maybe_unused]] environment_t const &env,
+nk::status_t bench_cross_metal([[maybe_unused]] bench_settings_t const &env,
                                [[maybe_unused]] device_backend_t const &runtime) {
 #if NUMKONG_ARCH_METAL_
     nk_capability_t const enabled = runtime.capabilities;

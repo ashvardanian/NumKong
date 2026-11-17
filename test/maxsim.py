@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Test MaxSim late-interaction scoring: nk.maxsim, nk.maxsim_pack, nk.maxsim_packed.
 
-DTypes: float32, bfloat16, float16.
+Covers: float32, bfloat16, float16.
 Baselines: high-precision Decimal angular distances, NumPy reference.
 Matches C++ suite: test/maxsim.cpp.
+Run: python -m pytest test/maxsim.py
 
 File: test/maxsim.py
 Author: Ash Vardanian
@@ -14,21 +15,8 @@ from __future__ import annotations
 
 import random
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 import pytest
-
-
-if TYPE_CHECKING:
-    import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
-
-try:
-    import numpy as np
-
-    numpy_available = True
-except Exception:
-    numpy_available = False
-
 from base import (
     SETTINGS,
     assert_allclose,
@@ -42,7 +30,8 @@ from base import (
 import numkong as nk
 
 
-_MAXSIM_DTYPE = {"float32": "f32", "bfloat16": "bf16", "float16": "f16"}
+if numpy_available:
+    import numpy as np
 
 
 def baseline_maxsim(queries, documents, dtype=None):
@@ -102,21 +91,20 @@ def _make_matrix(generator: np.random.Generator, rows, columns, dtype):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
+@pytest.mark.parametrize("dtype", ["float32", "bfloat16", "float16"])
 @pytest.mark.parametrize("rows", SETTINGS.dims_height)
 @pytest.mark.parametrize("columns", SETTINGS.dims_width)
 @pytest.mark.parametrize("depth", SETTINGS.dims_depth)
-@pytest.mark.parametrize("dtype", ["float32", "bfloat16", "float16"])
-def test_maxsim_pack_and_packed(
+def test_maxsim_packed_stays_finite_and_near_the_baseline(
     stats, capabilities, rows: int, columns: int, depth: int, dtype: str, np_rng: np.random.Generator
 ):
     """Pack + compute vs baseline."""
     baseline_kernel, _, _precise_kernel = KERNELS_MAXSIM["maxsim"]
-    dtype_str = _MAXSIM_DTYPE[dtype]
     queries = _make_matrix(np_rng, rows, depth, dtype)
     documents = _make_matrix(np_rng, columns, depth, dtype)
 
-    qp = nk.maxsim_pack(queries, dtype=dtype_str, capabilities=capabilities)
-    dp = nk.maxsim_pack(documents, dtype=dtype_str, capabilities=capabilities)
+    qp = nk.maxsim_pack(queries, dtype=dtype, capabilities=capabilities)
+    dp = nk.maxsim_pack(documents, dtype=dtype, capabilities=capabilities)
 
     assert isinstance(qp, nk.MaxSimPackedMatrix)
     assert qp.vectors == rows
@@ -134,7 +122,7 @@ def test_maxsim_pack_and_packed(
     if dtype != "bfloat16":
         q_np = np.array(queries, dtype=dtype)
         d_np = np.array(documents, dtype=dtype)
-        expected = baseline_kernel(q_np, d_np, dtype=dtype_str)
+        expected = baseline_kernel(q_np, d_np, dtype=dtype)
         rel_err = abs(result - expected) / max(abs(expected), 1e-12)
         if rel_err > 0.1:
             collect_warnings(f"maxsim_packed({dtype}) rel_err={rel_err:.4f}", stats)
@@ -142,38 +130,37 @@ def test_maxsim_pack_and_packed(
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", ["float32", "bfloat16", "float16"])
-def test_maxsim_convenience(capabilities, dtype: str, np_rng: np.random.Generator):
+def test_maxsim_matches_pack_then_packed(capabilities, dtype: str, np_rng: np.random.Generator):
     """Verify maxsim() matches maxsim_pack + maxsim_packed."""
     n_q, n_d, depth = 4, 8, 32
-    dtype_str = _MAXSIM_DTYPE[dtype]
     queries = _make_matrix(np_rng, n_q, depth, dtype)
     documents = _make_matrix(np_rng, n_d, depth, dtype)
 
     # Packed path
-    qp = nk.maxsim_pack(queries, dtype=dtype_str, capabilities=capabilities)
-    dp = nk.maxsim_pack(documents, dtype=dtype_str, capabilities=capabilities)
+    qp = nk.maxsim_pack(queries, dtype=dtype, capabilities=capabilities)
+    dp = nk.maxsim_pack(documents, dtype=dtype, capabilities=capabilities)
     packed_result = nk.maxsim_packed(qp, dp)
 
     # Convenience path
     _, simd_kernel, _ = KERNELS_MAXSIM["maxsim"]
-    conv_result = simd_kernel(queries, documents, dtype=dtype_str, capabilities=capabilities)
+    conv_result = simd_kernel(queries, documents, dtype=dtype, capabilities=capabilities)
 
     assert_allclose(packed_result, conv_result)
 
 
-def test_maxsim_self_zero(capabilities):
+def test_maxsim_of_a_matrix_with_itself_is_zero(capabilities):
     """Identical queries and documents should give score near zero."""
     vectors = nk.ones((8, 64), dtype="float32")
-    result = nk.maxsim(vectors, vectors, dtype="f32", capabilities=capabilities)
+    result = nk.maxsim(vectors, vectors, dtype="float32", capabilities=capabilities)
     assert_allclose(result, 0.0, err_msg="Expected near-zero self-distance")
 
 
-def test_maxsim_type_errors(capabilities, rng: random.Random):
+def test_maxsim_refuses_wrong_types_and_depths(capabilities, rng: random.Random):
     """Wrong type and mismatched dtype/depth."""
     query = nk.hash((4, 32), seed=rng.getrandbits(32), dtype="float32")
     documents = nk.hash((8, 32), seed=rng.getrandbits(32), dtype="float32")
-    query_packed = nk.maxsim_pack(query, dtype="f32", capabilities=capabilities)
-    documents_packed = nk.maxsim_pack(documents, dtype="f32", capabilities=capabilities)
+    query_packed = nk.maxsim_pack(query, dtype="float32", capabilities=capabilities)
+    documents_packed = nk.maxsim_pack(documents, dtype="float32", capabilities=capabilities)
 
     # Wrong type for maxsim_packed
     with pytest.raises(TypeError):
@@ -183,16 +170,16 @@ def test_maxsim_type_errors(capabilities, rng: random.Random):
 
     # Mismatched depth
     documents_wrong = nk.hash((8, 16), seed=rng.getrandbits(32), dtype="float32")
-    documents_wrong_packed = nk.maxsim_pack(documents_wrong, dtype="f32", capabilities=capabilities)
-    with pytest.raises(ValueError):
+    documents_wrong_packed = nk.maxsim_pack(documents_wrong, dtype="float32", capabilities=capabilities)
+    with pytest.raises(ValueError, match="depth mismatch"):
         nk.maxsim_packed(query_packed, documents_wrong_packed)
 
 
-def test_maxsim_pack_size():
+def test_maxsim_pack_size_is_positive():
     """Verify classmethod pack_size returns a positive integer."""
-    size = nk.MaxSimPackedMatrix.pack_size(8, 64, dtype="bf16")
+    size = nk.MaxSimPackedMatrix.pack_size(8, 64, dtype="bfloat16")
     assert isinstance(size, int)
     assert size > 0
 
-    size_f32 = nk.MaxSimPackedMatrix.pack_size(8, 64, dtype="f32")
+    size_f32 = nk.MaxSimPackedMatrix.pack_size(8, 64, dtype="float32")
     assert size_f32 > 0

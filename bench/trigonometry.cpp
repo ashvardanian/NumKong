@@ -39,7 +39,7 @@ nk_status_t elementwise_with_stl(scalar_type_ const *ins, nk_size_t n, scalar_ty
  *  @param[in] dimensions The number of dimensions in the vectors.
  */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void measure_trigonometry(loop_t &loop, environment_t const &env, kernel_type_ kernel, std::size_t dimensions) {
+void measure_trigonometry(loop_t &loop, bench_settings_t const &env, kernel_type_ kernel, std::size_t dimensions) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
     using input_vector_t = nk::vector<input_t>;
@@ -47,7 +47,7 @@ void measure_trigonometry(loop_t &loop, environment_t const &env, kernel_type_ k
     // Preallocate vectors for trigonometric kernels (unary: input + output)
     std::size_t const vector_count = input_sets_count(dtype_bytes(input_dtype_, 2 * dimensions));
     std::vector<input_vector_t> input_a(vector_count), output(vector_count);
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     for (std::size_t index = 0; index != vector_count; ++index) {
         input_a[index] = make_vector<input_t>(dimensions);
         output[index] = make_vector<input_t>(dimensions);
@@ -67,13 +67,12 @@ void measure_trigonometry(loop_t &loop, environment_t const &env, kernel_type_ k
 }
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void run_trigonometry(environment_t const &env, std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(env.settings.batch_per_core) + ">";
-    run_benchmark(env, bench_name, measure_trigonometry<input_dtype_, kernel_type_ *>, kernel,
-                  env.settings.batch_per_core);
+void run_trigonometry(bench_settings_t const &env, std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(env.batch_per_core) + ">";
+    run_benchmark(env, bench_name, measure_trigonometry<input_dtype_, kernel_type_ *>, kernel, env.batch_per_core);
 }
 
-void bench_trigonometry(environment_t const &env) {
+void bench_trigonometry(bench_settings_t const &env) {
     constexpr nk_dtype_t f64_k = nk_f64_k;
     constexpr nk_dtype_t f32_k = nk_f32_k;
     constexpr nk_dtype_t f16_k = nk_f16_k;

@@ -14,7 +14,7 @@ namespace ashvardanian::numkong::bench {
 
 template <nk_dtype_t input_dtype_>
 void measure_maxsim_packed(                                                            //
-    loop_t &loop, environment_t const &env,                                            //
+    loop_t &loop, bench_settings_t const &env,                                         //
     typename nk::type_for<input_dtype_>::type::dots_pack_size_kernel_t packed_size_fn, //
     typename nk::type_for<input_dtype_>::type::maxsim_pack_kernel_t pack_fn,           //
     typename nk::type_for<input_dtype_>::type::maxsim_packed_kernel_t maxsim_fn,       //
@@ -38,7 +38,7 @@ void measure_maxsim_packed(                                                     
         std::vector<char> query_packed, document_packed;
     };
     std::vector<maxsim_set_t> sets(sets_count);
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     for (auto &s : sets) {
         s.queries = make_vector<input_t>(query_count * depth);
         s.documents = make_vector<input_t>(document_count * depth);
@@ -66,20 +66,20 @@ void measure_maxsim_packed(                                                     
 }
 
 template <nk_dtype_t input_dtype_>
-void run_maxsim_packed(environment_t const &env, std::string name, //
+void run_maxsim_packed(bench_settings_t const &env, std::string name, //
                        typename nk::type_for<input_dtype_>::type::dots_pack_size_kernel_t packed_size_fn,
                        typename nk::type_for<input_dtype_>::type::maxsim_pack_kernel_t pack_fn,
                        typename nk::type_for<input_dtype_>::type::maxsim_packed_kernel_t maxsim_fn) {
-    std::size_t query_count = env.settings.matrix_height;
-    std::size_t document_count = env.settings.matrix_width;
-    std::size_t depth = env.settings.matrix_depth;
+    std::size_t query_count = env.matrix_height;
+    std::size_t document_count = env.matrix_width;
+    std::size_t depth = env.matrix_depth;
     std::string bench_name = name + "<" + std::to_string(query_count) + "x" + std::to_string(document_count) + "x" +
                              std::to_string(depth) + ">";
     run_benchmark(env, bench_name, measure_maxsim_packed<input_dtype_>, packed_size_fn, pack_fn, maxsim_fn, query_count,
                   document_count, depth);
 }
 
-void bench_maxsim(environment_t const &env) {
+void bench_maxsim(bench_settings_t const &env) {
     constexpr nk_dtype_t bf16_k = nk_bf16_k, f32_k = nk_f32_k, f16_k = nk_f16_k;
 
     section(env, "MaxSim Serial", nk_cap_serial_k);

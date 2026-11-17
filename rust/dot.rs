@@ -733,30 +733,12 @@ mod tests {
     use super::*;
     use crate::{
         curved::Bilinear,
+        testing::{TestableType, assert_close, check_binary},
         types::{
-            FloatLike, NumberLike, StorageElement, TestableType, assert_close, bf16, bf16c, e2m3, e3m2, e4m3, e5m2,
-            f16, f16c, f32c, f64c, i4x2, u1x8, u4x2,
+            FloatLike, NumberLike, StorageElement, bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2,
+            u1x8, u4x2,
         },
     };
-
-    /// Test a two-input metric: convert f32 inputs to Scalar, call `op`, compare to `expected`.
-    pub(crate) fn check_binary<Scalar, R, F>(a_vals: &[f32], b_vals: &[f32], op: F, expected: f64, label: &str)
-    where
-        Scalar: FloatLike + TestableType,
-        R: FloatLike,
-        F: FnOnce(&[Scalar], &[Scalar]) -> Result<R, Error>,
-    {
-        let first: Vec<Scalar> = a_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
-        let second: Vec<Scalar> = b_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
-        let result = op(&first, &second).unwrap().to_f64();
-        assert_close(
-            result,
-            expected,
-            Scalar::atol(),
-            Scalar::rtol(),
-            &format!("{}<{}>", label, core::any::type_name::<Scalar>()),
-        );
-    }
 
     // region: Dot Products
 
@@ -769,7 +751,7 @@ mod tests {
     }
 
     #[test]
-    fn dot() {
+    fn dot_matches_its_closed_form_across_types() {
         check_dot::<f32>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0], 32.0);
         check_dot::<f64>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0], 32.0);
         check_dot::<f16>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0], 32.0);
@@ -787,7 +769,7 @@ mod tests {
     /// `u1x8` sits outside `check_dot`, which needs a float-convertible scalar,
     /// so the bit-packed inner product is checked against hand-counted overlaps.
     #[test]
-    fn dot_u1x8() {
+    fn u1x8_dot_counts_shared_set_bits() {
         // 0b1111_0000 & 0b1100_1100 → 2 bits; 0b1010_1010 & 0b0101_0101 → 0 bits.
         let left = vec![u1x8(0b1111_0000), u1x8(0b1010_1010)];
         let right = vec![u1x8(0b1100_1100), u1x8(0b0101_0101)];
@@ -977,7 +959,7 @@ mod tests {
     }
 
     #[test]
-    fn complex_dot_vdot_bilinear() {
+    fn complex_dot_vdot_and_bilinear_match_their_closed_forms() {
         // [1+2i, 3+4i] · [5+6i, 7+8i]
         let first = &[1.0_f32, 2.0, 3.0, 4.0];
         let second = &[5.0_f32, 6.0, 7.0, 8.0];
@@ -1009,7 +991,7 @@ mod tests {
     // also called denormals. This guards against FTZ/DAZ silently flushing tiny values to zero.
 
     #[test]
-    fn dot_f32_denormals() {
+    fn dot_keeps_f32_denormals() {
         // Largest f32 denormal: exp=0, mantissa=0x7FFFFF → ≈ 1.1754942e-38
         let d = f32::from_bits(0x007F_FFFF);
         // dot([d,d,d], [d,d,d]) = 3 * d * d
@@ -1022,7 +1004,7 @@ mod tests {
     }
 
     #[test]
-    fn dot_f64_denormals() {
+    fn dot_stays_finite_on_f64_denormals() {
         // Largest f64 denormal: exp=0, mantissa all-ones → ≈ 2.225e-308
         let d = f64::from_bits(0x000F_FFFF_FFFF_FFFF);
         let expected = 3.0 * d * d;
@@ -1038,7 +1020,7 @@ mod tests {
     }
 
     #[test]
-    fn dot_f16_denormals() {
+    fn dot_keeps_f16_denormals() {
         // F16 denormal: exp=0, mantissa=0x0100 → 2^-14 * 256/1024 = 2^-16 ≈ 1.526e-5
         // F16 denormals upcast to normal f32 values, so no penalty or flushing.
         let d = f16(0x0100);
@@ -1048,7 +1030,7 @@ mod tests {
     }
 
     #[test]
-    fn dot_bf16_denormals() {
+    fn dot_keeps_bf16_denormals() {
         // BF16 denormal: exp=0, mantissa=0x7F, the largest BF16 denormal
         // BF16 shares f32's exponent, so this IS a f32 denormal after upcast.
         let d = bf16(0x007F);

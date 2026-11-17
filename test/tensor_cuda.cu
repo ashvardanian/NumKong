@@ -4,7 +4,9 @@
  *  @date April 15, 2026
  *  @brief CUDA tensor transfers and device-side views.
  */
-#include "harness.hpp"
+#undef NDEBUG // ! A test's oracle must stay live in every build
+
+#include "harness_cuda.hpp"
 
 namespace ashvardanian::numkong::test {
 
@@ -12,7 +14,7 @@ namespace ashvardanian::numkong::test {
 
 /** 2D round-trip with padded rows: logical @c columns elements per row, but rows pad to
  *  `stride_bytes(0) > columns * sizeof(T)`, which is the host pitch @c cudaMemcpy2D expects. */
-static bool test_memcpy_2d_padded_rows_() {
+static bool check_memcpy_2d_padded_rows() {
     constexpr std::size_t rows = 32;
     constexpr std::size_t columns = 80;
     constexpr std::size_t row_elements_padded = 128;
@@ -21,7 +23,7 @@ static bool test_memcpy_2d_padded_rows_() {
     auto [host_destination, destination_status] = nk::tensor<float>::zeros({rows, row_elements_padded});
     if (nk::failed(source_status) || nk::failed(destination_status)) return false;
 
-    std::mt19937 generator(7);
+    split_mix_generator_t generator(case_stream_key());
     std::uniform_real_distribution<float> distribution(-1.0f, 1.0f);
     for (std::size_t row = 0; row < rows; ++row)
         for (std::size_t column = 0; column < columns; ++column) host_source(row, column) = distribution(generator);
@@ -30,12 +32,15 @@ static bool test_memcpy_2d_padded_rows_() {
 
     float *device_pointer = nullptr;
     std::size_t device_pitch = 0;
-    nk_cuda_assert_(cudaMallocPitch(&device_pointer, &device_pitch, columns * sizeof(float), rows));
-    nk_cuda_assert_(cudaMemcpy2D(device_pointer, device_pitch, host_source.data(), host_pitch, columns * sizeof(float),
-                                 rows, cudaMemcpyHostToDevice));
-    nk_cuda_assert_(cudaMemcpy2D(host_destination.data(), host_pitch, device_pointer, device_pitch,
-                                 columns * sizeof(float), rows, cudaMemcpyDeviceToHost));
-    nk_cuda_assert_(cudaFree(device_pointer));
+    if (!expect_device_success(cudaMallocPitch(&device_pointer, &device_pitch, columns * sizeof(float), rows)))
+        return false;
+    if (!expect_device_success(cudaMemcpy2D(device_pointer, device_pitch, host_source.data(), host_pitch,
+                                            columns * sizeof(float), rows, cudaMemcpyHostToDevice)))
+        return false;
+    if (!expect_device_success(cudaMemcpy2D(host_destination.data(), host_pitch, device_pointer, device_pitch,
+                                            columns * sizeof(float), rows, cudaMemcpyDeviceToHost)))
+        return false;
+    if (!expect_device_success(cudaFree(device_pointer))) return false;
 
     for (std::size_t row = 0; row < rows; ++row)
         for (std::size_t column = 0; column < columns; ++column)
@@ -44,13 +49,13 @@ static bool test_memcpy_2d_padded_rows_() {
 }
 
 /** 3D batched round-trip via cudaMemcpy3D + cudaPitchedPtr. */
-static bool test_memcpy_3d_batched_() {
+static bool check_memcpy_3d_batched() {
     constexpr std::size_t batches = 4, rows = 8, columns = 16;
     auto [host_source, source_status] = nk::tensor<float>::zeros({batches, rows, columns});
     auto [host_destination, destination_status] = nk::tensor<float>::zeros({batches, rows, columns});
     if (nk::failed(source_status) || nk::failed(destination_status)) return false;
 
-    std::mt19937 generator(13);
+    split_mix_generator_t generator(case_stream_key());
     std::uniform_real_distribution<float> distribution(-5.0f, 5.0f);
     for (std::size_t batch = 0; batch < batches; ++batch)
         for (std::size_t row = 0; row < rows; ++row)
@@ -59,7 +64,7 @@ static bool test_memcpy_3d_batched_() {
 
     cudaPitchedPtr device_pitched;
     cudaExtent const extent = make_cudaExtent(columns * sizeof(float), rows, batches);
-    nk_cuda_assert_(cudaMalloc3D(&device_pitched, extent));
+    if (!expect_device_success(cudaMalloc3D(&device_pitched, extent))) return false;
 
     // Tightly-packed host: stride_bytes(1) = row pitch, stride_bytes(0) = slice pitch.
     cudaMemcpy3DParms host_to_device {};
@@ -67,15 +72,15 @@ static bool test_memcpy_3d_batched_() {
     host_to_device.dstPtr = device_pitched;
     host_to_device.extent = extent;
     host_to_device.kind = cudaMemcpyHostToDevice;
-    nk_cuda_assert_(cudaMemcpy3D(&host_to_device));
+    if (!expect_device_success(cudaMemcpy3D(&host_to_device))) return false;
 
     cudaMemcpy3DParms device_to_host {};
     device_to_host.srcPtr = device_pitched;
     device_to_host.dstPtr = make_cudaPitchedPtr(host_destination.data(), columns * sizeof(float), columns, rows);
     device_to_host.extent = extent;
     device_to_host.kind = cudaMemcpyDeviceToHost;
-    nk_cuda_assert_(cudaMemcpy3D(&device_to_host));
-    nk_cuda_assert_(cudaFree(device_pitched.ptr));
+    if (!expect_device_success(cudaMemcpy3D(&device_to_host))) return false;
+    if (!expect_device_success(cudaFree(device_pitched.ptr))) return false;
 
     for (std::size_t batch = 0; batch < batches; ++batch)
         for (std::size_t row = 0; row < rows; ++row)
@@ -86,7 +91,7 @@ static bool test_memcpy_3d_batched_() {
 
 /** 2D sub-rectangle extraction from a parent tensor via cudaMemcpy2D. The sub-view keeps the parent
  *  row pitch; only extents shrink. */
-static bool test_memcpy_2d_subview_() {
+static bool check_memcpy_2d_subview() {
     constexpr std::size_t parent_rows = 16, parent_columns = 32;
     constexpr std::size_t row_start = 4, column_start = 8;
     constexpr std::size_t sub_rows = 8, sub_columns = 16;
@@ -105,12 +110,15 @@ static bool test_memcpy_2d_subview_() {
 
     float *device_pointer = nullptr;
     std::size_t device_pitch = 0;
-    nk_cuda_assert_(cudaMallocPitch(&device_pointer, &device_pitch, sub_columns * sizeof(float), sub_rows));
-    nk_cuda_assert_(cudaMemcpy2D(device_pointer, device_pitch, sub_source_pointer, parent_row_pitch,
-                                 sub_columns * sizeof(float), sub_rows, cudaMemcpyHostToDevice));
-    nk_cuda_assert_(cudaMemcpy2D(host_back.data(), host_back.stride_bytes(0), device_pointer, device_pitch,
-                                 sub_columns * sizeof(float), sub_rows, cudaMemcpyDeviceToHost));
-    nk_cuda_assert_(cudaFree(device_pointer));
+    if (!expect_device_success(cudaMallocPitch(&device_pointer, &device_pitch, sub_columns * sizeof(float), sub_rows)))
+        return false;
+    if (!expect_device_success(cudaMemcpy2D(device_pointer, device_pitch, sub_source_pointer, parent_row_pitch,
+                                            sub_columns * sizeof(float), sub_rows, cudaMemcpyHostToDevice)))
+        return false;
+    if (!expect_device_success(cudaMemcpy2D(host_back.data(), host_back.stride_bytes(0), device_pointer, device_pitch,
+                                            sub_columns * sizeof(float), sub_rows, cudaMemcpyDeviceToHost)))
+        return false;
+    if (!expect_device_success(cudaFree(device_pointer))) return false;
 
     for (std::size_t row = 0; row < sub_rows; ++row)
         for (std::size_t column = 0; column < sub_columns; ++column)
@@ -128,7 +136,7 @@ __global__ void add_one_kernel_(float *data, std::size_t rows, std::size_t colum
 }
 
 /** Upload, add-one on device, download, verify every element incremented by 1. */
-static bool test_device_kernel_usability_() {
+static bool check_device_kernel_usability() {
     constexpr std::size_t rows = 24, columns = 48;
     auto [host_source, source_status] = nk::tensor<float>::zeros({rows, columns});
     auto [host_destination, destination_status] = nk::tensor<float>::zeros({rows, columns});
@@ -139,19 +147,23 @@ static bool test_device_kernel_usability_() {
 
     float *device_pointer = nullptr;
     std::size_t device_pitch = 0;
-    nk_cuda_assert_(cudaMallocPitch(&device_pointer, &device_pitch, columns * sizeof(float), rows));
-    nk_cuda_assert_(cudaMemcpy2D(device_pointer, device_pitch, host_source.data(), host_source.stride_bytes(0),
-                                 columns * sizeof(float), rows, cudaMemcpyHostToDevice));
+    if (!expect_device_success(cudaMallocPitch(&device_pointer, &device_pitch, columns * sizeof(float), rows)))
+        return false;
+    if (!expect_device_success(cudaMemcpy2D(device_pointer, device_pitch, host_source.data(),
+                                            host_source.stride_bytes(0), columns * sizeof(float), rows,
+                                            cudaMemcpyHostToDevice)))
+        return false;
 
     dim3 block(16, 8);
     dim3 grid(nk::divide_round_up(columns, block.x), nk::divide_round_up(rows, block.y));
     add_one_kernel_<<<grid, block>>>(device_pointer, rows, columns, device_pitch);
-    nk_cuda_assert_(cudaGetLastError());
-    nk_cuda_assert_(cudaDeviceSynchronize());
+    if (!expect_device_success(cudaGetLastError())) return false;
+    if (!expect_device_success(cudaDeviceSynchronize())) return false;
 
-    nk_cuda_assert_(cudaMemcpy2D(host_destination.data(), host_destination.stride_bytes(0), device_pointer,
-                                 device_pitch, columns * sizeof(float), rows, cudaMemcpyDeviceToHost));
-    nk_cuda_assert_(cudaFree(device_pointer));
+    if (!expect_device_success(cudaMemcpy2D(host_destination.data(), host_destination.stride_bytes(0), device_pointer,
+                                            device_pitch, columns * sizeof(float), rows, cudaMemcpyDeviceToHost)))
+        return false;
+    if (!expect_device_success(cudaFree(device_pointer))) return false;
 
     for (std::size_t row = 0; row < rows; ++row)
         for (std::size_t column = 0; column < columns; ++column)
@@ -186,7 +198,7 @@ __global__ void tensor_view_ops_kernel_(float const *data, std::size_t rows, std
 
 /** Run the tensor-abstraction kernel on device, checking its checksum against the identical host
  *  computation, confirming the @c constexpr surface compiles and runs on the GPU. */
-static bool test_device_tensor_view_ops_() {
+static bool check_device_tensor_view_ops() {
     constexpr std::size_t rows = 8, columns = 16, count = rows * columns;
     auto [host, host_status] = nk::tensor<float>::zeros({rows, columns});
     if (nk::failed(host_status)) return false;
@@ -210,7 +222,7 @@ static bool test_device_tensor_view_ops_() {
     auto *const out = reinterpret_cast<float *>(device_out.raw_values_data());
     tensor_view_ops_kernel_<<<1, 1>>>(reinterpret_cast<float const *>(device_data.raw_values_data()), rows, columns,
                                       out);
-    nk_cuda_assert_(cudaGetLastError());
+    if (!expect_device_success(cudaGetLastError())) return false;
     if (nk_stream_synchronize_cuda(nullptr) != nk_success_k) return false;
     float const device_checksum = *out;
     float const diff = device_checksum > host_checksum ? device_checksum - host_checksum //
@@ -218,29 +230,27 @@ static bool test_device_tensor_view_ops_() {
     return diff < 1e-3f * (1.0f + host_checksum);
 }
 
-void test_tensor_cuda(error_stats_section_t &check) {
-    check.section("CUDA reference checks", nk_cap_cuda_k);
+void run_tensor_cuda_cases() {
+    cuda_device_scope_t device(test_run.settings.device.ordinal());
+    if (!expect_device_success(device.status)) return;
 
-    cuda_device_scope_t device(check.settings.device.ordinal());
-    if (!cuda_check_(device.status, "select CUDA reference device", __FILE__, __LINE__)) {
-        ++check.failure_count;
-        return;
-    }
+    run_kernel_case(
+        "check_memcpy_2d_padded_rows",
+        [] {
+            error_stats_t stats(comparison_family_t::exact_k);
+            stats.expect_true(check_memcpy_2d_padded_rows(), "2D round-trip, padded rows (cudaMemcpy2D)");
+            stats.expect_true(check_memcpy_2d_subview(), "2D sub-view extraction (cudaMemcpy2D)");
+            stats.expect_true(check_memcpy_3d_batched(), "3D batched round-trip (cudaMemcpy3D)");
+            stats.expect_true(check_device_kernel_usability(), "device kernel usability (add-one)");
+            stats.expect_true(check_device_tensor_view_ops(), "device tensor_view/vector_view ops");
 
-    check("tensor_memcpy_cuda", [&](settings_t const &) {
-        error_stats_t stats(comparison_family_t::exact_k);
-        stats.expect(test_memcpy_2d_padded_rows_(), "2D round-trip, padded rows (cudaMemcpy2D)");
-        stats.expect(test_memcpy_2d_subview_(), "2D sub-view extraction (cudaMemcpy2D)");
-        stats.expect(test_memcpy_3d_batched_(), "3D batched round-trip (cudaMemcpy3D)");
-        stats.expect(test_device_kernel_usability_(), "device kernel usability (add-one)");
-        stats.expect(test_device_tensor_view_ops_(), "device tensor_view/vector_view ops");
-
-        return stats;
-    });
+            return stats;
+        },
+        nk_cap_cuda_k);
 }
 
 #else // !NUMKONG_ARCH_CUDA_
-void test_tensor_cuda(error_stats_section_t &) {}
+void run_tensor_cuda_cases() {}
 
 #endif // NUMKONG_ARCH_CUDA_
 

@@ -25,7 +25,7 @@ namespace ashvardanian::numkong::bench {
 /** Runs the Metal kernels on its queue over unified memory, timing windows of calls by wall
  *  clock through their synchronization. */
 struct metal_backend_t : device_backend_t {
-    static std::size_t token_rows(environment_t const &) noexcept { return 4096; }
+    static std::size_t token_rows(bench_settings_t const &) noexcept { return 4096; }
 
     /** Row stride for rows of @p row_bytes: rounded up to the 16 bytes the A contract requires. */
     static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept {

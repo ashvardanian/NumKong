@@ -11,7 +11,7 @@
 
 namespace ashvardanian::numkong::bench {
 
-void bench_shapes(environment_t const &env) {
+void bench_shapes(bench_settings_t const &env) {
     host_backend_t const backend;
 
     section(env, "Shapes Serial", nk_cap_serial_k);

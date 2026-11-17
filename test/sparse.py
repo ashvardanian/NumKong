@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Test sparse operations: nk.sparse_dot, nk.intersect.
 
-DTypes: float32/bfloat16 values with uint32/uint16 indices.
+Covers: float32/bfloat16 values with uint32/uint16 indices.
 Baselines: manual weighted intersection, NumPy intersect1d.
 Matches C++ suite: test/sparse.cpp.
+Run: python -m pytest test/sparse.py
 
 File: test/sparse.py
 Author: Ash Vardanian
@@ -13,22 +14,8 @@ Date: September 1, 2024
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 import pytest
-
-
-if TYPE_CHECKING:
-    import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
-
-try:
-    import numpy as np
-
-    numpy_available = True
-except Exception:
-    numpy_available = False
-
-
 from base import (
     NUMKONG_ATOL,
     NUMKONG_RTOL,
@@ -44,11 +31,17 @@ from base import (
 import numkong as nk
 
 
+if numpy_available:
+    import numpy as np
+
+
 def baseline_intersect(x, y, dtype=None):
+    """Count of shared indices in NumPy, the reference for `nk.intersect`."""
     return len(np.intersect1d(x, y))
 
 
 def baseline_sparse_dot(a_idx, a_val, b_idx, b_val):
+    """Dot product over the indices two sparse vectors share, the reference for `nk.sparse_dot`."""
     common = np.intersect1d(a_idx, b_idx)
     total = 0.0
     for idx in common:
@@ -64,8 +57,10 @@ KERNELS_SPARSE: dict[str, tuple[Callable, Callable, None]] = {
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.repetitions)
-@pytest.mark.parametrize("index_dtype,weight_dtype", [("uint32", "float32"), ("uint16", "bfloat16")])
-def test_sparse_dot(stats, capabilities, index_dtype: str, weight_dtype: str, np_rng: np.random.Generator):
+@pytest.mark.parametrize(("index_dtype", "weight_dtype"), [("uint32", "float32"), ("uint16", "bfloat16")])
+def test_sparse_dot_matches_the_weighted_intersection(
+    stats, capabilities, index_dtype: str, weight_dtype: str, np_rng: np.random.Generator
+):
     """Test nk.sparse_dot against manual weighted intersection."""
     baseline_kernel, simd_kernel, _ = KERNELS_SPARSE["sparse_dot"]
     sparse_dim = SETTINGS.sparse_dims[0]
@@ -106,7 +101,7 @@ def test_sparse_dot(stats, capabilities, index_dtype: str, weight_dtype: str, np
 @pytest.mark.parametrize("dtype", ["uint64", "uint32", "uint16"])
 @pytest.mark.parametrize("first_length_bound", [10, 100, 1000])
 @pytest.mark.parametrize("second_length_bound", [10, 100, 1000])
-def test_intersect(
+def test_intersect_matches_numpy_intersect1d(
     capabilities,
     dtype: str,
     first_length_bound: int,

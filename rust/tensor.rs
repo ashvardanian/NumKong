@@ -6625,9 +6625,9 @@ mod tests {
     /// Property test: a materialized random slice of a random iota tensor holds exactly the source
     /// elements its strides address, exercising stride, offset, and slice math on random shapes.
     #[test]
-    fn prop_slice_materializes_correct_elements() {
-        // Self-contained xorshift64 PRNG — reproducible, no external dependency.
-        let mut state: u64 = 0x00C0_FFEE_1234_5678;
+    fn random_slices_materialize_the_elements_they_address() {
+        // A xorshift64 stream keyed by this test, so `NUMKONG_SEED` replays a failing shape.
+        let mut state: u64 = crate::testing::case_stream_key(0);
         let mut below = |n: usize| {
             state ^= state << 13;
             state ^= state >> 7;
@@ -6659,7 +6659,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_creation_from_factories() {
+    fn factories_report_shape_rank_and_count() {
         let arr = Tensor::<f32>::full(&[3, 4], 1.0f32).unwrap();
         assert_eq!(arr.shape(), &[3, 4]);
         assert_eq!(arr.ndim(), 2);
@@ -6668,7 +6668,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_resize_capacity() {
+    fn resize_keeps_storage_within_capacity_and_grows_past_it() {
         let mut t = Tensor::<f32>::zeros(&[8, 8]).unwrap();
         assert_eq!(t.capacity(), 64);
         let ptr = t.as_ptr();
@@ -6695,7 +6695,7 @@ mod tests {
     }
 
     #[test]
-    fn scaled_tensor_resize() {
+    fn scaled_tensors_resize_their_elements_and_scales() {
         let data = vec![0.5f32; 2 * 32];
         let dense = Tensor::<f32>::from_slice(&data, &[2, 32]).unwrap();
         let mut scaled = dense.cast_to_scaled::<crate::cast::Nvfp4>().unwrap();
@@ -6720,7 +6720,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_from_slice() {
+    fn from_slice_keeps_the_given_order() {
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let arr = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         assert_eq!(arr.shape(), &[3, 4]);
@@ -6728,7 +6728,7 @@ mod tests {
     }
 
     #[test]
-    fn transposed_view_to_owned_roundtrips() {
+    fn transposed_view_to_owned_round_trips() {
         // Materializing a non-contiguous (transposed) view must honor every stride, not assume the
         // inner axis is packed.
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
@@ -6747,7 +6747,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_clone() {
+    fn clones_copy_shape_and_contents() {
         let arr = Tensor::<f32>::full(&[3, 4], 2.5f32).unwrap();
         let cloned = arr.clone().unwrap();
         assert_eq!(cloned.shape(), arr.shape());
@@ -6945,7 +6945,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_error_display() {
+    fn errors_display_as_readable_messages() {
         let err = Error::AllocationFailed;
         assert_eq!(format!("{}", err), "memory allocation failed");
         let err = Error::TooManyRanks { got: 10 };
@@ -6953,7 +6953,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_row_access() {
+    fn rows_are_indexable_until_the_last() {
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let arr = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         assert_eq!(arr.row(0), Some(&[0.0, 1.0, 2.0, 3.0][..]));
@@ -6963,7 +6963,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_slicing() {
+    fn slices_narrow_the_shape() {
         let arr = Tensor::<f32>::full(&[4, 5], 1.0f32).unwrap();
         let view = arr.slice(&[SliceRange::full(), SliceRange::full()]).unwrap();
         assert_eq!(view.shape(), &[4, 5]);
@@ -6975,14 +6975,14 @@ mod tests {
     }
 
     #[test]
-    fn tensor_transpose_2d() {
+    fn transpose_swaps_two_axes() {
         let arr = Tensor::<f32>::full(&[3, 4], 1.0f32).unwrap();
         let transposed = arr.transpose().unwrap();
         assert_eq!(transposed.shape(), &[4, 3]);
     }
 
     #[test]
-    fn tensor_is_contiguous() {
+    fn fresh_tensors_are_contiguous() {
         let arr = Tensor::<f32>::full(&[3, 4], 1.0f32).unwrap();
         let view = arr.view();
         assert!(view.is_contiguous());
@@ -6990,13 +6990,13 @@ mod tests {
     }
 
     #[test]
-    fn matrix_alias_round_trip() {
+    fn matrix_alias_builds_a_rank_two_tensor() {
         let mat: Matrix<f32> = Matrix::full(&[3, 4], 1.0f32).unwrap();
         assert_eq!(mat.shape(), &[3, 4]);
     }
 
     #[test]
-    fn tensor_scalar_lookup_and_views() {
+    fn scalars_are_found_by_flat_and_coordinate_indices() {
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let mut tensor = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
 
@@ -7025,7 +7025,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_noncontiguous_lookup_and_rank_zero() {
+    fn strided_and_rank_zero_views_find_their_scalars() {
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let tensor = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         let even_columns = tensor.slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)]).unwrap();
@@ -7047,7 +7047,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_ops() {
+    fn reshape_and_sum_all_hold_and_empty_shapes_are_refused() {
         // Reshape
         let arr = Tensor::<f32>::full(&[3, 4], 1.0f32).unwrap();
         let reshaped = arr.reshape(&[2, 6]).unwrap();
@@ -7076,7 +7076,7 @@ mod tests {
     }
 
     #[test]
-    fn nd_contraction_global_reductions() {
+    fn nd_global_reductions_match_a_flat_copy() {
         // Verify that N-D contiguous tensors produce the same moments/minmax as a flat copy.
         // This tests the uniform-stride-tail collapsing and recursive re-analysis paths.
         let data: Vec<f32> = (0..720).map(|i| (i as f32) * 0.1 - 36.0).collect();
@@ -7103,7 +7103,7 @@ mod tests {
     }
 
     #[test]
-    fn nd_contraction_strided_views() {
+    fn nd_reductions_hold_on_strided_subviews() {
         // Verify reductions on non-contiguous uniform-stride subviews.
         let data: Vec<f32> = (0..48).map(|i| i as f32).collect();
         let t = Tensor::<f32>::from_slice(&data, &[4, 4, 3]).unwrap();
@@ -7125,7 +7125,7 @@ mod tests {
     }
 
     #[test]
-    fn nd_contraction_axis_reductions() {
+    fn nd_axis_reductions_match_manual_sums() {
         // Verify axis reductions on N-D tensors match manual computation.
         let data: Vec<f32> = (0..24).map(|i| i as f32).collect();
         let t = Tensor::<f32>::from_slice(&data, &[2, 3, 4]).unwrap();
@@ -7161,7 +7161,7 @@ mod tests {
     }
 
     #[test]
-    fn nd_contraction_singleton_dims() {
+    fn singleton_axes_collapse_in_reductions() {
         // Singleton dimensions (extent=1) should collapse freely.
         let data: Vec<f32> = (0..64).map(|i| i as f32).collect();
         let t = Tensor::<f32>::from_slice(&data, &[1, 64, 1]).unwrap();
@@ -7178,7 +7178,7 @@ mod tests {
     }
 
     #[test]
-    fn complex_elementwise_view_and_owner_paths() {
+    fn complex_elementwise_agrees_across_views_and_owners() {
         let left_values = [f32c { re: 1.0, im: 2.0 }, f32c { re: 3.0, im: 4.0 }];
         let right_values = [f32c { re: 5.0, im: 6.0 }, f32c { re: 7.0, im: 8.0 }];
         let zeros = Tensor::<f32c>::full(&[2], f32c { re: 0.0, im: 0.0 }).unwrap();
@@ -7233,7 +7233,7 @@ mod tests {
         );
     }
     #[test]
-    fn tensor_ref_generic() {
+    fn tensor_ref_reads_owners_and_views_alike() {
         fn shape_of<Scalar: StorageElement, const R: usize>(t: &impl TensorRef<Scalar, R>) -> Vec<usize> {
             t.shape().to_vec()
         }
@@ -7249,7 +7249,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_ref_extension_traits() {
+    fn extension_traits_work_on_tensors_and_views() {
         crate::capabilities::configure_cpu_thread().unwrap();
         let t = Tensor::<f32>::full(&[3, 4], 2.0).unwrap();
         let v = t.view();
@@ -7278,35 +7278,35 @@ mod tests {
     }
 
     #[test]
-    fn tensor_allclose_matching() {
+    fn allclose_accepts_tensors_within_tolerance() {
         let a = Tensor::<f32>::full(&[2, 3], 1.0).unwrap();
         let b = Tensor::<f32>::full(&[2, 3], 1.0 + 1e-7).unwrap();
         assert!(a.allclose(&b, 1e-6, 0.0));
     }
 
     #[test]
-    fn tensor_allclose_mismatching() {
+    fn allclose_rejects_tensors_beyond_tolerance() {
         let a = Tensor::<f32>::full(&[2, 3], 1.0).unwrap();
         let b = Tensor::<f32>::full(&[2, 3], 2.0).unwrap();
         assert!(!a.allclose(&b, 1e-6, 0.0));
     }
 
     #[test]
-    fn tensor_allclose_different_shapes() {
+    fn allclose_rejects_tensors_of_other_shapes() {
         let a = Tensor::<f32>::full(&[2, 3], 1.0).unwrap();
         let b = Tensor::<f32>::full(&[3, 2], 1.0).unwrap();
         assert!(!a.allclose(&b, 1e-6, 1e-6));
     }
 
     #[test]
-    fn tensor_view_allclose() {
+    fn allclose_accepts_views_within_tolerance() {
         let a = Tensor::<f32>::full(&[2, 3], 1.0).unwrap();
         let b = Tensor::<f32>::full(&[2, 3], 1.0 + 1e-7).unwrap();
         assert!(a.view().allclose(&b.view(), 1e-6, 0.0));
     }
 
     #[test]
-    fn tensor_view_iter_logical_scalars() {
+    fn view_iteration_yields_logical_sub_byte_scalars() {
         use crate::types::i4x2;
 
         // Shape [6] logical → 3 i4x2 storage values
@@ -7322,7 +7322,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_span_iter_mut_f32() {
+    fn span_iteration_writes_every_f32() {
         let mut t = Tensor::<f32>::full(&[2, 3], 1.0).unwrap();
         for (_, mut value) in &mut t {
             *value += 10.0;
@@ -7333,7 +7333,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_span_iter_mut_i4x2() {
+    fn span_iteration_writes_every_i4x2_nibble() {
         use crate::types::i4x2;
 
         let mut t = Tensor::<i4x2>::zeros(&[6]).unwrap();
@@ -7345,13 +7345,13 @@ mod tests {
     }
 
     #[test]
-    fn tensor_iterator_alias_compat() {
+    fn tensor_iterator_alias_names_the_iterator() {
         let t = Tensor::<f32>::full(&[2], 1.0).unwrap();
         let _it: TensorIterator<'_, f32> = t.iter();
     }
 
     #[test]
-    fn tensor_tuple_slice_syntax() {
+    fn tuples_of_ranges_and_indices_slice_tensors() {
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let t = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
 
@@ -7408,7 +7408,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_try_from_scalars_and_dims() {
+    fn from_scalars_and_from_dims_fill_full_and_sub_byte_tensors() {
         // Full-byte type: f32
         let scalars: Vec<f32> = (0..6).map(|i| i as f32 + 0.5).collect();
         let tensor = Tensor::<f32>::from_scalars(&scalars, &[2, 3]).unwrap();
@@ -7425,7 +7425,7 @@ mod tests {
         assert_eq!(tensor.shape(), &[3, 2]);
         assert_eq!(tensor.as_slice(), dims.as_slice());
 
-        // Sub-byte round-trip: i4x2 packs 2 dims/byte.
+        // Sub-byte round trip: i4x2 packs 2 dims/byte.
         let i4_dims: Vec<i8> = vec![1, -2, 3, -4, 5, -6, 7, 0];
         let tensor = Tensor::<crate::types::i4x2>::from_dims(&i4_dims, &[2, 4]).unwrap();
         assert_eq!(tensor.shape(), &[2, 4]);
@@ -7433,7 +7433,7 @@ mod tests {
     }
 
     #[test]
-    fn fill_zeros_and_fill_on_tensor_and_span() {
+    fn fill_zeros_and_fill_reach_tensors_and_spans() {
         // Tensor: fill with zero, then fill with 7.0, verify storage matches.
         let mut tensor = unsafe { Tensor::<f32>::uninitialized(&[3, 4]).unwrap() };
         tensor.fill_zeros();

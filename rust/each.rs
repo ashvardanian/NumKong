@@ -4885,10 +4885,11 @@ impl EachRmsCast for u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{FloatLike, NumberLike, TestableType, assert_close, bf16, e2m3, e3m2, e4m3, e5m2, f16};
+    use crate::testing::{TestableType, assert_close};
+    use crate::types::{FloatLike, NumberLike, bf16, e2m3, e3m2, e4m3, e5m2, f16};
 
     /// Test a binary elementwise op: convert inputs, apply `op`, compare element-wise.
-    pub(crate) fn check_each_binary<Scalar, F>(
+    fn check_each_binary<Scalar, F>(
         a_vals: &[f32],
         b_vals: &[f32],
         op: F,
@@ -4995,7 +4996,7 @@ mod tests {
     }
 
     #[test]
-    fn scale_elementwise() {
+    fn scale_matches_alpha_x_plus_beta_across_types() {
         check_each_scale::<f32>(&[1.0, 2.0, 3.0, 4.0, 5.0], 2.0, 1.0);
         check_each_scale::<f64>(&[1.0, 2.0, 3.0, 4.0, 5.0], 2.0, 1.0);
         check_each_scale::<f16>(&[1.0, 2.0, 3.0, 4.0, 5.0], 2.0, 1.0);
@@ -5015,7 +5016,7 @@ mod tests {
     }
 
     #[test]
-    fn sum_elementwise() {
+    fn sum_adds_elementwise_across_types() {
         check_each_sum::<f32>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0]);
         check_each_sum::<f64>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0]);
         check_each_sum::<f16>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0]);
@@ -5035,7 +5036,7 @@ mod tests {
     }
 
     #[test]
-    fn sum_elementwise_length_mismatch() {
+    fn sum_rejects_mismatched_lengths() {
         let a: Vec<f32> = vec![1.0, 2.0, 3.0];
         let b: Vec<f32> = vec![4.0, 5.0];
         let mut result = vec![0.0f32; a.len()];
@@ -5043,7 +5044,7 @@ mod tests {
     }
 
     #[test]
-    fn blend_elementwise() {
+    fn blend_mixes_elementwise_across_types() {
         check_each_blend::<f32>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0], 0.5, 0.5);
         check_each_blend::<f64>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0], 0.5, 0.5);
         check_each_blend::<f16>(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0], 0.5, 0.5);
@@ -5057,7 +5058,7 @@ mod tests {
     }
 
     #[test]
-    fn fma_elementwise() {
+    fn fma_multiplies_and_adds_elementwise_across_types() {
         let a = &[1.0, 2.0, 3.0];
         let b = &[2.0, 3.0, 4.0];
         let c = &[1.0, 1.0, 1.0];
@@ -5084,7 +5085,7 @@ mod tests {
     }
 
     #[test]
-    fn large_elementwise() {
+    fn scale_and_sum_hold_on_long_inputs() {
         let values: Vec<f32> = (0..1536).map(|i| i as f32).collect();
         check_each_scale::<f32>(&values, 2.0, 0.5);
 
@@ -5097,7 +5098,7 @@ mod tests {
     // region: tensor-shaped wrappers (ScaleOps / SumOps)
 
     #[test]
-    fn tensor_add_tensor_via_sum_ops() {
+    fn sum_ops_add_strided_tensor_views() {
         use crate::tensor::{SliceRange, Tensor};
 
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
@@ -5113,7 +5114,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_add_tensor_into_owning_destination() {
+    fn sum_ops_add_into_an_owning_destination() {
         use crate::{SumOps, tensor::Tensor};
 
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
@@ -5127,7 +5128,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_mul_scalar_via_scale_ops() {
+    fn scale_ops_multiply_a_strided_view_by_a_scalar() {
         use crate::tensor::{SliceRange, Tensor};
 
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
@@ -5138,7 +5139,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_add_scalar_inplace_via_scale_ops() {
+    fn scale_ops_add_a_scalar_in_place() {
         use crate::tensor::Tensor;
 
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
@@ -5149,7 +5150,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_sin_into_via_trig_sin_ops() {
+    fn trig_sin_ops_write_a_strided_view_into_a_span() {
         use crate::tensor::{SliceRange, Tensor};
 
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
@@ -5295,7 +5296,7 @@ mod tests {
     }
 
     #[test]
-    fn swiglu_and_silu() {
+    fn swiglu_and_silu_match_their_reference() {
         let values: Vec<f32> = (0..64).map(|i| ((i % 13) as f32 - 6.0) * 0.4).collect();
         check_swiglu::<f32>(&values, true);
         check_swiglu::<f32>(&values, false);
@@ -5304,7 +5305,7 @@ mod tests {
     }
 
     #[test]
-    fn swiglu_gate_up_halves() {
+    fn swiglu_reads_gate_and_up_from_strided_halves() {
         use crate::tensor::{SliceRange, Tensor};
 
         // gate|up are the two strided column halves of one __[rows,2×columns]__ buffer, whose row
@@ -5377,7 +5378,7 @@ mod tests {
     }
 
     #[test]
-    fn rmsnorm_grouped() {
+    fn rmsnorm_normalizes_each_group() {
         let values: Vec<f32> = (0..96).map(|i| ((i % 17) as f32 - 8.0) * 0.3).collect();
         check_rmsnorm::<f32>(&values, 3, 1);
         check_rmsnorm::<f32>(&values, 3, 2);

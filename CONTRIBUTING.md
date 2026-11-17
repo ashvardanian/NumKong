@@ -103,10 +103,7 @@ On WebAssembly, `build.rs` hands CMake the toolchain the Rust target needs and t
 `numkong_static` needs nothing beyond the C library, so its consumers add only what their own sources need: `libm` for Python's, and OpenMP where `src/parallel.c` joins the Python extension or the Node addon.
 A GPU build adds the runtime it compiled against, `cudart` or `amdhip64`, which the CMake targets carry and `build.rs` names.
 
-The test suites seed from 42, or from a fresh draw under `NUMKONG_SEED=random`, and print the seed they use.
-`NUMKONG_FILTER` is a regex over kernel names, and each failing kernel prints a `rerun:` line with its seed and a filter selecting it alone.
-Failures are always counted and exit 1, unless `NUMKONG_ASSERT=0` turns them into a report only.
-The [test README](test/README.md#environment-variables) lists every variable.
+[Test Suites](#test-suites) explains how the suites run, what they check and the variables they read.
 
 ### Target Baseline Policy
 
@@ -180,7 +177,7 @@ Each toolchain file sets its default, and `CMakeLists.txt` turns the choice into
 Emscripten names each module after its capability, so both wasm32 modules can share the preset's build directory.
 
 The Linux and Android recipes below build the tests too, and `ctest --test-dir <build>` runs them under the emulator the table names; [test/README.md](test/README.md#wasm) covers the WASM runtimes.
-Set `NUMKONG_IN_QEMU=1` to shrink test shapes under emulation, and repetitions too in Python.
+Set `NUMKONG_IN_QEMU=1` to shrink test shapes under emulation, and in Python the default `NUMKONG_SCALE` too.
 
 __ARM64 Linux__
 
@@ -333,6 +330,182 @@ Once done editing the code, please run analyzers and formatters:
 ```bash
 git ls-files '*.h' '*.c' '*.hpp' '*.cpp' | xargs clang-format -i # Use Clang Format 22 or newer
 ```
+
+## Test Suites
+
+### Principles
+
+Tests call the public surface: the C ABI and its dispatch points first, and the C++ wrappers for what C cannot reach; the Python module and the Rust crate are tested through what they export.
+The few private includes are listed under [Private Surface Waivers](#private-surface-waivers), each with what the public surface lacks.
+A kernel is never its own oracle, and inputs are never drawn through the kernels under test; each result is held to a serial reference in a wider type, as [test/README.md](test/README.md#reference-baselines) explains.
+Oracles never compile out: tests hold no `assert`, and every test unit opens with `#undef NDEBUG // ! A test's oracle must stay live in every build`.
+Benchmarks never include `test/`, each tree keeps its own harness, and neither uses a test or benchmark framework.
+One binary carries every vendor's shard, and the device is chosen at runtime, as [Devices](#devices) explains.
+The harness owns stdout, while test bodies write their diagnostics to stderr.
+Settings are read once, and a value that does not parse prints one line naming it and exits with 1.
+Skips are honest: a filter that selects no case fails the run, a case that cannot run says why, and a test missing a dependency names it.
+
+The C++ harness holds one mutable global, `test_run`, the run in progress: its settings, the case under way, the count of failed checks with the last one's file and line, and the passed, failed and skipped cases.
+Checks fire on worker threads, inside helpers and in device wrappers as well as in a case's own body, so `run_test_case` diffs the failed-check count around each case rather than threading a tally through every call.
+A debugger reads it from a core dump as `p test_run`, and the crash handlers print the case in progress before the backtrace.
+
+### Running
+
+```sh
+cmake --preset debug                    # Clang with AddressSanitizer
+cmake --build --preset debug
+ctest --preset debug
+```
+
+The `cuda`, `rocm` and `metal` presets add one vendor's shard each, and `cmake --workflow --preset <name>` runs them.
+No preset packages NVIDIA and AMD together, but a build setting both `NUMKONG_CUDA_ARCH` and `NUMKONG_ROCM_ARCH` links both shards into one `numkong_cpu_test`.
+[test/README.md](test/README.md) covers the WASM and cross-compiled builds, and the JavaScript and Swift suites.
+
+A run prints the library and the machine, then its settings, one verdict line per case with its statistics row beneath, and a summary:
+
+```text
+NumKong 8.0.0
+- Compiled for: serial,haswell,skylake,icelake,genoa,sapphire
+- This machine: serial,haswell,skylake,icelake
+- Seed: 42, scale: 1, filter: none
+- nk_dots_packed_f64_haswell ... ok (0.12 s)
+- nk_dots_packed_f64_sapphire ... skipped: needs nk_cap_sapphire_k
+3120 passed, 0 failed, 412 skipped, seed 42
+```
+
+A failed check prints where it failed, with its detail beneath, and the case goes on, so one run lists every mismatch it reaches.
+A case whose statistics exceed its family's bound, or that saw a failed check, prints its verdict and a `rerun:` line on stderr, naming the binary, the seed, and a filter that selects only that case:
+
+```text
+  check failed at /path/to/NumKong/test/cross.hpp:212
+    expected 0 within 1e-05, got 0.25
+- nk_dots_packed_f64_haswell ... FAILED: 1 failed check(s)
+  rerun: build_debug/numkong_cpu_test --seed 42 --filter '^nk_dots_packed_f64_haswell$'
+```
+
+The run exits with 1 when a case failed, a check failed outside any case, or the filter selected nothing, and with 3 when `NUMKONG_NO_SKIPS=1` refused a skip.
+`NUMKONG_ASSERT=0` keeps the report-only mode: the statistics still print, but record no failed check.
+`NUMKONG_TRAP_ON_FAILURE=1` raises `SIGTRAP` at the first failed check instead, which stops a debugger there, or dumps a core without one:
+
+```sh
+NUMKONG_TRAP_ON_FAILURE=1 NUMKONG_FILTER='^nk_dots_packed_f64_haswell$' gdb -ex run --args build_debug/numkong_cpu_test
+```
+
+A crash stops the run with `*** SIGSEGV in case '<label>' - backtrace follows ***` and a backtrace where the C library has one.
+
+The Python suite runs as the CI runs it, after installing the `test` group, and `test-oracles` for the reference libraries; a test whose dependency is missing skips and names it:
+
+```sh
+pip install -e . --group test --group test-oracles
+python -X faulthandler -m pytest -x
+```
+
+The header pytest prints names the module it imported, `NumKong <version> from <path>`, then the same `- Seed: 42, scale: 1, filter: none` line as the C++ runner, then every other setting the run uses.
+The Rust tests run as `cargo test`, with the default features, `--features std` and `--features parallel`, as the [Rust](#rust) section shows.
+
+### Environment
+
+Each setting is an environment variable, and in the C++ runner a `--name` flag of the same name overrides it, as `--scale 0.1` or `--filter='^dot\.'`:
+
+| Variable                      | Flag                    | Default     | Meaning                                                                                       |
+| :---------------------------- | :---------------------- | :---------- | :-------------------------------------------------------------------------------------------- |
+| `NUMKONG_SEED`                | `--seed`                | `42`        | Any unsigned 64-bit seed, or `random` to draw one, which a run prints                         |
+| `NUMKONG_SCALE`               | `--scale`               | `1`         | Multiplier for the work of every randomized case; Python repeats each `round(10·scale)` times |
+| `NUMKONG_FILTER`              | `--filter`              | unset       | Regex searched in C++ case labels or pytest node ids, else a substring                        |
+| `NUMKONG_DEVICES`             | `--devices`             | auto        | C++ only: comma-separated `backend:ordinal` devices, for example `cuda:0,rocm:1`              |
+| `NUMKONG_TRAP_ON_FAILURE`     | `--trap-on-failure`     | `0`         | C++ only: raises `SIGTRAP` at the first failed check, to stop there under a debugger          |
+| `NUMKONG_NO_SKIPS`            | `--no-skips`            | `0`         | C++ only: exits with 3 when any case skipped, for runners that must cover everything          |
+| `NUMKONG_TIME_LIMIT`          | `--time-limit`          | `1s`        | C++ only: randomized trials per case, like `200ms`, `1s` or `2m`                              |
+| `NUMKONG_ASSERT`              | `--assert`              | `1`         | C++ only: `0` reports a case's statistics without failing it                                  |
+| `NUMKONG_DIMS`                | `--dims`                | `1536`      | Vector dimensions for dot and spatial tests; C++ runs the first, Python 19 sizes by default   |
+| `NUMKONG_CURVED_DIMS`         | `--curved-dims`         | `64`        | Vector dimensions for curved tests; Python samples 5 of `NUMKONG_DIMS` by default             |
+| `NUMKONG_SPARSE_DIMS`         | `--sparse-dims`         | `256`       | Universe size for sparse tests                                                                |
+| `NUMKONG_SHAPE_POINTS`        | `--shape-points`        | `32`        | Points per cloud for shape tests                                                              |
+| `NUMKONG_DIMS_HEIGHT`         | `--dims-height`         | `1024`      | GEMM M dimensions; Python samples 6 of `NUMKONG_DIMS` by default                              |
+| `NUMKONG_DIMS_WIDTH`          | `--dims-width`          | `128`       | GEMM N dimensions; Python samples 6 of `NUMKONG_DIMS` by default                              |
+| `NUMKONG_DIMS_DEPTH`          | `--dims-depth`          | `1536`      | GEMM K dimensions; Python samples 6 of `NUMKONG_DIMS` by default                              |
+| `NUMKONG_MAX_COORD_ANGLE`     | `--max-coord-angle`     | `180`       | Maximum angle in degrees between geospatial points                                            |
+| `NUMKONG_IN_QEMU`             | `--in-qemu`             | `0`         | Shrinks shapes for emulation, and Python's default scale to `0.3`                             |
+| `NUMKONG_ULP_THRESHOLD_F32`   | `--ulp-threshold-f32`   | `4`         | C++ only: max ULP distance for f32                                                            |
+| `NUMKONG_ULP_THRESHOLD_F16`   | `--ulp-threshold-f16`   | `32`        | C++ only: max ULP distance for f16                                                            |
+| `NUMKONG_ULP_THRESHOLD_BF16`  | `--ulp-threshold-bf16`  | `256`       | C++ only: max ULP distance for bf16                                                           |
+| `NUMKONG_SCALE_THRESHOLD`     | `--scale-threshold`     | `0.02`      | C++ only: max error over the largest reference, for attention                                 |
+| `NUMKONG_RANDOM_DISTRIBUTION` | `--random-distribution` | `lognormal` | C++ only: `uniform`, `lognormal` or `cauchy`                                                  |
+| `NUMKONG_EXPECT_SIMD`         | -                       | `1`         | Python only: `0` skips the check that a SIMD machine's baseline was compiled in               |
+
+A switch is off when unset, empty or `0`, and on otherwise.
+The dimension and GEMM variables take one count or a comma-separated list, like `64,128,256`.
+Python reads only the variables, beside `pytest -k` and pytest's own options, and Rust reads only `NUMKONG_SEED`, filtering through `cargo test <name>`.
+
+`NUMKONG_SEED` keys every case's own stream by the case's name, as `stream_key(seed, name, index)`, identical in C++, Python and Rust.
+A case's inputs therefore never depend on which cases ran before it, so `NUMKONG_SEED` together with `NUMKONG_FILTER` is a faithful reproduction recipe.
+
+```sh
+NUMKONG_SEED=random build_debug/numkong_cpu_test                                   # A fresh seed, which the run prints
+NUMKONG_FILTER='^nk_dots_packed_' build_debug/numkong_cpu_test                    # One family across every capability
+NUMKONG_FILTER='_haswell$' NUMKONG_TIME_LIMIT=5s build_debug/numkong_cpu_test      # One capability, longer per case
+NUMKONG_FILTER=dot NUMKONG_SCALE=0.1 python -X faulthandler -m pytest -x           # A filter over pytest node ids
+```
+
+### Writing a Test
+
+A C++ case is a `void` function, or one returning `case_result_t` when it may skip, that `main` runs as `run_test_case("<label>", function, arguments...)`.
+It takes no settings or context, as the run is `test_run`, and it skips only by returning `case_result_t::skipped(reason)`, with a reason like `needs nk_cap_haswell_k` or `no GPU device`.
+A kernel row is a case of its own, so a cross-check starts with `if (!capable(capability)) return case_result_t::skipped("needs nk_cap_haswell_k");` and is registered as `run_kernel_case("nk_dots_packed_f64_haswell", test_dots_packed<f64_t>, haswell, nk_dots_packed_f64_haswell)`.
+A label spells the code under test exactly: the C symbol of the kernel, or the test function's own name, or call notation such as `test_cast<bf16_t, f32_t>(nk_cast_serial)` when one function runs over several choices.
+So `NUMKONG_FILTER='_haswell$'` runs one capability and `NUMKONG_FILTER='^nk_dots_packed_'` one family across all of them.
+
+`stats.accumulate(actual, reference)` records a result against its reference, and the family's bound judges the statistics once the case's trials end.
+`stats.expect_true(held, "property")` records a boolean property the statistics report by name, and the first one a case fails also counts as a failed check at its line.
+Outside the statistics, a case checks with the functions of `test/harness.hpp`, each of which counts a failed check at the caller's line, lets the case go on, and returns whether it held:
+
+- `expect_true(held)`, for any condition;
+- `expect_equal(actual, wanted)`, which prints both operands when they differ;
+- `expect_near(actual, wanted, tolerance)`, holding when `|actual - wanted| <= tolerance * max(1, |actual|, |wanted|)`;
+- `expect_device_success(status)`, in CUDA units from `test/harness_cuda.hpp`, which prints the vendor's error string.
+
+A message trails the operands as a format string and its arguments, `expect_true(held, "row {} of {}", row, rows)`, never folded into the condition as `held && "text"`.
+Where the step after a failed check would be unsafe, the case stops on the check's answer, as in `if (!expect_device_success(cudaMalloc(...))) return {};`.
+A case draws its inputs from `split_mix_generator_t generator {case_stream_key()}`, keyed by the run's seed and the case's label, so the capabilities and backends of one family share inputs, and never from a literal seed.
+
+A Python test is `test_<subject>_<behaviour>`, read as a sentence, with a one-line docstring saying what holds.
+It draws from the `seed`, `rng` or `np_rng` fixture, never from a literal seed.
+The seed is `stream_key(NUMKONG_SEED, name, step)`, where `name` is the test function and its parameters other than the `BACKEND_AXES`, here `capabilities`, and `step` is the pytest-repeat step, so every CPU capability sees the same inputs while other parameters and repeats draw apart.
+A kernel test takes the `capabilities` fixture, which runs it once per capability this build compiled and this CPU executes, each with a serial fallback, and records its errors and timings through the `stats` fixture, whose per-module report prints after the run.
+A randomized test repeats `SETTINGS.repetitions` times, or `SETTINGS.reduced_repetitions` for the costlier matrix and shape sweeps, both derived from `NUMKONG_SCALE`.
+Axis names follow one vocabulary: `dtype` for the input scalar type, `ndim` for a vector's length, `count` for the rows of a batch, `rows`, `columns` and `depth` for a matrix shape, and `capabilities` for the kernel backend.
+Parametrize names are tuples, and the decorators run top-down as marks, then the backend axis, `dtype`, `ndim` or the shape, `count`, and the rest.
+`MAX_CASES_PER_TEST` in `test/base.py` caps how many cases one test function expands to, its backend axes aside, and raising it is a decision for review.
+Results are compared through `assert_allclose` of `test/base.py`, which defaults its tolerances by the dtype of the result.
+A test that needs an optional dependency says so where it is decided, as `@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")` or `pytest.importorskip("torch", reason="PyTorch is not installed")`, and a build or device it needs, through a mark of `test/base.py`: `requires_free_threading`, `requires_metal` or `requires_numpy_dtype_registration`.
+Anything only a run can find out, like a CUDA device that CuPy can use, skips inside a fixture.
+
+A Rust test is named as a behaviour sentence without a `test_` prefix, like `capability_names_match_the_c_table`, and calls the crate's `pub` API.
+The pinned region of `rust/testing.rs` gives it `skipped(reason)`, which a test that cannot run here returns, `case_stream_key(index)` for its seeds, `ScratchDirectory` and `block_on`, and below that region the helpers several modules' tests share, like the `TestableType` tolerances, `assert_close` and `check_binary`.
+`test/base.py`, `test/conftest.py` and `rust/testing.rs` each hold a pinned `Shared` region, which the pre-commit hook keeps identical to its canonical copy, so edit around it.
+
+### Benchmarks
+
+`bench/harness.hpp` carries the same pinned settings readers as `test/harness.hpp`, so its variables parse, refuse and take `--name` flags the same way, under the `NUMWARS_` prefix that [NumWars](https://github.com/ashvardanian/NumWars) shares.
+Those names, and the `NUMKONG_*` names the benchmarks also read, stay as they are; [bench/README.md](bench/README.md#environment-variables) lists them.
+A benchmark row is named after the kernel it times, which is what `NUMWARS_FILTER` matches, and a run prints the same machine header and `- Name: value` settings echo as the tests.
+
+### Devices
+
+CMake compiles each vendor's units, `*_cuda.cu`, `*_rocm.hip` and `*_metal.cpp`, into an object library of their own and links them all into the one test binary; a vendor left out compiles its units as plain C++ that define empty entry points.
+Test bodies are templates over the backend, `host_backend_t` or a `device_backend` in `test/harness.hpp`, with the device scenarios in `test/cross_device.hpp`, and the vendor files only bind them.
+A unit's vendor switches, `NUMKONG_ARCH_CUDA_`, `NUMKONG_ARCH_ROCM_` and `NUMKONG_ARCH_METAL_`, never exclude each other: each vendor gets its own `#if` block, never an `#elif` to another vendor's switch or a switch negated beside another's.
+Compiler predefines, like `__CUDA_ARCH__` or `__HIP_DEVICE_COMPILE__`, describe one compilation and are exempt.
+A unit compiled once per vendor, like `test/shapes_cuda.cu`, which ROCm compiles through an include CMake generates, gives whatever depends on the vendor internal linkage or a vendor name, so the linked shards never define one entity twice.
+`NUMKONG_DEVICES` lists `backend:ordinal` pairs, each ordinal counted within its backend, and selects exactly those, refusing an unavailable backend or ordinal; unset, the runner takes device 0 of each compiled backend that has one, and a case for a backend without a device skips with `no GPU device`.
+
+### Private Surface Waivers
+
+These tests reach past the public surface:
+
+- `test/shapes_metal.cpp` includes `numkong/shapes/metal.h` for `nk_wassersteinprocrustes_slot_bytes_metal_` and the transport slot helpers, which the C ABI does not export.
+- `rust/cast.rs` calls `nk_cast_best` through FFI in `check_byte_match_c`, to hold the block-scaled casts' bytes against the C kernel fed a hand-built descriptor, which no public call exposes.
+- `rust/capabilities.rs` calls the crate-private `nk_status_t::check` in `statuses_read_their_c_codes`, as the C status codes reach the public API only through the errors they become.
 
 ## Python
 

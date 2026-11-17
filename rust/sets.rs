@@ -1006,8 +1006,8 @@ impl<Scalar: Jaccards, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symme
 mod tests {
     use super::*;
     #[cfg(feature = "parallel")]
-    use crate::types::{DIMS, align_depth};
-    use crate::types::{assert_upper_triangle_eq, init_thread};
+    use crate::testing::{DIMS, align_depth};
+    use crate::testing::{assert_upper_triangle_eq, init_thread};
 
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
@@ -1122,19 +1122,19 @@ mod tests {
     #[test]
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
-    fn sets_packed_parallel() {
+    fn hammings_packed_parallel_match_serial() {
         check_hammings_packed_parallel_u1();
     }
 
     #[test]
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
-    fn sets_symmetric_parallel() {
+    fn sets_symmetric_parallel_match_serial() {
         check_sets_symmetric_parallel();
     }
 
     #[test]
-    fn binary_packed_u1() {
+    fn binary_packed_of_full_bits_count_every_bit() {
         init_thread();
         let a = Tensor::<u1x8>::full(&[4, 64], u1x8(0xFF)).unwrap();
         let b = Tensor::<u1x8>::full(&[16, 64], u1x8(0xFF)).unwrap();
@@ -1160,7 +1160,7 @@ mod tests {
     }
 
     #[test]
-    fn binary_symmetric_u1() {
+    fn binary_symmetric_of_full_bits_count_every_bit() {
         init_thread();
         let a = Tensor::<u1x8>::full(&[4, 64], u1x8(0xFF)).unwrap();
 

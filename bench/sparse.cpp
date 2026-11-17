@@ -20,7 +20,7 @@ namespace ashvardanian::numkong::bench {
  *  @param[in] intersection_size The expected number of common elements between the sets.
  */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void measure_sparse(loop_t &loop, environment_t const &env, kernel_type_ kernel, std::size_t first_size,
+void measure_sparse(loop_t &loop, bench_settings_t const &env, kernel_type_ kernel, std::size_t first_size,
                     std::size_t second_size, std::size_t intersection_size) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
@@ -29,7 +29,7 @@ void measure_sparse(loop_t &loop, environment_t const &env, kernel_type_ kernel,
     // Preallocate sorted unique set vectors
     std::size_t const vector_count = input_sets_count(dtype_bytes(input_dtype_, first_size + second_size));
     std::vector<input_vector_t> first_vectors(vector_count), second_vectors(vector_count);
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
 
     auto max_val = input_t(first_size * second_size / intersection_size);
     for (std::size_t index = 0; index != vector_count; ++index) {
@@ -53,18 +53,18 @@ void measure_sparse(loop_t &loop, environment_t const &env, kernel_type_ kernel,
 }
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void run_sparse(environment_t const &env, std::string name, kernel_type_ *kernel) {
+void run_sparse(bench_settings_t const &env, std::string name, kernel_type_ *kernel) {
     std::size_t const intersection_size = nk::max_of<std::size_t>(
-        1, static_cast<std::size_t>(nk::min_of(env.settings.sparse_first_count, env.settings.sparse_second_count) *
-                                    env.settings.sparse_intersection_share));
-    std::string bench_name = name + "<|A|=" + std::to_string(env.settings.sparse_first_count) +
-                             ",|B|=" + std::to_string(env.settings.sparse_second_count) +
+        1, static_cast<std::size_t>(nk::min_of(env.sparse_first_count, env.sparse_second_count) *
+                                    env.sparse_intersection_share));
+    std::string bench_name = name + "<|A|=" + std::to_string(env.sparse_first_count) +
+                             ",|B|=" + std::to_string(env.sparse_second_count) +
                              ",|A^B|=" + std::to_string(intersection_size) + ">";
-    run_benchmark(env, bench_name, measure_sparse<input_dtype_, kernel_type_ *>, kernel,
-                  env.settings.sparse_first_count, env.settings.sparse_second_count, intersection_size);
+    run_benchmark(env, bench_name, measure_sparse<input_dtype_, kernel_type_ *>, kernel, env.sparse_first_count,
+                  env.sparse_second_count, intersection_size);
 }
 
-void bench_sparse(environment_t const &env) {
+void bench_sparse(bench_settings_t const &env) {
     constexpr nk_dtype_t u16_k = nk_u16_k;
     constexpr nk_dtype_t u32_k = nk_u32_k;
     constexpr nk_dtype_t u64_k = nk_u64_k;
@@ -125,7 +125,7 @@ void bench_sparse(environment_t const &env) {
  *  @param[in] intersection_size The expected number of common elements between the sets.
  */
 template <nk_dtype_t index_dtype_, nk_dtype_t weight_dtype_, typename kernel_type_ = void>
-void measure_sparse_dot(loop_t &loop, environment_t const &env, kernel_type_ kernel, std::size_t first_size,
+void measure_sparse_dot(loop_t &loop, bench_settings_t const &env, kernel_type_ kernel, std::size_t first_size,
                         std::size_t second_size, std::size_t intersection_size) {
 
     using index_t = typename nk::type_for<index_dtype_>::type;
@@ -137,7 +137,7 @@ void measure_sparse_dot(loop_t &loop, environment_t const &env, kernel_type_ ker
     std::size_t const vector_count = input_sets_count(dtype_bytes(index_dtype_, first_size + second_size));
     std::vector<index_vector_t> first_indices(vector_count), second_indices(vector_count);
     std::vector<weight_vector_t> first_weights(vector_count), second_weights(vector_count);
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     auto max_val = index_t(first_size * second_size / intersection_size);
 
     for (std::size_t index = 0; index != vector_count; ++index) {
@@ -169,18 +169,18 @@ void measure_sparse_dot(loop_t &loop, environment_t const &env, kernel_type_ ker
 }
 
 template <nk_dtype_t index_dtype_, nk_dtype_t weight_dtype_, typename kernel_type_ = void>
-void run_sparse_dot(environment_t const &env, std::string name, kernel_type_ *kernel) {
+void run_sparse_dot(bench_settings_t const &env, std::string name, kernel_type_ *kernel) {
     std::size_t const intersection_size = nk::max_of<std::size_t>(
-        1, static_cast<std::size_t>(nk::min_of(env.settings.sparse_first_count, env.settings.sparse_second_count) *
-                                    env.settings.sparse_intersection_share));
-    std::string bench_name = name + "<|A|=" + std::to_string(env.settings.sparse_first_count) +
-                             ",|B|=" + std::to_string(env.settings.sparse_second_count) +
+        1, static_cast<std::size_t>(nk::min_of(env.sparse_first_count, env.sparse_second_count) *
+                                    env.sparse_intersection_share));
+    std::string bench_name = name + "<|A|=" + std::to_string(env.sparse_first_count) +
+                             ",|B|=" + std::to_string(env.sparse_second_count) +
                              ",|A^B|=" + std::to_string(intersection_size) + ">";
     run_benchmark(env, bench_name, measure_sparse_dot<index_dtype_, weight_dtype_, kernel_type_ *>, kernel,
-                  env.settings.sparse_first_count, env.settings.sparse_second_count, intersection_size);
+                  env.sparse_first_count, env.sparse_second_count, intersection_size);
 }
 
-void bench_sparse_dot(environment_t const &env) {
+void bench_sparse_dot(bench_settings_t const &env) {
     constexpr nk_dtype_t u16_k = nk_u16_k;
     constexpr nk_dtype_t u32_k = nk_u32_k;
     constexpr nk_dtype_t f32_k = nk_f32_k;

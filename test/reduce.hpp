@@ -26,26 +26,26 @@ namespace ashvardanian::numkong::test {
 constexpr std::size_t max_stride_k = 50;
 
 template <typename input_type_, typename backend_type_ = host_backend_t>
-error_stats_t test_reduce_moments(settings_t const &settings, typename input_type_::reduce_moments_kernel_t kernel) {
+error_stats_t test_reduce_moments(typename input_type_::reduce_moments_kernel_t kernel) {
     using sum_t = typename input_type_::reduce_moments_sum_t;
     using sumsq_t = typename input_type_::reduce_moments_sumsq_t;
     using sum_reference_t = bounded_reference_for<input_type_, sum_t>;
     using sumsq_reference_t = bounded_reference_for<input_type_, sumsq_t>;
-    backend_type_ backend = make_backend<backend_type_>(settings);
+    backend_type_ backend = make_backend<backend_type_>();
     error_stats_t stats(nk_reduce_moments_error_bound(input_type_::dtype()));
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
     std::uniform_int_distribution<std::size_t> stride_distribution(1, max_stride_k);
     std::size_t const dims_per_value = nk::dimensions_per_value<input_type_>();
-    std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
+    std::size_t const n = nk::divide_round_up(test_run.settings.dense_dimensions, dims_per_value) * dims_per_value;
     auto buffer = make_vector<input_type_>(backend, n * (max_stride_k + sizeof(input_type_)));
     auto sum = make_vector<sum_t>(backend, 1);
     auto sumsq = make_vector<sumsq_t>(backend, 1);
     auto compare = [&](backend_vector<input_type_, backend_type_> const &input, std::size_t count, std::size_t stride) {
         backend.call(kernel, input.raw_values_data(), count, stride, sum.raw_values_data(), sumsq.raw_values_data());
-        if (!stats.expect(backend.synchronize())) return false;
+        if (!stats.expect_status(backend.synchronize())) return false;
         sum_reference_t sum_reference;
         sumsq_reference_t sumsq_reference;
-        stats.expect(nk::reduce_moments<input_type_, sum_reference_t, sumsq_reference_t>(
+        stats.expect_status(nk::reduce_moments<input_type_, sum_reference_t, sumsq_reference_t>(
             input.values_data(), count, stride, &sum_reference, &sumsq_reference, no_tiers_k));
         stats.accumulate(sum[0], sum_reference);
         stats.accumulate(sumsq[0], sumsq_reference);
@@ -65,23 +65,23 @@ error_stats_t test_reduce_moments(settings_t const &settings, typename input_typ
             !compare(extremes, count, 8 * sizeof(input_type_)))
             return stats;
     }
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
-        fill_random(settings, generator, buffer);
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
+        fill_random(generator, buffer);
         if (!compare(buffer, n, stride_distribution(generator))) return stats;
     }
     return stats;
 }
 
 template <typename input_type_, typename backend_type_ = host_backend_t>
-error_stats_t test_reduce_minmax(settings_t const &settings, typename input_type_::reduce_minmax_kernel_t kernel) {
+error_stats_t test_reduce_minmax(typename input_type_::reduce_minmax_kernel_t kernel) {
     using output_t = typename input_type_::reduce_minmax_value_t;
     static_assert(sizeof(nk_size_t) <= sizeof(nk_u64_t), "indices are stored in U64 slots");
-    backend_type_ backend = make_backend<backend_type_>(settings);
+    backend_type_ backend = make_backend<backend_type_>();
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
     std::uniform_int_distribution<std::size_t> stride_distribution(1, max_stride_k);
     std::size_t const dims_per_value = nk::dimensions_per_value<input_type_>();
-    std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
+    std::size_t const n = nk::divide_round_up(test_run.settings.dense_dimensions, dims_per_value) * dims_per_value;
     auto buffer = make_vector<input_type_>(backend, n * (max_stride_k + sizeof(input_type_)));
     auto extrema = make_vector<output_t>(backend, 2);
     auto indices = make_vector<u64_t>(backend, 2);
@@ -89,12 +89,12 @@ error_stats_t test_reduce_minmax(settings_t const &settings, typename input_type
     auto compare = [&](std::size_t stride) {
         backend.call(kernel, buffer.raw_values_data(), n, stride, extrema.raw_values_data() + 0, index_values + 0,
                      extrema.raw_values_data() + 1, index_values + 1);
-        if (!stats.expect(backend.synchronize())) return false;
+        if (!stats.expect_status(backend.synchronize())) return false;
         output_t reference_min, reference_max;
         std::size_t reference_min_index, reference_max_index;
-        stats.expect(nk::reduce_minmax<input_type_, output_t>(buffer.values_data(), n, stride, &reference_min,
-                                                              &reference_min_index, &reference_max,
-                                                              &reference_max_index, no_tiers_k));
+        stats.expect_status(nk::reduce_minmax<input_type_, output_t>(buffer.values_data(), n, stride, &reference_min,
+                                                                     &reference_min_index, &reference_max,
+                                                                     &reference_max_index, no_tiers_k));
         stats.accumulate(index_values[0], static_cast<nk_size_t>(reference_min_index));
         stats.accumulate(index_values[1], static_cast<nk_size_t>(reference_max_index));
         if (reference_min_index == NUMKONG_SIZE_MAX) return true; // No index, so the values are only sentinels
@@ -109,9 +109,9 @@ error_stats_t test_reduce_minmax(settings_t const &settings, typename input_type
         std::fill_n(buffer.values_data(), buffer.size_values(), input_type_::quiet_nan());
         if (!compare(sizeof(input_type_))) return stats;
     }
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
         std::size_t stride = stride_distribution(generator);
-        fill_random(settings, generator, buffer);
+        fill_random(generator, buffer);
         if (!compare(stride)) return stats;
     }
     return stats;

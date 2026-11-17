@@ -4,7 +4,9 @@
  *  @date April 15, 2026
  *  @brief FP6 and FP8 conversions against CUDA intrinsics over every input encoding.
  */
-#include "harness.hpp"
+#undef NDEBUG // ! A test's oracle must stay live in every build
+
+#include "harness_cuda.hpp"
 
 #if NUMKONG_ARCH_CUDA_
 #include "cast.hpp"
@@ -210,7 +212,7 @@ static bool run_kernel_batch_(source_type_ const *host_source, destination_type_
     dim3 grid(static_cast<unsigned>(nk::divide_round_up(count, block.x)));
     kernel(reinterpret_cast<source_type_ const *>(device_source.raw_values_data()),
            reinterpret_cast<destination_type_ *>(device_destination.raw_values_data()), count, grid, block);
-    nk_cuda_assert_(cudaGetLastError());
+    if (!expect_device_success(cudaGetLastError())) return false;
     if (nk_stream_synchronize_cuda(nullptr) != nk_success_k) return false;
     std::memcpy(host_destination, device_destination.raw_values_data(), count * sizeof(destination_type_));
     return true;
@@ -349,248 +351,275 @@ static bool sweep_small_to_wide_(char const *label, nk_dtype_t source_dtype, nk_
     return mismatches == 0;
 }
 
-static void test_cast_cuda_conformance(error_stats_section_t &check) {
-    check.section("CUDA reference checks", nk_cap_cuda_k);
-    cuda_device_scope_t device(check.settings.device.ordinal());
-    if (!cuda_check_(device.status, "select CUDA reference device", __FILE__, __LINE__)) {
-        ++check.failure_count;
-        return;
-    }
+static void run_cast_cuda_conformance_cases() {
+    cuda_device_scope_t device(test_run.settings.device.ordinal());
+    if (!expect_device_success(device.status)) return;
 
-    check("cast_fp8_conformance_cuda", [&](settings_t const &) {
-        error_stats_t stats(comparison_family_t::exact_k);
-        stats.expect(
-            sweep_fp32_to_fp8_( //
-                "fp32 → e4m3", nk_e4m3_k, __NV_E4M3,
-                [](float const *device_source, unsigned char *device_destination, std::size_t count,
-                   __nv_fp8_interpretation_t interpretation, __nv_saturation_t saturate, dim3 grid, dim3 block) {
-                    fp32_to_fp8_kernel_<<<grid, block>>>(device_source, device_destination, count, interpretation,
-                                                         saturate);
-                }),
-            "fp32 → e4m3 (exhaustive 2^32)");
-        stats.expect(
-            sweep_fp32_to_fp8_( //
-                "fp32 → e5m2", nk_e5m2_k, __NV_E5M2,
-                [](float const *device_source, unsigned char *device_destination, std::size_t count,
-                   __nv_fp8_interpretation_t interpretation, __nv_saturation_t saturate, dim3 grid, dim3 block) {
-                    fp32_to_fp8_kernel_<<<grid, block>>>(device_source, device_destination, count, interpretation,
-                                                         saturate);
-                }),
-            "fp32 → e5m2 (exhaustive 2^32)");
-        stats.expect(sweep_16bit_to_8bit_<__half>( //
-                         "fp16 → e4m3", nk_f16_k, nk_e4m3_k, bits_fp16_nan_, 0xFF,
-                         [](__half const *device_source, unsigned char *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             fp16_to_fp8_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E4M3,
-                                                                  __NV_SATFINITE);
-                         }),
-                     "fp16 → e4m3 (exhaustive 2^16)");
-        stats.expect(sweep_16bit_to_8bit_<__half>( //
-                         "fp16 → e5m2", nk_f16_k, nk_e5m2_k, bits_fp16_nan_, 0xFF,
-                         [](__half const *device_source, unsigned char *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             fp16_to_fp8_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E5M2,
-                                                                  __NV_NOSAT);
-                         }),
-                     "fp16 → e5m2 (exhaustive 2^16)");
-        stats.expect(sweep_16bit_to_8bit_<__nv_bfloat16>( //
-                         "bf16 → e4m3", nk_bf16_k, nk_e4m3_k, bits_bf16_nan_, 0xFF,
-                         [](__nv_bfloat16 const *device_source, unsigned char *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             bf16_to_fp8_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E4M3,
-                                                                  __NV_SATFINITE);
-                         }),
-                     "bf16 → e4m3 (exhaustive 2^16)");
-        stats.expect(sweep_16bit_to_8bit_<__nv_bfloat16>( //
-                         "bf16 → e5m2", nk_bf16_k, nk_e5m2_k, bits_bf16_nan_, 0xFF,
-                         [](__nv_bfloat16 const *device_source, unsigned char *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             bf16_to_fp8_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E5M2,
-                                                                  __NV_NOSAT);
-                         }),
-                     "bf16 → e5m2 (exhaustive 2^16)");
+    run_kernel_case(
+        "sweep_fp32_to_fp8_(nk_e4m3_k)",
+        [] {
+            error_stats_t stats(comparison_family_t::exact_k);
+            stats.expect_true(
+                sweep_fp32_to_fp8_( //
+                    "fp32 → e4m3", nk_e4m3_k, __NV_E4M3,
+                    [](float const *device_source, unsigned char *device_destination, std::size_t count,
+                       __nv_fp8_interpretation_t interpretation, __nv_saturation_t saturate, dim3 grid, dim3 block) {
+                        fp32_to_fp8_kernel_<<<grid, block>>>(device_source, device_destination, count, interpretation,
+                                                             saturate);
+                    }),
+                "fp32 → e4m3 (exhaustive 2^32)");
+            stats.expect_true(
+                sweep_fp32_to_fp8_( //
+                    "fp32 → e5m2", nk_e5m2_k, __NV_E5M2,
+                    [](float const *device_source, unsigned char *device_destination, std::size_t count,
+                       __nv_fp8_interpretation_t interpretation, __nv_saturation_t saturate, dim3 grid, dim3 block) {
+                        fp32_to_fp8_kernel_<<<grid, block>>>(device_source, device_destination, count, interpretation,
+                                                             saturate);
+                    }),
+                "fp32 → e5m2 (exhaustive 2^32)");
+            stats.expect_true(sweep_16bit_to_8bit_<__half>( //
+                                  "fp16 → e4m3", nk_f16_k, nk_e4m3_k, bits_fp16_nan_, 0xFF,
+                                  [](__half const *device_source, unsigned char *device_destination, std::size_t count,
+                                     dim3 grid, dim3 block) {
+                                      fp16_to_fp8_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E4M3, __NV_SATFINITE);
+                                  }),
+                              "fp16 → e4m3 (exhaustive 2^16)");
+            stats.expect_true(sweep_16bit_to_8bit_<__half>( //
+                                  "fp16 → e5m2", nk_f16_k, nk_e5m2_k, bits_fp16_nan_, 0xFF,
+                                  [](__half const *device_source, unsigned char *device_destination, std::size_t count,
+                                     dim3 grid, dim3 block) {
+                                      fp16_to_fp8_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E5M2, __NV_NOSAT);
+                                  }),
+                              "fp16 → e5m2 (exhaustive 2^16)");
+            stats.expect_true(sweep_16bit_to_8bit_<__nv_bfloat16>( //
+                                  "bf16 → e4m3", nk_bf16_k, nk_e4m3_k, bits_bf16_nan_, 0xFF,
+                                  [](__nv_bfloat16 const *device_source, unsigned char *device_destination,
+                                     std::size_t count, dim3 grid, dim3 block) {
+                                      bf16_to_fp8_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E4M3, __NV_SATFINITE);
+                                  }),
+                              "bf16 → e4m3 (exhaustive 2^16)");
+            stats.expect_true(sweep_16bit_to_8bit_<__nv_bfloat16>( //
+                                  "bf16 → e5m2", nk_bf16_k, nk_e5m2_k, bits_bf16_nan_, 0xFF,
+                                  [](__nv_bfloat16 const *device_source, unsigned char *device_destination,
+                                     std::size_t count, dim3 grid, dim3 block) {
+                                      bf16_to_fp8_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E5M2, __NV_NOSAT);
+                                  }),
+                              "bf16 → e5m2 (exhaustive 2^16)");
 
-        return stats;
-    });
+            return stats;
+        },
+        nk_cap_cuda_k);
 
-    check("cast_fp8_reverse_cuda", [&](settings_t const &) {
-        error_stats_t stats(comparison_family_t::exact_k);
-        stats.expect(sweep_small_to_wide_<float>( //
-                         "e4m3 → fp32", nk_e4m3_k, nk_f32_k, 256u,
-                         [](unsigned char const *device_source, float *device_destination, std::size_t count, dim3 grid,
-                            dim3 block) {
-                             fp8_to_fp32_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E4M3);
-                         },
-                         f32_bits_equal_tolerant_nan_),
-                     "e4m3 → fp32 (exhaustive 2^8)");
-        stats.expect(sweep_small_to_wide_<float>( //
-                         "e5m2 → fp32", nk_e5m2_k, nk_f32_k, 256u,
-                         [](unsigned char const *device_source, float *device_destination, std::size_t count, dim3 grid,
-                            dim3 block) {
-                             fp8_to_fp32_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E5M2);
-                         },
-                         f32_bits_equal_tolerant_nan_),
-                     "e5m2 → fp32 (exhaustive 2^8)");
-        stats.expect(sweep_small_to_wide_<__half>( //
-                         "e4m3 → fp16", nk_e4m3_k, nk_f16_k, 256u,
-                         [](unsigned char const *device_source, __half *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             fp8_to_fp16_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E4M3);
-                         },
-                         f16_bits_equal_tolerant_nan_),
-                     "e4m3 → fp16 (exhaustive 2^8)");
-        stats.expect(sweep_small_to_wide_<__half>( //
-                         "e5m2 → fp16", nk_e5m2_k, nk_f16_k, 256u,
-                         [](unsigned char const *device_source, __half *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             fp8_to_fp16_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E5M2);
-                         },
-                         f16_bits_equal_tolerant_nan_),
-                     "e5m2 → fp16 (exhaustive 2^8)");
-        stats.expect(sweep_small_to_wide_<__nv_bfloat16>( //
-                         "e4m3 → bf16", nk_e4m3_k, nk_bf16_k, 256u,
-                         [](unsigned char const *device_source, __nv_bfloat16 *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             fp8_to_bf16_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E4M3);
-                         },
-                         bf16_bits_equal_tolerant_nan_),
-                     "e4m3 → bf16 (exhaustive 2^8)");
-        stats.expect(sweep_small_to_wide_<__nv_bfloat16>( //
-                         "e5m2 → bf16", nk_e5m2_k, nk_bf16_k, 256u,
-                         [](unsigned char const *device_source, __nv_bfloat16 *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             fp8_to_bf16_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E5M2);
-                         },
-                         bf16_bits_equal_tolerant_nan_),
-                     "e5m2 → bf16 (exhaustive 2^8)");
+    run_kernel_case(
+        "sweep_small_to_wide_<float>(nk_e4m3_k, nk_f32_k)",
+        [] {
+            error_stats_t stats(comparison_family_t::exact_k);
+            stats.expect_true(sweep_small_to_wide_<float>( //
+                                  "e4m3 → fp32", nk_e4m3_k, nk_f32_k, 256u,
+                                  [](unsigned char const *device_source, float *device_destination, std::size_t count,
+                                     dim3 grid, dim3 block) {
+                                      fp8_to_fp32_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E4M3);
+                                  },
+                                  f32_bits_equal_tolerant_nan_),
+                              "e4m3 → fp32 (exhaustive 2^8)");
+            stats.expect_true(sweep_small_to_wide_<float>( //
+                                  "e5m2 → fp32", nk_e5m2_k, nk_f32_k, 256u,
+                                  [](unsigned char const *device_source, float *device_destination, std::size_t count,
+                                     dim3 grid, dim3 block) {
+                                      fp8_to_fp32_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E5M2);
+                                  },
+                                  f32_bits_equal_tolerant_nan_),
+                              "e5m2 → fp32 (exhaustive 2^8)");
+            stats.expect_true(sweep_small_to_wide_<__half>( //
+                                  "e4m3 → fp16", nk_e4m3_k, nk_f16_k, 256u,
+                                  [](unsigned char const *device_source, __half *device_destination, std::size_t count,
+                                     dim3 grid, dim3 block) {
+                                      fp8_to_fp16_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E4M3);
+                                  },
+                                  f16_bits_equal_tolerant_nan_),
+                              "e4m3 → fp16 (exhaustive 2^8)");
+            stats.expect_true(sweep_small_to_wide_<__half>( //
+                                  "e5m2 → fp16", nk_e5m2_k, nk_f16_k, 256u,
+                                  [](unsigned char const *device_source, __half *device_destination, std::size_t count,
+                                     dim3 grid, dim3 block) {
+                                      fp8_to_fp16_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E5M2);
+                                  },
+                                  f16_bits_equal_tolerant_nan_),
+                              "e5m2 → fp16 (exhaustive 2^8)");
+            stats.expect_true(sweep_small_to_wide_<__nv_bfloat16>( //
+                                  "e4m3 → bf16", nk_e4m3_k, nk_bf16_k, 256u,
+                                  [](unsigned char const *device_source, __nv_bfloat16 *device_destination,
+                                     std::size_t count, dim3 grid, dim3 block) {
+                                      fp8_to_bf16_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E4M3);
+                                  },
+                                  bf16_bits_equal_tolerant_nan_),
+                              "e4m3 → bf16 (exhaustive 2^8)");
+            stats.expect_true(sweep_small_to_wide_<__nv_bfloat16>( //
+                                  "e5m2 → bf16", nk_e5m2_k, nk_bf16_k, 256u,
+                                  [](unsigned char const *device_source, __nv_bfloat16 *device_destination,
+                                     std::size_t count, dim3 grid, dim3 block) {
+                                      fp8_to_bf16_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E5M2);
+                                  },
+                                  bf16_bits_equal_tolerant_nan_),
+                              "e5m2 → bf16 (exhaustive 2^8)");
 
-        return stats;
-    });
+            return stats;
+        },
+        nk_cap_cuda_k);
 
-    check("cast_fp6_conformance_cuda", [&](settings_t const &) {
-        error_stats_t stats(comparison_family_t::exact_k);
-        stats.expect(sweep_fp32_to_fp6_( //
-                         "fp32 → e3m2", nk_e3m2_k, __NV_E3M2,
-                         [](float const *device_source, unsigned char *device_destination, std::size_t count,
-                            __nv_fp6_interpretation_t interpretation, dim3 grid, dim3 block) {
-                             fp32_to_fp6_kernel_<<<grid, block>>>(device_source, device_destination, count,
-                                                                  interpretation);
-                         }),
-                     "fp32 → e3m2 (exhaustive 2^32)");
-        stats.expect(sweep_fp32_to_fp6_( //
-                         "fp32 → e2m3", nk_e2m3_k, __NV_E2M3,
-                         [](float const *device_source, unsigned char *device_destination, std::size_t count,
-                            __nv_fp6_interpretation_t interpretation, dim3 grid, dim3 block) {
-                             fp32_to_fp6_kernel_<<<grid, block>>>(device_source, device_destination, count,
-                                                                  interpretation);
-                         }),
-                     "fp32 → e2m3 (exhaustive 2^32)");
-        stats.expect(sweep_16bit_to_8bit_<__half>( //
-                         "fp16 → e3m2", nk_f16_k, nk_e3m2_k, bits_fp16_nan_, 0x3F,
-                         [](__half const *device_source, unsigned char *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             fp16_to_fp6_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E3M2);
-                         }),
-                     "fp16 → e3m2 (exhaustive 2^16)");
-        stats.expect(sweep_16bit_to_8bit_<__half>( //
-                         "fp16 → e2m3", nk_f16_k, nk_e2m3_k, bits_fp16_nan_, 0x3F,
-                         [](__half const *device_source, unsigned char *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             fp16_to_fp6_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E2M3);
-                         }),
-                     "fp16 → e2m3 (exhaustive 2^16)");
-        stats.expect(sweep_16bit_to_8bit_<__nv_bfloat16>( //
-                         "bf16 → e3m2", nk_bf16_k, nk_e3m2_k, bits_bf16_nan_, 0x3F,
-                         [](__nv_bfloat16 const *device_source, unsigned char *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             bf16_to_fp6_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E3M2);
-                         }),
-                     "bf16 → e3m2 (exhaustive 2^16)");
-        stats.expect(sweep_16bit_to_8bit_<__nv_bfloat16>( //
-                         "bf16 → e2m3", nk_bf16_k, nk_e2m3_k, bits_bf16_nan_, 0x3F,
-                         [](__nv_bfloat16 const *device_source, unsigned char *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             bf16_to_fp6_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E2M3);
-                         }),
-                     "bf16 → e2m3 (exhaustive 2^16)");
+    run_kernel_case(
+        "sweep_fp32_to_fp6_(nk_e3m2_k)",
+        [] {
+            error_stats_t stats(comparison_family_t::exact_k);
+            stats.expect_true(sweep_fp32_to_fp6_( //
+                                  "fp32 → e3m2", nk_e3m2_k, __NV_E3M2,
+                                  [](float const *device_source, unsigned char *device_destination, std::size_t count,
+                                     __nv_fp6_interpretation_t interpretation, dim3 grid, dim3 block) {
+                                      fp32_to_fp6_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           interpretation);
+                                  }),
+                              "fp32 → e3m2 (exhaustive 2^32)");
+            stats.expect_true(sweep_fp32_to_fp6_( //
+                                  "fp32 → e2m3", nk_e2m3_k, __NV_E2M3,
+                                  [](float const *device_source, unsigned char *device_destination, std::size_t count,
+                                     __nv_fp6_interpretation_t interpretation, dim3 grid, dim3 block) {
+                                      fp32_to_fp6_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           interpretation);
+                                  }),
+                              "fp32 → e2m3 (exhaustive 2^32)");
+            stats.expect_true(sweep_16bit_to_8bit_<__half>( //
+                                  "fp16 → e3m2", nk_f16_k, nk_e3m2_k, bits_fp16_nan_, 0x3F,
+                                  [](__half const *device_source, unsigned char *device_destination, std::size_t count,
+                                     dim3 grid, dim3 block) {
+                                      fp16_to_fp6_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E3M2);
+                                  }),
+                              "fp16 → e3m2 (exhaustive 2^16)");
+            stats.expect_true(sweep_16bit_to_8bit_<__half>( //
+                                  "fp16 → e2m3", nk_f16_k, nk_e2m3_k, bits_fp16_nan_, 0x3F,
+                                  [](__half const *device_source, unsigned char *device_destination, std::size_t count,
+                                     dim3 grid, dim3 block) {
+                                      fp16_to_fp6_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E2M3);
+                                  }),
+                              "fp16 → e2m3 (exhaustive 2^16)");
+            stats.expect_true(sweep_16bit_to_8bit_<__nv_bfloat16>( //
+                                  "bf16 → e3m2", nk_bf16_k, nk_e3m2_k, bits_bf16_nan_, 0x3F,
+                                  [](__nv_bfloat16 const *device_source, unsigned char *device_destination,
+                                     std::size_t count, dim3 grid, dim3 block) {
+                                      bf16_to_fp6_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E3M2);
+                                  }),
+                              "bf16 → e3m2 (exhaustive 2^16)");
+            stats.expect_true(sweep_16bit_to_8bit_<__nv_bfloat16>( //
+                                  "bf16 → e2m3", nk_bf16_k, nk_e2m3_k, bits_bf16_nan_, 0x3F,
+                                  [](__nv_bfloat16 const *device_source, unsigned char *device_destination,
+                                     std::size_t count, dim3 grid, dim3 block) {
+                                      bf16_to_fp6_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E2M3);
+                                  }),
+                              "bf16 → e2m3 (exhaustive 2^16)");
 
-        return stats;
-    });
+            return stats;
+        },
+        nk_cap_cuda_k);
 
-    check("cast_fp6_reverse_cuda", [&](settings_t const &) {
-        error_stats_t stats(comparison_family_t::exact_k);
-        stats.expect(sweep_small_to_wide_<float>( //
-                         "e3m2 → fp32", nk_e3m2_k, nk_f32_k, 64u,
-                         [](unsigned char const *device_source, float *device_destination, std::size_t count, dim3 grid,
-                            dim3 block) {
-                             fp6_to_fp32_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E3M2);
-                         },
-                         f32_bits_equal_tolerant_nan_),
-                     "e3m2 → fp32 (exhaustive 2^6)");
-        stats.expect(sweep_small_to_wide_<float>( //
-                         "e2m3 → fp32", nk_e2m3_k, nk_f32_k, 64u,
-                         [](unsigned char const *device_source, float *device_destination, std::size_t count, dim3 grid,
-                            dim3 block) {
-                             fp6_to_fp32_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E2M3);
-                         },
-                         f32_bits_equal_tolerant_nan_),
-                     "e2m3 → fp32 (exhaustive 2^6)");
-        stats.expect(sweep_small_to_wide_<__half>( //
-                         "e3m2 → fp16", nk_e3m2_k, nk_f16_k, 64u,
-                         [](unsigned char const *device_source, __half *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             fp6_to_fp16_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E3M2);
-                         },
-                         f16_bits_equal_tolerant_nan_),
-                     "e3m2 → fp16 (exhaustive 2^6)");
-        stats.expect(sweep_small_to_wide_<__half>( //
-                         "e2m3 → fp16", nk_e2m3_k, nk_f16_k, 64u,
-                         [](unsigned char const *device_source, __half *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             fp6_to_fp16_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E2M3);
-                         },
-                         f16_bits_equal_tolerant_nan_),
-                     "e2m3 → fp16 (exhaustive 2^6)");
-        stats.expect(sweep_small_to_wide_<__nv_bfloat16>( //
-                         "e3m2 → bf16", nk_e3m2_k, nk_bf16_k, 64u,
-                         [](unsigned char const *device_source, __nv_bfloat16 *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             fp6_to_bf16_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E3M2);
-                         },
-                         bf16_bits_equal_tolerant_nan_),
-                     "e3m2 → bf16 (exhaustive 2^6)");
-        stats.expect(sweep_small_to_wide_<__nv_bfloat16>( //
-                         "e2m3 → bf16", nk_e2m3_k, nk_bf16_k, 64u,
-                         [](unsigned char const *device_source, __nv_bfloat16 *device_destination, std::size_t count,
-                            dim3 grid, dim3 block) {
-                             fp6_to_bf16_kernel_<<<grid, block>>>(device_source, device_destination, count, __NV_E2M3);
-                         },
-                         bf16_bits_equal_tolerant_nan_),
-                     "e2m3 → bf16 (exhaustive 2^6)");
+    run_kernel_case(
+        "sweep_small_to_wide_<float>(nk_e3m2_k, nk_f32_k)",
+        [] {
+            error_stats_t stats(comparison_family_t::exact_k);
+            stats.expect_true(sweep_small_to_wide_<float>( //
+                                  "e3m2 → fp32", nk_e3m2_k, nk_f32_k, 64u,
+                                  [](unsigned char const *device_source, float *device_destination, std::size_t count,
+                                     dim3 grid, dim3 block) {
+                                      fp6_to_fp32_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E3M2);
+                                  },
+                                  f32_bits_equal_tolerant_nan_),
+                              "e3m2 → fp32 (exhaustive 2^6)");
+            stats.expect_true(sweep_small_to_wide_<float>( //
+                                  "e2m3 → fp32", nk_e2m3_k, nk_f32_k, 64u,
+                                  [](unsigned char const *device_source, float *device_destination, std::size_t count,
+                                     dim3 grid, dim3 block) {
+                                      fp6_to_fp32_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E2M3);
+                                  },
+                                  f32_bits_equal_tolerant_nan_),
+                              "e2m3 → fp32 (exhaustive 2^6)");
+            stats.expect_true(sweep_small_to_wide_<__half>( //
+                                  "e3m2 → fp16", nk_e3m2_k, nk_f16_k, 64u,
+                                  [](unsigned char const *device_source, __half *device_destination, std::size_t count,
+                                     dim3 grid, dim3 block) {
+                                      fp6_to_fp16_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E3M2);
+                                  },
+                                  f16_bits_equal_tolerant_nan_),
+                              "e3m2 → fp16 (exhaustive 2^6)");
+            stats.expect_true(sweep_small_to_wide_<__half>( //
+                                  "e2m3 → fp16", nk_e2m3_k, nk_f16_k, 64u,
+                                  [](unsigned char const *device_source, __half *device_destination, std::size_t count,
+                                     dim3 grid, dim3 block) {
+                                      fp6_to_fp16_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E2M3);
+                                  },
+                                  f16_bits_equal_tolerant_nan_),
+                              "e2m3 → fp16 (exhaustive 2^6)");
+            stats.expect_true(sweep_small_to_wide_<__nv_bfloat16>( //
+                                  "e3m2 → bf16", nk_e3m2_k, nk_bf16_k, 64u,
+                                  [](unsigned char const *device_source, __nv_bfloat16 *device_destination,
+                                     std::size_t count, dim3 grid, dim3 block) {
+                                      fp6_to_bf16_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E3M2);
+                                  },
+                                  bf16_bits_equal_tolerant_nan_),
+                              "e3m2 → bf16 (exhaustive 2^6)");
+            stats.expect_true(sweep_small_to_wide_<__nv_bfloat16>( //
+                                  "e2m3 → bf16", nk_e2m3_k, nk_bf16_k, 64u,
+                                  [](unsigned char const *device_source, __nv_bfloat16 *device_destination,
+                                     std::size_t count, dim3 grid, dim3 block) {
+                                      fp6_to_bf16_kernel_<<<grid, block>>>(device_source, device_destination, count,
+                                                                           __NV_E2M3);
+                                  },
+                                  bf16_bits_equal_tolerant_nan_),
+                              "e2m3 → bf16 (exhaustive 2^6)");
 
-        return stats;
-    });
+            return stats;
+        },
+        nk_cap_cuda_k);
 }
 
-void test_cast_cuda(error_stats_section_t &check) {
-    test_cast_cuda_conformance(check);
+void run_cast_cuda_cases() {
+    run_cast_cuda_conformance_cases();
 #if NUMKONG_TARGET_CUDA
-    check.section("Conversions CUDA", nk_cap_cuda_k);
-    check("cast_pairs_cuda", test_cast_pairs<cuda_backend_t>, nk_cast_cuda);
-    check("cast_block_scaled_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_cuda);
+    auto const cuda = nk_cap_cuda_k;
+    run_kernel_case("test_cast_pairs<cuda_backend_t>(nk_cast_cuda)", test_cast_pairs<cuda_backend_t>, cuda,
+                    nk_cast_cuda);
+    run_kernel_case("test_cast_block_scaled<cuda_backend_t>(nk_cast_cuda)", test_cast_block_scaled<cuda_backend_t>,
+                    cuda, nk_cast_cuda);
 #endif // NUMKONG_TARGET_CUDA
 #if NUMKONG_TARGET_AMPERE
-    check.section("Conversions Ampere", nk_cap_ampere_k);
-    check("cast_pairs_ampere", test_cast_pairs<cuda_backend_t>, nk_cast_ampere);
+    auto const ampere = nk_cap_ampere_k;
+    run_kernel_case("test_cast_pairs<cuda_backend_t>(nk_cast_ampere)", test_cast_pairs<cuda_backend_t>, ampere,
+                    nk_cast_ampere);
 #endif // NUMKONG_TARGET_AMPERE
 #if NUMKONG_TARGET_ADA
-    check.section("Conversions Ada", nk_cap_ada_k);
-    check("cast_pairs_ada", test_cast_pairs<cuda_backend_t>, nk_cast_ada);
+    auto const ada = nk_cap_ada_k;
+    run_kernel_case("test_cast_pairs<cuda_backend_t>(nk_cast_ada)", test_cast_pairs<cuda_backend_t>, ada, nk_cast_ada);
 #endif // NUMKONG_TARGET_ADA
 }
 
 #else // !NUMKONG_ARCH_CUDA_
-void test_cast_cuda(error_stats_section_t &) {}
+void run_cast_cuda_cases() {}
 
 #endif // NUMKONG_ARCH_CUDA_
 

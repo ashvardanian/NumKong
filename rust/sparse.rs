@@ -341,7 +341,7 @@ mod tests {
     // region: Sparse Intersections
 
     #[test]
-    fn sparse_intersection() {
+    fn sparse_intersection_counts_and_writes_shared_indices() {
         // u16 — intersection size
         let left: Vec<u16> = vec![1, 3, 5, 7, 9];
         let right: Vec<u16> = vec![2, 3, 5, 8, 9];
@@ -368,7 +368,7 @@ mod tests {
     }
 
     #[test]
-    fn sparse_intersect_into_buffer_too_small() {
+    fn sparse_intersect_into_refuses_a_short_buffer() {
         let left: Vec<u16> = vec![1, 2, 3, 4, 5];
         let right: Vec<u16> = vec![3, 4, 5, 6, 7];
         let mut result: Vec<u16> = vec![0; 2];
@@ -441,7 +441,7 @@ mod tests {
     }
 
     #[test]
-    fn intersect_u32_comprehensive() {
+    fn u32_intersections_match_the_reference_on_every_pair() {
         let test_arrays: Vec<Vec<u32>> = generate_intersection_test_arrays();
         for (i, array_a) in test_arrays.iter().enumerate() {
             for (j, array_b) in test_arrays.iter().enumerate() {
@@ -461,7 +461,7 @@ mod tests {
     }
 
     #[test]
-    fn intersect_u16_comprehensive() {
+    fn u16_intersections_match_the_reference_on_every_pair() {
         let test_arrays: Vec<Vec<u16>> = generate_intersection_test_arrays();
         for (i, array_a) in test_arrays.iter().enumerate() {
             for (j, array_b) in test_arrays.iter().enumerate() {
@@ -481,7 +481,7 @@ mod tests {
     }
 
     #[test]
-    fn intersect_edge_cases() {
+    fn intersections_hold_at_empty_single_and_simd_boundary_sizes() {
         let empty: &[u32] = &[];
         let non_empty: &[u32] = &[1, 2, 3];
         assert_eq!(u32::sparse_intersection_size(empty, empty).unwrap(), 0);
@@ -515,7 +515,7 @@ mod tests {
     // region: SparseDot
 
     #[test]
-    fn sparse_dot() {
+    fn sparse_dot_sums_products_of_shared_indices() {
         // u32 indices with f32 weights
         let first_indices: Vec<u32> = vec![1, 3, 5];
         let second_indices: Vec<u32> = vec![2, 3, 5, 7];

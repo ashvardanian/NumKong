@@ -502,10 +502,11 @@ impl Mahalanobis for bf16 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{FloatLike, NumberLike, TestableType, assert_close, bf16, f16};
+    use crate::testing::{TestableType, assert_close};
+    use crate::types::{FloatLike, NumberLike, bf16, f16};
 
     /// Build an identity matrix of size point_count × point_count.
-    pub(crate) fn make_identity<Scalar: FloatLike>(point_count: usize) -> Vec<Scalar> {
+    fn make_identity<Scalar: FloatLike>(point_count: usize) -> Vec<Scalar> {
         let mut v = vec![Scalar::zero(); point_count * point_count];
         for i in 0..point_count {
             v[i * point_count + i] = Scalar::one();
@@ -532,7 +533,7 @@ mod tests {
     }
 
     #[test]
-    fn bilinear() {
+    fn bilinear_under_identity_equals_the_dot_product() {
         // first=[1,2,3], second=[4,5,6], identity matrix → dot = 32
         let first_values = &[1.0, 2.0, 3.0];
         let second_values = &[4.0, 5.0, 6.0];
@@ -561,7 +562,7 @@ mod tests {
     }
 
     #[test]
-    fn mahalanobis() {
+    fn mahalanobis_under_identity_equals_the_euclidean_distance() {
         // first=[1,2,3], second=[4,5,6], identity → sqrt(27)
         let first_values = &[1.0, 2.0, 3.0];
         let second_values = &[4.0, 5.0, 6.0];

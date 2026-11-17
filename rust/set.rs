@@ -188,10 +188,11 @@ impl<Scalar: Hamming + Jaccard> BinarySimilarity for Scalar {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{assert_close, u1x8};
+    use crate::testing::assert_close;
+    use crate::types::u1x8;
 
     #[test]
-    fn hamming() {
+    fn hamming_counts_differing_bits_and_bytes() {
         // u1x8
         let left = vec![u1x8(0b11110000), u1x8(0b10101010)];
         let right = vec![u1x8(0b00001111), u1x8(0b01010101)];
@@ -204,7 +205,7 @@ mod tests {
     }
 
     #[test]
-    fn jaccard() {
+    fn jaccard_is_zero_for_equal_sets_and_one_for_disjoint_ones() {
         // u1x8 — identical
         let left = vec![u1x8(0b11110000), u1x8(0b10101010)];
         let right = vec![u1x8(0b11110000), u1x8(0b10101010)];

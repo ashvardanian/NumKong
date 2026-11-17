@@ -40,28 +40,24 @@ enum class geodesics_case_t { anywhere_k, nearby_k, coincident_k, antipodal_k, l
  */
 template <typename scalar_type_, nk_kernel_kind_t kind_, typename backend_type_ = host_backend_t,
           typename pack_size_type_, typename pack_type_, typename kernel_type_>
-error_stats_t test_geodesics_packed(settings_t const &settings, pack_size_type_ pack_size, pack_type_ pack,
-                                    kernel_type_ kernel) {
+error_stats_t test_geodesics_packed(pack_size_type_ pack_size, pack_type_ pack, kernel_type_ kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     constexpr bool spherical = kind_ == nk_kernel_haversines_packed_k;
     error_stats_t stats(spherical ? nk_haversines_error_bound(scalar_t::dtype())
                                   : nk_vincentys_error_bound(scalar_t::dtype()));
-    auto backend = make_backend<backend_type_>(settings);
-    std::mt19937 generator(settings.seed.value);
-    double const pi = 3.14159265358979323846, angle = double(settings.max_coord_angle_degrees) * pi / 180;
+    auto backend = make_backend<backend_type_>();
+    split_mix_generator_t generator(case_stream_key());
+    double const pi = 3.14159265358979323846, angle = double(test_run.settings.max_coord_angle_degrees) * pi / 180;
     double const cap = spherical ? pi : nk::min_of(angle, pi / 2) / 2;
     std::pair<geodesics_case_t, double> const cases[] = {{geodesics_case_t::anywhere_k, spherical ? angle : cap},
                                                          {geodesics_case_t::nearby_k, 1e-9},
                                                          {geodesics_case_t::coincident_k, 0},
                                                          {geodesics_case_t::antipodal_k, 0},
                                                          {geodesics_case_t::landmarks_k, 0}};
-    std::pair<std::size_t, std::size_t> const shapes[] = {{settings.matrix_height, settings.matrix_width},
-                                                          {1, 1},
-                                                          {2, 3},
-                                                          {3, 2},
-                                                          {17, 33}};
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
+    std::pair<std::size_t, std::size_t> const shapes[] =
+        {{test_run.settings.matrix_height, test_run.settings.matrix_width}, {1, 1}, {2, 3}, {3, 2}, {17, 33}};
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();)
         for (auto const [kind, separation] : cases) {
             // Opposite points and landmarks reach the antipode, where Vincenty may not settle.
             if (!spherical && (kind == geodesics_case_t::antipodal_k || kind == geodesics_case_t::landmarks_k))
@@ -105,7 +101,7 @@ error_stats_t test_geodesics_packed(settings_t const &settings, pack_size_type_ 
                     b_lat[index] = latitudes[index * 5 % 6], b_lon[index] = longitudes[(index + index / 6) % 6];
 
                 nk_size_t a_bytes = 0, b_bytes = 0;
-                stats.expect(pack_size(rows, &a_bytes)), stats.expect(pack_size(columns, &b_bytes));
+                stats.expect_status(pack_size(rows, &a_bytes)), stats.expect_status(pack_size(columns, &b_bytes));
                 auto a_packed = make_vector<std::byte>(backend, a_bytes);
                 auto b_packed = make_vector<std::byte>(backend, b_bytes);
                 auto results = make_vector<scalar_t>(backend, rows * columns);
@@ -116,7 +112,7 @@ error_stats_t test_geodesics_packed(settings_t const &settings, pack_size_type_ 
                 backend.call(kernel, static_cast<void const *>(a_packed.raw_values_data()),
                              static_cast<void const *>(b_packed.raw_values_data()), results.raw_values_data(),
                              columns * sizeof(raw_t));
-                if (!stats.expect(backend.synchronize())) return stats;
+                if (!stats.expect_status(backend.synchronize())) return stats;
                 std::vector<scalar_t> reference(rows * columns);
                 if constexpr (spherical)
                     nk::haversines<f118_t>(a_lat, a_lon, rows, b_lat, b_lon, columns, reference.data(),
@@ -141,7 +137,7 @@ error_stats_t test_geodesics_packed(settings_t const &settings, pack_size_type_ 
                 backend.call(kernel, static_cast<void const *>(a_packed.raw_values_data()),
                              static_cast<void const *>(b_packed.raw_values_data()), results.raw_values_data(),
                              sizeof(raw_t));
-                if (!stats.expect(backend.synchronize())) return stats;
+                if (!stats.expect_status(backend.synchronize())) return stats;
                 nk::vincentys<f118_t>(a_lat, a_lon, 1, b_lat, b_lon, 1, reference.data(), sizeof(scalar_t));
                 stats.accumulate_bounded(scalar_t::from_raw(results.raw_values_data()[0]),
                                          static_cast<double>(reference[0]),
@@ -166,13 +162,13 @@ error_stats_t test_geodesics_packed(settings_t const &settings, pack_size_type_ 
  */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename pack_size_type_, typename pack_type_,
           typename heights_type_, typename clearances_type_>
-error_stats_t test_terrain_packed(settings_t const &settings, pack_size_type_ pack_size, pack_type_ pack_kernel,
-                                  heights_type_ heights_kernel, clearances_type_ clearances_kernel) {
+error_stats_t test_terrain_packed(pack_size_type_ pack_size, pack_type_ pack_kernel, heights_type_ heights_kernel,
+                                  clearances_type_ clearances_kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     error_stats_t stats(0.0);
-    auto backend = make_backend<backend_type_>(settings);
-    std::mt19937 generator(settings.seed.value);
+    auto backend = make_backend<backend_type_>();
+    split_mix_generator_t generator(case_stream_key());
     std::normal_distribution<raw_t> step(0.0f, 4.0f);
     std::uniform_real_distribution<raw_t> unit(0.0f, 1.0f);
     raw_t const not_a_number = std::numeric_limits<raw_t>::quiet_NaN();
@@ -190,7 +186,7 @@ error_stats_t test_terrain_packed(settings_t const &settings, pack_size_type_ pa
     nk_f64_t const refractions[] = {1.0 / 7, 1.0 / 7, 0.0, 1.0};
     std::size_t const passes = sizeof(refractions) / sizeof(refractions[0]), cells = viewpoints_count * targets_count;
     nk_f64_t const row_metres = 30.0, column_metres = 21.0;
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();)
         for (grid_t const grid : grids) {
             std::size_t const rows = grid.rows, columns = grid.columns, padded = columns + 3;
             auto heights = make_vector<scalar_t>(backend, rows * padded);
@@ -248,7 +244,7 @@ error_stats_t test_terrain_packed(settings_t const &settings, pack_size_type_ pa
             }
 
             nk_size_t bytes = 0;
-            stats.expect(pack_size(rows, columns, &bytes));
+            stats.expect_status(pack_size(rows, columns, &bytes));
             auto packed = make_vector<std::byte>(backend, bytes);
             auto point_heights = make_vector<scalar_t>(backend, points_count);
             auto clearances = make_vector<scalar_t>(backend, passes * cells);
@@ -264,28 +260,30 @@ error_stats_t test_terrain_packed(settings_t const &settings, pack_size_type_ pa
                              static_cast<raw_t const *>(pass == 1 ? view_values : nullptr), nk_size_t(viewpoints_count),
                              static_cast<raw_t const *>(target_values), nk_size_t(targets_count), refractions[pass],
                              clearances.raw_values_data() + pass * cells, targets_count * sizeof(raw_t));
-            if (!stats.expect(backend.synchronize())) return stats;
+            if (!stats.expect_status(backend.synchronize())) return stats;
 
             auto expected_packed = make_vector<std::byte>(bytes);
-            stats.expect(nk::terrain_pack(heights.values_data(), rows, columns, padded * sizeof(raw_t), row_metres,
-                                          column_metres, expected_packed.raw_values_data()));
+            stats.expect_status(nk::terrain_pack(heights.values_data(), rows, columns, padded * sizeof(raw_t),
+                                                 row_metres, column_metres, expected_packed.raw_values_data()));
             // Heights and viewed clearances against their templates in f64, as the kernels compute
             std::vector<f64_t> expected(nk::max_of(points_count, cells));
-            stats.expect(nk::terrain_heights_packed<scalar_t, f64_t>(
+            stats.expect_status(nk::terrain_heights_packed<scalar_t, f64_t>(
                 heights.values_data(), expected_packed.raw_values_data(), points.values_data(), points_count,
                 expected.data(), no_tiers_k));
             for (std::size_t point = 0; point != points_count; ++point)
-                stats.expect(same(point_heights.raw_values_data()[point], static_cast<raw_t>(expected[point].raw_)),
-                             "a terrain height differs from its template");
-            stats.expect(nk::clearances_packed<scalar_t, f64_t>(
+                stats.expect_true(
+                    same(point_heights.raw_values_data()[point], static_cast<raw_t>(expected[point].raw_)),
+                    "a terrain height differs from its template");
+            stats.expect_status(nk::clearances_packed<scalar_t, f64_t>(
                 heights.values_data(), expected_packed.raw_values_data(), viewpoints.values_data(), views.values_data(),
                 viewpoints_count, targets.values_data(), targets_count, refractions[1], expected.data(),
                 targets_count * sizeof(f64_t), no_tiers_k));
             raw_t const *viewed = clearances.raw_values_data() + cells;
             for (std::size_t cell = 0; cell != cells; ++cell)
-                stats.expect(same(viewed[cell], static_cast<raw_t>(expected[cell].raw_)) &&
-                                 (viewed[cell] == -infinity || same(viewed[cell], clearances.raw_values_data()[cell])),
-                             "a view changes a clearance other than by hiding it as its template does");
+                stats.expect_true(
+                    same(viewed[cell], static_cast<raw_t>(expected[cell].raw_)) &&
+                        (viewed[cell] == -infinity || same(viewed[cell], clearances.raw_values_data()[cell])),
+                    "a view changes a clearance other than by hiding it as its template does");
 
             // Every crossing in turn, without the pyramid, in the arithmetic the kernels use.
             double const last_row = double(rows - 1), last_column = double(columns - 1);
@@ -332,8 +330,8 @@ error_stats_t test_terrain_packed(settings_t const &settings, pack_size_type_ pa
                         fold(u, terrain[row * padded + column_first], terrain[row * padded + column_second],
                              column - (nk_f64_t)column_first);
                     }
-                    stats.expect(same(clearances.raw_values_data()[pass * cells + cell], (raw_t)clearance),
-                                 "a pyramided clearance differs from the visit of every crossing");
+                    stats.expect_true(same(clearances.raw_values_data()[pass * cells + cell], (raw_t)clearance),
+                                      "a pyramided clearance differs from the visit of every crossing");
                 }
             }
         }
@@ -342,7 +340,7 @@ error_stats_t test_terrain_packed(settings_t const &settings, pack_size_type_ pa
     std::size_t const sea_columns = 501;
     auto sea = make_vector<scalar_t>(backend, sea_columns);
     nk_size_t sea_bytes = 0;
-    stats.expect(pack_size(1, sea_columns, &sea_bytes));
+    stats.expect_status(pack_size(1, sea_columns, &sea_bytes));
     auto sea_packed = make_vector<std::byte>(backend, sea_bytes);
     auto sea_points = make_vector<scalar_t>(backend, 13);
     auto sea_results = make_vector<scalar_t>(backend, 2);
@@ -358,7 +356,7 @@ error_stats_t test_terrain_packed(settings_t const &settings, pack_size_type_ pa
                      static_cast<void const *>(sea_packed.raw_values_data()), static_cast<raw_t const *>(sea_values),
                      view, nk_size_t(1), static_cast<raw_t const *>(sea_values + 3), targets, refraction, seen,
                      targets * sizeof(raw_t));
-        return stats.expect(backend.synchronize());
+        return stats.expect_status(backend.synchronize());
     };
     pack_sea();
     for (auto const [column, refraction, visible] :
@@ -366,17 +364,19 @@ error_stats_t test_terrain_packed(settings_t const &settings, pack_size_type_ pa
         raw_t const masts[6] = {0.0f, 0.0f, 10.0f, column, 0.0f, 10.0f};
         std::memcpy(sea_values, masts, sizeof(masts));
         if (clear(1, nullptr, refraction))
-            stats.expect((seen[0] > 0) == visible, "masts over a flat sea break the horizon at their distance");
+            stats.expect_true((seen[0] > 0) == visible, "masts over a flat sea break the horizon at their distance");
     }
     sea_values[3] = 490.0f;
-    if (clear(1, nullptr, 1.0)) stats.expect(seen[0] == 10.0f, "without curvature the clearance is the masts' height");
+    if (clear(1, nullptr, 1.0))
+        stats.expect_true(seen[0] == 10.0f, "without curvature the clearance is the masts' height");
     raw_t const facing_east[13] = {250.0f, 0.0f,  10.0f,      300.0f, 0.0f, 10.0f,   200.0f,
                                    0.0f,   10.0f, 1.5707964f, 0.0f,   0.5f, infinity};
     std::memcpy(sea_values, facing_east, sizeof(facing_east));
     if (clear(2, sea_values + 9, 1.0))
-        stats.expect(seen[0] == 10.0f && seen[1] == -infinity, "a view facing east sees east and not west");
+        stats.expect_true(seen[0] == 10.0f && seen[1] == -infinity, "a view facing east sees east and not west");
     sea_values[12] = 1000.0f;
-    if (clear(2, sea_values + 9, 1.0)) stats.expect(seen[0] == -infinity, "a view reaches no farther than its range");
+    if (clear(2, sea_values + 9, 1.0))
+        stats.expect_true(seen[0] == -infinity, "a view reaches no farther than its range");
     sea_heights[10] = 4.0f, sea_heights[11] = 8.0f;
     pack_sea();
     raw_t const probes[4] = {10.25f, 0.0f, 600.0f, 0.0f};
@@ -384,8 +384,8 @@ error_stats_t test_terrain_packed(settings_t const &settings, pack_size_type_ pa
     backend.call(heights_kernel, static_cast<raw_t const *>(sea_heights),
                  static_cast<void const *>(sea_packed.raw_values_data()), static_cast<raw_t const *>(sea_values),
                  nk_size_t(2), seen);
-    if (stats.expect(backend.synchronize()))
-        stats.expect(seen[0] == 5.0f && seen[1] != seen[1], "heights interpolate and leave the grid as NaN");
+    if (stats.expect_status(backend.synchronize()))
+        stats.expect_true(seen[0] == 5.0f && seen[1] != seen[1], "heights interpolate and leave the grid as NaN");
     return stats;
 }
 

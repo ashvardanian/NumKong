@@ -434,10 +434,11 @@ mod tests {
     use super::{TrigAtan, TrigCos, TrigSin};
     use crate::{
         tensor::Error,
-        types::{FloatLike, TestableType, assert_close, f16},
+        testing::{TestableType, assert_close},
+        types::{FloatLike, f16},
     };
 
-    pub(crate) fn check_trig_unary<Scalar, F>(
+    fn check_trig_unary<Scalar, F>(
         count: usize,
         gen_fn: fn(usize, usize) -> f64,
         op: F,
@@ -495,21 +496,21 @@ mod tests {
     }
 
     #[test]
-    fn sin() {
+    fn sin_matches_f64_over_a_full_turn() {
         check_trig_sin::<f32>(97);
         check_trig_sin::<f64>(97);
         check_trig_sin::<f16>(97);
     }
 
     #[test]
-    fn cos() {
+    fn cos_matches_f64_over_a_full_turn() {
         check_trig_cos::<f32>(97);
         check_trig_cos::<f64>(97);
         check_trig_cos::<f16>(97);
     }
 
     #[test]
-    fn atan() {
+    fn atan_matches_f64_from_minus_five_to_five() {
         check_trig_atan::<f32>(100);
         check_trig_atan::<f64>(100);
         check_trig_atan::<f16>(100);

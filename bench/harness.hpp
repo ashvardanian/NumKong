@@ -7,26 +7,27 @@
  *  Comprehensive benchmarks for NumKong SIMD-optimized functions measuring throughput performance.
  *  This header holds measurement infrastructure and templates shared across many benchmark files.
  *
- *  Environment Variables:
+ *  Environment Variables, each overridden by its flag, like <tt>--time-limit 2s</tt>:
  *
  *  @verbatim
- *  Variable                      Default  Meaning
- *  NUMWARS_DEVICES               auto     Comma-separated backend:ordinal, like cuda:0,rocm:1
- *  NUMWARS_FILTER                none     Regex over benchmark names, or a substring if not a regex
- *  NUMWARS_SEED                  42       32-bit seed for random inputs, or random
- *  NUMWARS_WARMUP                1s       Untimed run per benchmark, like 200ms or 1s
- *  NUMWARS_TIME_LIMIT            10s      Timed run per benchmark, like 200ms or 10s
- *  NUMWARS_BATCH_PER_CORE        2048     Elements, pairs or points per call of streaming kernels
- *  NUMWARS_DIMS                  1536     Vector dimension for dot and spatial benchmarks
- *  NUMWARS_DIMS_HEIGHT           1024     GEMM M dimension, like the dataset size for kNN
- *  NUMWARS_DIMS_WIDTH            128      GEMM N dimension, like the query count for kNN
- *  NUMWARS_DIMS_DEPTH            1536     GEMM K dimension, like the vector dimension for kNN
- *  NUMKONG_CURVED_DIMS           64       Vector dimension for curved benchmarks
- *  NUMKONG_SHAPE_POINTS          32       Points per cloud for shape benchmarks
- *  NUMKONG_SPARSE_FIRST_LENGTH   1024     Elements in the first sparse set
- *  NUMKONG_SPARSE_SECOND_LENGTH  8192     Elements in the second sparse set
- *  NUMKONG_SPARSE_INTERSECTION   0.5      Share of the smaller sparse set both sets hold, in (0, 1]
- *  NUMKONG_MAX_COORD_ANGLE       180      Max geospatial angular separation in degrees, in [0, 180]
+ *  Variable                      Flag                    Default  Meaning
+ *  NUMWARS_DEVICES               --devices               auto     Comma-separated backend:ordinal, like cuda:0,rocm:1
+ *  NUMWARS_FILTER                --filter                none     Regex over benchmark names, or a substring if not a
+ * regex NUMWARS_SEED                  --seed                  42       Seed for random inputs, any unsigned 64-bit
+ * value, or random NUMWARS_WARMUP                --warmup                1s       Untimed run per benchmark, like
+ * 200ms, 1s or 2m NUMWARS_TIME_LIMIT            --time-limit            10s      Timed run per benchmark, like 200ms,
+ * 10s or 2m NUMWARS_BATCH_PER_CORE        --batch-per-core        2048     Elements, pairs or points per call of
+ * streaming kernels NUMWARS_DIMS                  --dims                  1536     Vector dimension for dot and spatial
+ * benchmarks NUMWARS_DIMS_HEIGHT           --dims-height           1024     GEMM M dimension, like the dataset size for
+ * kNN NUMWARS_DIMS_WIDTH            --dims-width            128      GEMM N dimension, like the query count for kNN
+ *  NUMWARS_DIMS_DEPTH            --dims-depth            1536     GEMM K dimension, like the vector dimension for kNN
+ *  NUMKONG_CURVED_DIMS           --curved-dims           64       Vector dimension for curved benchmarks
+ *  NUMKONG_SHAPE_POINTS          --shape-points          32       Points per cloud for shape benchmarks
+ *  NUMKONG_SPARSE_FIRST_LENGTH   --sparse-first-length   1024     Elements in the first sparse set
+ *  NUMKONG_SPARSE_SECOND_LENGTH  --sparse-second-length  8192     Elements in the second sparse set
+ *  NUMKONG_SPARSE_INTERSECTION   --sparse-intersection   0.5      Share of the smaller sparse set both sets hold, in
+ * (0, 1] NUMKONG_MAX_COORD_ANGLE       --max-coord-angle       180      Max geospatial angular separation in degrees,
+ * in [0, 180]
  *  @endverbatim
  */
 
@@ -35,9 +36,12 @@
 #define NUMKONG_BENCH_HARNESS_HPP
 
 #include <cctype>  // `std::tolower`
+#include <cmath>   // `std::isfinite`, `std::floor`
 #include <cstddef> // `std::byte`
-#include <cstdint> // `std::uint32_t`
+#include <cstdint> // `std::uint64_t`
+#include <cstdio>  // `std::fprintf`, `std::snprintf`
 #include <cstdlib> // `std::abort`, `std::exit`, `std::getenv`, `std::strtod`
+#include <cstring> // `std::strcmp`, `std::strncmp`
 
 #include <algorithm>    // `std::clamp`, `std::equal`
 #include <array>        // `std::array`
@@ -46,7 +50,7 @@
 #include <chrono>       // `std::chrono::steady_clock`, `std::chrono::milliseconds`
 #include <limits>       // `std::numeric_limits`
 #include <optional>     // `std::optional`
-#include <random>       // `std::mt19937`, `std::random_device`
+#include <random>       // `std::random_device`
 #include <regex>        // `std::regex`, `std::regex_search`
 #include <string>       // `std::string`, `std::to_string`
 #include <string_view>  // `std::string_view`
@@ -95,136 +99,185 @@ namespace nk = ashvardanian::numkong;
 
 namespace ashvardanian::numkong::bench {
 
-/** A 32-bit generator seed, kept apart from counts so neither passes for the other. */
-struct seed_t {
-    std::uint32_t value = 0;
-};
-
-/** A positive thread count: "0" in the environment resolves to every core this process may use. */
-struct threads_t {
-    std::size_t count = 0;
-};
-
 /** A size in bytes, kept apart from element counts. */
 struct bytes_t {
     std::size_t value = 0;
 };
 
-/** The text of the environment variable @p name, or nothing when it is unset or empty. */
-inline std::optional<std::string_view> env_text(char const *name) noexcept {
-    char const *const text = std::getenv(name);
-    if (!text || !*text) return std::nullopt;
-    return std::string_view(text);
-}
+#pragma region Shared Settings
 
-/** Parses the environment variable @p name with @p parse, or returns @p fallback when it is unset
- *  or empty. Text that does not parse prints `NAME="text" does not parse, expected <expected>` and
- *  exits with status 1, which leaves crash handlers quiet. */
-template <typename value_type_, typename parse_type_>
-[[nodiscard]] value_type_ env_parsed(char const *name, value_type_ fallback, parse_type_ &&parse,
-                                     char const *expected) noexcept {
-    std::optional<std::string_view> const text = env_text(name);
-    if (!text) return fallback;
-    if (std::optional<value_type_> value = parse(*text)) return *std::move(value);
-    fmt::println(stderr, "{}=\"{}\" does not parse, expected {}", name, *text, expected);
+/** Exits with one line naming a setting that does not parse, so a bad value never runs anything. */
+[[noreturn]] inline void exit_unparsed(char const *variable, char const *text, char const *expected) noexcept {
+    std::fprintf(stderr, "%s=\"%s\" does not parse, expected %s\n", variable, text, expected);
     std::exit(1);
 }
 
-/** A positive whole number, like "64". */
-inline std::optional<std::size_t> parse_count(std::string_view text) noexcept {
+/** The text of a setting: its @p flag when given, else its environment @p variable , else null. */
+inline char const *setting_text(int argc, char **argv, char const *variable, std::string_view flag) noexcept {
+    for (int index = 1; index < argc; ++index) {
+        std::string_view const argument {argv[index]};
+        if (argument == flag)
+            return index + 1 < argc && std::strncmp(argv[index + 1], "--", 2) != 0 ? argv[index + 1] : "1";
+        if (argument.size() > flag.size() && argument.starts_with(flag) && argument[flag.size()] == '=')
+            return argv[index] + flag.size() + 1;
+    }
+    char const *text = std::getenv(variable);
+    return text && *text ? text : nullptr;
+}
+
+/** A switch, @p fallback when unset: 0, false, off and no turn it off, anything else on. */
+inline bool read_flag_setting(int argc, char **argv, char const *variable, std::string_view flag,
+                              bool fallback = false) noexcept {
+    char const *text = setting_text(argc, argv, variable, flag);
+    if (!text) return fallback;
+    for (char const *off : {"0", "false", "off", "no"})
+        if (std::strcmp(text, off) == 0) return false;
+    return true;
+}
+
+/** A whole number, @p fallback when unset. */
+inline std::size_t read_count_setting(int argc, char **argv, char const *variable, std::string_view flag,
+                                      std::size_t fallback) noexcept {
+    char const *text = setting_text(argc, argv, variable, flag);
+    if (!text) return fallback;
+    std::string_view const spelled {text};
     std::size_t count = 0;
-    auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), count);
-    if (error != std::errc {} || end != text.data() + text.size() || !count) return std::nullopt;
+    auto const [end, error] = std::from_chars(spelled.data(), spelled.data() + spelled.size(), count);
+    if (error != std::errc {} || end != spelled.data() + spelled.size())
+        exit_unparsed(variable, text, "a whole number");
     return count;
 }
 
-/** A positive duration in whole milliseconds or seconds, like "200ms" or "10s". */
-inline std::optional<std::chrono::milliseconds> parse_duration(std::string_view text) noexcept {
+/** A positive real, @p fallback when unset. */
+inline double read_real_setting(int argc, char **argv, char const *variable, std::string_view flag,
+                                double fallback) noexcept {
+    char const *text = setting_text(argc, argv, variable, flag);
+    if (!text) return fallback;
+    char *end = nullptr;
+    double const value = std::strtod(text, &end);
+    if (*end != '\0' || !(value > 0) || !std::isfinite(value))
+        exit_unparsed(variable, text, "a positive number like 0.1 or 10");
+    return value;
+}
+
+/** A positive duration such as 200ms, 10s or 2m, @p fallback when unset. */
+inline std::chrono::milliseconds read_duration_setting(int argc, char **argv, char const *variable,
+                                                       std::string_view flag,
+                                                       std::chrono::milliseconds fallback) noexcept {
+    char const *text = setting_text(argc, argv, variable, flag);
+    if (!text) return fallback;
+    std::string_view const spelled {text};
     std::uint32_t count = 0;
-    auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), count);
-    if (error != std::errc {} || !count) return std::nullopt;
-    std::string_view const unit = text.substr(end - text.data());
-    if (unit == "ms") return std::chrono::milliseconds(count);
-    if (unit == "s") return std::chrono::seconds(count);
-    return std::nullopt;
-}
-
-/** A positive size in whole bytes or binary units of any case, like "4096", "64KB" or "1GB". */
-inline std::optional<bytes_t> parse_size(std::string_view text) noexcept {
-    std::size_t bytes = 0;
-    auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), bytes);
-    if (error != std::errc {} || !bytes) return std::nullopt;
-    std::string_view const unit = text.substr(end - text.data());
-    auto const same_letter = [](char given, char lower) noexcept {
-        return std::tolower(static_cast<unsigned char>(given)) == lower;
-    };
-    for (std::string_view const known : std::array<std::string_view, 5> {"", "kb", "mb", "gb", "tb"}) {
-        if (std::equal(unit.begin(), unit.end(), known.begin(), known.end(), same_letter)) return bytes_t {bytes};
-        if (bytes > (std::numeric_limits<std::size_t>::max)() / 1024) return std::nullopt;
-        bytes *= 1024;
+    auto const [end, error] = std::from_chars(spelled.data(), spelled.data() + spelled.size(), count);
+    std::string_view const unit = spelled.substr(static_cast<std::size_t>(end - spelled.data()));
+    if (error == std::errc {} && count != 0) {
+        if (unit == "ms") return std::chrono::milliseconds(count);
+        if (unit == "s") return std::chrono::seconds(count);
+        if (unit == "m") return std::chrono::minutes(count);
     }
-    return std::nullopt;
+    exit_unparsed(variable, text, "a duration like 200ms, 10s or 2m");
 }
 
-/** Positive counts separated by commas, like "64,128". */
-inline std::optional<std::vector<std::size_t>> parse_dims(std::string_view text) {
-    std::vector<std::size_t> dims;
-    for (std::size_t start = 0;;) {
-        std::size_t const comma = text.find(',', start);
-        std::optional<std::size_t> const dim = parse_count(text.substr(start, comma - start));
-        if (!dim) return std::nullopt;
-        dims.push_back(*dim);
-        if (comma == std::string_view::npos) return dims;
-        start = comma + 1;
+/** The run's seed: 42 when unset, drawn afresh for @c random , else any unsigned 64-bit value. */
+inline std::uint64_t read_seed_setting(int argc, char **argv, char const *variable, std::string_view flag) noexcept {
+    char const *text = setting_text(argc, argv, variable, flag);
+    if (!text) return 42;
+    std::string_view const spelled {text};
+    if (spelled == "random") {
+        std::random_device device;
+        return (static_cast<std::uint64_t>(device()) << 32) ^ device();
     }
+    std::uint64_t seed = 0;
+    auto const [end, error] = std::from_chars(spelled.data(), spelled.data() + spelled.size(), seed);
+    if (error != std::errc {} || end != spelled.data() + spelled.size())
+        exit_unparsed(variable, text, "an unsigned integer or random");
+    return seed;
 }
 
-/** A 32-bit seed, or "random" for a fresh draw from @c std::random_device. */
-inline std::optional<seed_t> parse_seed(std::string_view text) noexcept {
-    if (text == "random") return seed_t {static_cast<std::uint32_t>(std::random_device {}())};
-    std::uint32_t seed = 0;
-    auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), seed);
-    if (error != std::errc {} || end != text.data() + text.size()) return std::nullopt;
-    return seed_t {seed};
+/** Which labels a run selects: a regex search when the pattern compiles, else a substring. */
+struct filter_t {
+    std::string pattern;
+    std::optional<std::regex> regex;
+
+    bool selects(std::string_view label) const noexcept {
+        if (pattern.empty()) return true;
+        if (regex) return std::regex_search(label.begin(), label.end(), *regex);
+        return label.find(pattern) != std::string_view::npos;
+    }
+};
+
+/** The filter a setting spells, compiled once; empty, selecting everything, when unset. */
+inline filter_t read_filter_setting(int argc, char **argv, char const *variable, std::string_view flag) noexcept {
+    filter_t filter;
+    char const *text = setting_text(argc, argv, variable, flag);
+    if (!text) return filter;
+    filter.pattern = text;
+#if defined(__cpp_exceptions) && __cpp_exceptions
+    try {
+        filter.regex.emplace(filter.pattern);
+    }
+    catch (std::regex_error const &) {
+    }
+#else
+    filter.regex.emplace(filter.pattern);
+#endif
+    return filter;
 }
 
-inline std::size_t env_count(char const *name, std::size_t fallback) noexcept {
-    return env_parsed(name, fallback, parse_count, "a positive count");
+/** What every suite and bench reads before its own settings; @c program starts the rerun lines. */
+struct common_settings_t {
+    std::uint64_t seed = 42;
+    filter_t filter;
+    char const *program = "";
+};
+
+/** SplitMix64's finalizer, a bijection that spreads every input bit over all 64 output bits. */
+constexpr std::uint64_t split_mix_bits(std::uint64_t value) noexcept {
+    value = (value ^ (value >> 30)) * 0xBF58476D1CE4E5B9ull;
+    value = (value ^ (value >> 27)) * 0x94D049BB133111EBull;
+    return value ^ (value >> 31);
 }
 
-inline std::chrono::milliseconds env_duration(char const *name, std::chrono::milliseconds fallback) noexcept {
-    return env_parsed(name, fallback, parse_duration, "a duration like 200ms or 10s");
+/** The @p index -th stream of the family @p name under @p seed , identical in every language. */
+constexpr std::uint64_t stream_key(std::uint64_t seed, std::string_view name, std::uint64_t index = 0) noexcept {
+    std::uint64_t hashed = 0xCBF29CE484222325ull;
+    for (char const character : name) hashed = (hashed ^ static_cast<std::uint8_t>(character)) * 0x100000001B3ull;
+    return split_mix_bits(split_mix_bits(seed ^ hashed) + index);
 }
 
-inline bytes_t env_size(char const *name, bytes_t fallback) noexcept {
-    return env_parsed(name, fallback, parse_size, "a size like 4096, 64KB or 1GB");
-}
+/**
+ *  @brief SplitMix64 over one 64-bit state, seeded by a @ref stream_key , bit-identical to the
+ *      JavaScript generator NumKong ships.
+ *
+ *  Distributions are not specified to draw the same sequence on every standard library, so a
+ *  failure would stop reproducing from its seed when the toolchain changed; @ref below is the
+ *  portable bounded draw.
+ */
+struct split_mix_generator_t {
+    using result_type = std::uint64_t;
+    std::uint64_t state = 0;
 
-inline bool env_flag(char const *name, bool fallback) noexcept {
-    auto const parse_flag = [](std::string_view text) noexcept -> std::optional<bool> {
-        if (text == "1" || text == "true") return true;
-        if (text == "0" || text == "false") return false;
-        return std::nullopt;
-    };
-    return env_parsed(name, fallback, parse_flag, "0, 1, true or false");
-}
+    explicit split_mix_generator_t(std::uint64_t key) noexcept : state(key) {}
+    static constexpr result_type(min)() noexcept { return 0; }
+    static constexpr result_type(max)() noexcept { return ~result_type {0}; }
+    result_type operator()() noexcept { return split_mix_bits(state += 0x9E3779B97F4A7C15ull); }
 
-inline seed_t env_seed(char const *name, seed_t fallback) noexcept {
-    return env_parsed(name, fallback, parse_seed, "an unsigned integer or random");
-}
+    /** A uniform draw below @p bound , zero for an empty bound, without the bias of a modulo. */
+    std::uint64_t below(std::uint64_t bound) noexcept {
+        if (bound == 0) return 0;
+        std::uint64_t const rejection_floor = (0u - bound) % bound;
+        std::uint64_t draw = (*this)();
+        while (draw < rejection_floor) draw = (*this)();
+        return draw % bound;
+    }
+};
+
+#pragma endregion Shared Settings
 
 /** Spells @p duration as a user types it: whole seconds as "10s", anything else as "1500ms". */
 inline std::string spell_duration(std::chrono::milliseconds duration) {
     auto const count = duration.count();
     return count % 1000 ? std::to_string(count) + "ms" : std::to_string(count / 1000) + "s";
-}
-
-/** Spells @p size as a user types it, in the largest binary unit dividing it, like "256MB". */
-inline std::string spell_size(bytes_t size) {
-    constexpr std::array<char const *, 5> units {"", "KB", "MB", "GB", "TB"};
-    std::size_t bytes = size.value, power = 0;
-    while (power + 1 != units.size() && bytes && bytes % 1024 == 0) bytes /= 1024, ++power;
-    return std::to_string(bytes) + units[power];
 }
 
 /** Keeps @p value, and every write before it, from being optimized away. */
@@ -431,17 +484,11 @@ inline std::optional<std::vector<device_selection_t>> parse_devices(std::string_
     return std::nullopt;
 }
 
-/** Every benchmark setting, its default as the initializer, filled once by @c read_settings. */
-struct settings_t {
+/** Every benchmark setting, its default as the initializer, read once by @c read_bench_settings. */
+struct bench_settings_t : common_settings_t {
 
+    /** GPUs to time, or every one found when unset. */
     std::optional<std::vector<device_selection_t>> devices;
-
-    /** Benchmarks to run, by ECMAScript regex or else substring. */
-    std::string_view filter;
-    std::optional<std::regex> filter_regex;
-
-    /** Seed for reproducible benchmarks. */
-    seed_t seed {42};
 
     /** Untimed run ahead of each benchmark. */
     std::chrono::milliseconds warmup = std::chrono::seconds(1);
@@ -481,73 +528,71 @@ struct settings_t {
 
     /** Max geospatial angular separation. */
     float max_coord_angle_degrees = 180.0f;
-
-    /** Whether @p name passes the filter. */
-    bool selects(std::string_view name) const {
-        if (filter.empty()) return true;
-        if (filter_regex) return std::regex_search(name.begin(), name.end(), *filter_regex);
-        return name.find(filter) != std::string_view::npos;
-    }
 };
 
-/** Reads every @c settings_t variable, rejecting a zero count or a value out of range. */
-inline settings_t read_settings() noexcept {
-    settings_t settings;
-    auto const number_where = [](char const *name, double fallback, auto accepts, char const *expected) noexcept {
-        auto const parse = [=](std::string_view text) -> std::optional<double> {
-            std::string const terminated(text);
-            char *end = nullptr;
-            double const value = std::strtod(terminated.c_str(), &end);
-            if (end != terminated.c_str() + terminated.size() || !accepts(value)) return std::nullopt;
-            return value;
-        };
-        return env_parsed(name, fallback, parse, expected);
-    };
-    if (env_text("NUMWARS_DEVICES"))
-        settings.devices = env_parsed("NUMWARS_DEVICES", std::vector<device_selection_t> {}, parse_devices,
-                                      "comma-separated devices such as cuda:0,rocm:1");
-    settings.filter = env_text("NUMWARS_FILTER").value_or("");
-    if (!settings.filter.empty()) {
-#if defined(__cpp_exceptions) && __cpp_exceptions
-        try {
-            settings.filter_regex.emplace(settings.filter.begin(), settings.filter.end());
-        }
-        catch (std::regex_error const &) {
-        }
-#else
-        settings.filter_regex.emplace(settings.filter.begin(), settings.filter.end());
-#endif
+/** A number the bench shares with the test suite, hence a @c NUMKONG_* variable, not a @c NUMWARS_*
+ *  one, @p fallback when unset; a whole one, for an integral @p value_type_ , between @p low and
+ *  @p high . */
+template <typename value_type_>
+value_type_ read_library_setting(int argc, char **argv, char const *variable, std::string_view flag,
+                                 value_type_ fallback, double low, double high, char const *expected) noexcept {
+    char const *text = setting_text(argc, argv, variable, flag);
+    if (!text) return fallback;
+    char *end = nullptr;
+    double const value = std::strtod(text, &end);
+    bool const whole = !std::is_integral_v<value_type_> || value == std::floor(value);
+    if (*end == '\0' && whole && value >= low && value <= high) return static_cast<value_type_>(value);
+    exit_unparsed(variable, text, expected);
+}
+
+/** Reads every @c bench_settings_t setting. */
+inline bench_settings_t read_bench_settings(int argc, char **argv) noexcept {
+    bench_settings_t settings;
+    settings.seed = read_seed_setting(argc, argv, "NUMWARS_SEED", "--seed");
+    settings.filter = read_filter_setting(argc, argv, "NUMWARS_FILTER", "--filter");
+    settings.program = argc != 0 ? argv[0] : "";
+    if (char const *text = setting_text(argc, argv, "NUMWARS_DEVICES", "--devices")) {
+        settings.devices = parse_devices(text);
+        if (!settings.devices) exit_unparsed("NUMWARS_DEVICES", text, "comma-separated devices such as cuda:0,rocm:1");
     }
-    settings.seed = env_seed("NUMWARS_SEED", settings.seed);
-    settings.warmup = env_duration("NUMWARS_WARMUP", settings.warmup);
-    settings.time_limit = env_duration("NUMWARS_TIME_LIMIT", settings.time_limit);
-    settings.batch_per_core = env_count("NUMWARS_BATCH_PER_CORE", settings.batch_per_core);
-    settings.dense_dimensions = env_count("NUMWARS_DIMS", settings.dense_dimensions);
-    settings.matrix_height = env_count("NUMWARS_DIMS_HEIGHT", settings.matrix_height);
-    settings.matrix_width = env_count("NUMWARS_DIMS_WIDTH", settings.matrix_width);
-    settings.matrix_depth = env_count("NUMWARS_DIMS_DEPTH", settings.matrix_depth);
-    settings.curved_dimensions = env_count("NUMKONG_CURVED_DIMS", settings.curved_dimensions);
-    settings.shape_points = env_count("NUMKONG_SHAPE_POINTS", settings.shape_points);
-    settings.sparse_first_count = env_count("NUMKONG_SPARSE_FIRST_LENGTH", settings.sparse_first_count);
-    settings.sparse_second_count = env_count("NUMKONG_SPARSE_SECOND_LENGTH", settings.sparse_second_count);
-    settings.sparse_intersection_share = number_where(
-        "NUMKONG_SPARSE_INTERSECTION", settings.sparse_intersection_share,
-        [](double share) noexcept { return share > 0 && share <= 1; }, "a number in (0, 1]");
-    settings.max_coord_angle_degrees = static_cast<float>(number_where(
-        "NUMKONG_MAX_COORD_ANGLE", settings.max_coord_angle_degrees,
-        [](double degrees) noexcept { return degrees >= 0 && degrees <= 180; }, "a number in [0, 180]"));
+    settings.warmup = read_duration_setting(argc, argv, "NUMWARS_WARMUP", "--warmup", settings.warmup);
+    settings.time_limit = read_duration_setting(argc, argv, "NUMWARS_TIME_LIMIT", "--time-limit", settings.time_limit);
+    settings.batch_per_core = read_count_setting(argc, argv, "NUMWARS_BATCH_PER_CORE", "--batch-per-core",
+                                                 settings.batch_per_core);
+    settings.dense_dimensions = read_count_setting(argc, argv, "NUMWARS_DIMS", "--dims", settings.dense_dimensions);
+    settings.matrix_height = read_count_setting(argc, argv, "NUMWARS_DIMS_HEIGHT", "--dims-height",
+                                                settings.matrix_height);
+    settings.matrix_width = read_count_setting(argc, argv, "NUMWARS_DIMS_WIDTH", "--dims-width", settings.matrix_width);
+    settings.matrix_depth = read_count_setting(argc, argv, "NUMWARS_DIMS_DEPTH", "--dims-depth", settings.matrix_depth);
+    double const counts = static_cast<double>((std::numeric_limits<std::size_t>::max)());
+    settings.curved_dimensions = read_library_setting(argc, argv, "NUMKONG_CURVED_DIMS", "--curved-dims",
+                                                      settings.curved_dimensions, 1, counts, "a positive count");
+    settings.shape_points = read_library_setting(argc, argv, "NUMKONG_SHAPE_POINTS", "--shape-points",
+                                                 settings.shape_points, 1, counts, "a positive count");
+    settings.sparse_first_count = read_library_setting(argc, argv, "NUMKONG_SPARSE_FIRST_LENGTH",
+                                                       "--sparse-first-length", settings.sparse_first_count, 1, counts,
+                                                       "a positive count");
+    settings.sparse_second_count = read_library_setting(argc, argv, "NUMKONG_SPARSE_SECOND_LENGTH",
+                                                        "--sparse-second-length", settings.sparse_second_count, 1,
+                                                        counts, "a positive count");
+    settings.sparse_intersection_share = read_library_setting(
+        argc, argv, "NUMKONG_SPARSE_INTERSECTION", "--sparse-intersection", settings.sparse_intersection_share,
+        (std::numeric_limits<double>::min)(), 1, "a number in (0, 1]");
+    settings.max_coord_angle_degrees = read_library_setting(argc, argv, "NUMKONG_MAX_COORD_ANGLE", "--max-coord-angle",
+                                                            settings.max_coord_angle_degrees, 0, 180,
+                                                            "a number in [0, 180]");
     return settings;
 }
 
 /** Prints each setting as "- Name: value", in the grammar it parses from. */
-inline void print(settings_t const &settings) {
+inline void print(bench_settings_t const &settings) {
     if (settings.devices) {
         for (device_selection_t const &device : *settings.devices)
             fmt::println("- Device: {}:{}", device_name(device.backend), device.ordinal);
     }
     else fmt::println("- Devices: auto");
-    fmt::println("- Seed: {}", settings.seed.value);
-    fmt::println("- Filter: {}", settings.filter.empty() ? std::string_view("none") : settings.filter);
+    fmt::println("- Seed: {}", settings.seed);
+    fmt::println("- Filter: {}", settings.filter.pattern.empty() ? std::string_view("none") : settings.filter.pattern);
     fmt::println("- Warm-up: {}", spell_duration(settings.warmup));
     fmt::println("- Time limit: {}", spell_duration(settings.time_limit));
     fmt::println("- Batch per core: {}", settings.batch_per_core);
@@ -589,12 +634,6 @@ inline void print(machine_t const &machine) {
     fmt::println("- This machine: {}", detected);
 }
 
-/** Everything a benchmark reads, built once in @c main and passed to each benchmark family. */
-struct environment_t {
-    settings_t settings;
-    machine_t machine;
-};
-
 /** One timed attention segment: @c label appends to the row name when set, the rest are per-token
  *  counts, queries at the end of a cache of @c keys with heads grouped over K and V. */
 struct attention_shape_t {
@@ -609,9 +648,9 @@ struct attention_shape_t {
 /** The prefill and decode segments every backend times: 32 query heads over 8 key-value heads of
  *  @c NUMWARS_DIMS_WIDTH dimensions, @c NUMWARS_DIMS_DEPTH queries or one, against
  *  @c NUMWARS_DIMS_HEIGHT keys. */
-inline std::vector<attention_shape_t> attention_shapes(environment_t const &env) {
-    std::size_t const depth = env.settings.matrix_width, keys = env.settings.matrix_height;
-    return {{"prefill", 32, 8, depth, env.settings.matrix_depth, keys}, {"decode", 32, 8, depth, 1, keys}};
+inline std::vector<attention_shape_t> attention_shapes(bench_settings_t const &env) {
+    std::size_t const depth = env.matrix_width, keys = env.matrix_height;
+    return {{"prefill", 32, 8, depth, env.matrix_depth, keys}, {"decode", 32, 8, depth, 1, keys}};
 }
 
 struct device_backend_t {
@@ -640,8 +679,8 @@ struct device_scope {
 
 /** Prints @p title, and returns whether this machine runs @p capabilities; otherwise prints why
  *  it skips. */
-inline bool section(environment_t const &env, std::string_view title, nk_capability_t capabilities) noexcept {
-    nk_capability_t const missing = capabilities & ~env.machine.detected;
+inline bool section(bench_settings_t const &, std::string_view title, nk_capability_t capabilities) noexcept {
+    nk_capability_t const missing = capabilities & ~capabilities_detected_cpu();
     if (!missing) {
         fmt::println("\n{}:", title);
         return true;
@@ -679,10 +718,10 @@ constexpr bool is_missing_kernel(argument_type_ const &argument) noexcept {
 /** Runs @p measure over @p arguments when @p name passes the filter and no kernel among them is
  *  missing, then prints its row. */
 template <typename measure_type_, typename... arguments_types_>
-void run_benchmark(environment_t const &env, std::string const &name, measure_type_ measure,
+void run_benchmark(bench_settings_t const &env, std::string const &name, measure_type_ measure,
                    arguments_types_... arguments) {
-    if (!env.settings.selects(name) || (is_missing_kernel(arguments) || ...)) return;
-    loop_t loop(env.settings.warmup, env.settings.time_limit);
+    if (!env.filter.selects(name) || (is_missing_kernel(arguments) || ...)) return;
+    loop_t loop(env.warmup, env.time_limit);
     measure(loop, env, arguments...);
     print(loop.row(name));
 }
@@ -709,7 +748,7 @@ template <typename type_>
  *  @param[in] dimensions The number of dimensions in the vectors.
  */
 template <nk_dtype_t input_dtype_, nk_dtype_t output_dtype_, typename kernel_type_ = void>
-void measure_dense(loop_t &loop, environment_t const &env, kernel_type_ kernel, std::size_t dimensions) {
+void measure_dense(loop_t &loop, bench_settings_t const &env, kernel_type_ kernel, std::size_t dimensions) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
     using output_t = typename nk::type_for<output_dtype_>::type;
@@ -718,7 +757,7 @@ void measure_dense(loop_t &loop, environment_t const &env, kernel_type_ kernel, 
     // Preallocate inputs: as many vector pairs as `input_sets_count` allows
     std::size_t const vector_count = input_sets_count(dtype_bytes(input_dtype_, 2 * dimensions));
     std::vector<input_vector_t> first_vectors(vector_count), second_vectors(vector_count);
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     for (std::size_t index = 0; index != vector_count; ++index) {
         first_vectors[index] = make_vector<input_t>(dimensions);
         second_vectors[index] = make_vector<input_t>(dimensions);
@@ -740,16 +779,16 @@ void measure_dense(loop_t &loop, environment_t const &env, kernel_type_ kernel, 
 }
 
 template <nk_dtype_t input_dtype_, nk_dtype_t output_dtype_, typename kernel_type_ = void>
-void run_dense(environment_t const &env, std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(env.settings.dense_dimensions) + ">";
+void run_dense(bench_settings_t const &env, std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(env.dense_dimensions) + ">";
     run_benchmark(env, bench_name, measure_dense<input_dtype_, output_dtype_, kernel_type_ *>, kernel,
-                  env.settings.dense_dimensions);
+                  env.dense_dimensions);
 }
 
 /** Measures packed Hamming distance computation, used by every bench/cross_*.cpp file. */
 template <nk_dtype_t input_dtype_>
 void measure_hammings_packed(                                                              //
-    loop_t &loop, environment_t const &env,                                                //
+    loop_t &loop, bench_settings_t const &env,                                             //
     typename nk::type_for<input_dtype_>::type::hammings_pack_size_kernel_t packed_size_fn, //
     typename nk::type_for<input_dtype_>::type::hammings_pack_kernel_t pack_fn,             //
     typename nk::type_for<input_dtype_>::type::hammings_packed_kernel_t kernel,            //
@@ -777,7 +816,7 @@ void measure_hammings_packed(                                                   
         nk::vector<output_t> c;
     };
     std::vector<hamming_set_t> sets(sets_count);
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     for (auto &s : sets) {
         s.a = make_vector<input_t>(m * k);
         s.b = make_vector<input_t>(n * k);
@@ -802,7 +841,7 @@ void measure_hammings_packed(                                                   
 /** Measure symmetric Hamming distance matrix computation. */
 template <nk_dtype_t input_dtype_>
 void measure_hammings_symmetric(                                                   //
-    loop_t &loop, environment_t const &env,                                        //
+    loop_t &loop, bench_settings_t const &env,                                     //
     typename nk::type_for<input_dtype_>::type::hammings_symmetric_kernel_t kernel, //
     std::size_t n, std::size_t k) {
 
@@ -825,7 +864,7 @@ void measure_hammings_symmetric(                                                
         nk::vector<output_t> c;
     };
     std::vector<hamming_sym_set_t> sets(sets_count);
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     for (auto &s : sets) {
         s.a = make_vector<input_t>(n * k);
         s.c = make_vector<output_t>(n * n);
@@ -844,30 +883,29 @@ void measure_hammings_symmetric(                                                
 }
 
 template <nk_dtype_t input_dtype_>
-void run_hammings_packed(environment_t const &env, std::string name, //
+void run_hammings_packed(bench_settings_t const &env, std::string name, //
                          typename nk::type_for<input_dtype_>::type::hammings_pack_size_kernel_t packed_size_fn,
                          typename nk::type_for<input_dtype_>::type::hammings_pack_kernel_t pack_fn,
                          typename nk::type_for<input_dtype_>::type::hammings_packed_kernel_t kernel) {
-    std::string bench_name = name + "<" + std::to_string(env.settings.matrix_height) + "x" +
-                             std::to_string(env.settings.matrix_width) + "x" +
-                             std::to_string(env.settings.matrix_depth) + ">";
+    std::string bench_name = name + "<" + std::to_string(env.matrix_height) + "x" + std::to_string(env.matrix_width) +
+                             "x" + std::to_string(env.matrix_depth) + ">";
     run_benchmark(env, bench_name, measure_hammings_packed<input_dtype_>, packed_size_fn, pack_fn, kernel,
-                  env.settings.matrix_height, env.settings.matrix_width, env.settings.matrix_depth);
+                  env.matrix_height, env.matrix_width, env.matrix_depth);
 }
 
 template <nk_dtype_t input_dtype_>
-void run_hammings_symmetric(environment_t const &env, std::string name, //
+void run_hammings_symmetric(bench_settings_t const &env, std::string name, //
                             typename nk::type_for<input_dtype_>::type::hammings_symmetric_kernel_t kernel) {
-    std::string bench_name = name + "<" + std::to_string(env.settings.matrix_height) + "x" +
-                             std::to_string(env.settings.matrix_depth) + ">";
+    std::string bench_name = name + "<" + std::to_string(env.matrix_height) + "x" + std::to_string(env.matrix_depth) +
+                             ">";
     run_benchmark(env, bench_name, measure_hammings_symmetric<input_dtype_>, //
-                  kernel, env.settings.matrix_height, env.settings.matrix_depth);
+                  kernel, env.matrix_height, env.matrix_depth);
 }
 
 /** Measure packed Jaccard distance matrix computation. */
 template <nk_dtype_t input_dtype_>
 void measure_jaccards_packed(                                                              //
-    loop_t &loop, environment_t const &env,                                                //
+    loop_t &loop, bench_settings_t const &env,                                             //
     typename nk::type_for<input_dtype_>::type::jaccards_pack_size_kernel_t packed_size_fn, //
     typename nk::type_for<input_dtype_>::type::jaccards_pack_kernel_t pack_fn,             //
     typename nk::type_for<input_dtype_>::type::jaccards_packed_kernel_t kernel,            //
@@ -891,7 +929,7 @@ void measure_jaccards_packed(                                                   
         std::vector<nk_f32_t> c;
     };
     std::vector<jaccards_set_t> sets(sets_count);
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     for (auto &s : sets) {
         s.a = make_vector<input_t>(m * k);
         s.b = make_vector<input_t>(n * k);
@@ -916,7 +954,7 @@ void measure_jaccards_packed(                                                   
 /** Measure symmetric Jaccard distance matrix computation. */
 template <nk_dtype_t input_dtype_>
 void measure_jaccards_symmetric(                                                   //
-    loop_t &loop, environment_t const &env,                                        //
+    loop_t &loop, bench_settings_t const &env,                                     //
     typename nk::type_for<input_dtype_>::type::jaccards_symmetric_kernel_t kernel, //
     std::size_t n, std::size_t k) {
 
@@ -935,7 +973,7 @@ void measure_jaccards_symmetric(                                                
         std::vector<nk_f32_t> c;
     };
     std::vector<jaccards_sym_set_t> sets(sets_count);
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     for (auto &s : sets) {
         s.a = make_vector<input_t>(n * k);
         s.c.resize(n * n, 0);
@@ -954,54 +992,53 @@ void measure_jaccards_symmetric(                                                
 }
 
 template <nk_dtype_t input_dtype_>
-void run_jaccards_packed(environment_t const &env, std::string name, //
+void run_jaccards_packed(bench_settings_t const &env, std::string name, //
                          typename nk::type_for<input_dtype_>::type::jaccards_pack_size_kernel_t packed_size_fn,
                          typename nk::type_for<input_dtype_>::type::jaccards_pack_kernel_t pack_fn,
                          typename nk::type_for<input_dtype_>::type::jaccards_packed_kernel_t kernel) {
-    std::string bench_name = name + "<" + std::to_string(env.settings.matrix_height) + "x" +
-                             std::to_string(env.settings.matrix_width) + "x" +
-                             std::to_string(env.settings.matrix_depth) + ">";
+    std::string bench_name = name + "<" + std::to_string(env.matrix_height) + "x" + std::to_string(env.matrix_width) +
+                             "x" + std::to_string(env.matrix_depth) + ">";
     run_benchmark(env, bench_name, measure_jaccards_packed<input_dtype_>, packed_size_fn, pack_fn, kernel,
-                  env.settings.matrix_height, env.settings.matrix_width, env.settings.matrix_depth);
+                  env.matrix_height, env.matrix_width, env.matrix_depth);
 }
 
 template <nk_dtype_t input_dtype_>
-void run_jaccards_symmetric(environment_t const &env, std::string name, //
+void run_jaccards_symmetric(bench_settings_t const &env, std::string name, //
                             typename nk::type_for<input_dtype_>::type::jaccards_symmetric_kernel_t kernel) {
-    std::string bench_name = name + "<" + std::to_string(env.settings.matrix_height) + "x" +
-                             std::to_string(env.settings.matrix_depth) + ">";
+    std::string bench_name = name + "<" + std::to_string(env.matrix_height) + "x" + std::to_string(env.matrix_depth) +
+                             ">";
     run_benchmark(env, bench_name, measure_jaccards_symmetric<input_dtype_>, //
-                  kernel, env.settings.matrix_height, env.settings.matrix_depth);
+                  kernel, env.matrix_height, env.matrix_depth);
 }
 
 /** Benchmark families, defined in separate files. */
-void bench_dot(environment_t const &env);
-void bench_spatial(environment_t const &env);
-void bench_set(environment_t const &env);
-void bench_curved(environment_t const &env);
-void bench_probability(environment_t const &env);
-void bench_each(environment_t const &env);
-void bench_trigonometry(environment_t const &env);
-void bench_geospatial(environment_t const &env);
-void bench_shapes(environment_t const &env);
-void bench_sparse(environment_t const &env);
-void bench_sparse_dot(environment_t const &env);
-void bench_cast(environment_t const &env);
-void bench_reduce(environment_t const &env);
-void bench_maxsim(environment_t const &env);
+void bench_dot(bench_settings_t const &env);
+void bench_spatial(bench_settings_t const &env);
+void bench_set(bench_settings_t const &env);
+void bench_curved(bench_settings_t const &env);
+void bench_probability(bench_settings_t const &env);
+void bench_each(bench_settings_t const &env);
+void bench_trigonometry(bench_settings_t const &env);
+void bench_geospatial(bench_settings_t const &env);
+void bench_shapes(bench_settings_t const &env);
+void bench_sparse(bench_settings_t const &env);
+void bench_sparse_dot(bench_settings_t const &env);
+void bench_cast(bench_settings_t const &env);
+void bench_reduce(bench_settings_t const &env);
+void bench_maxsim(bench_settings_t const &env);
 
 /** Forward declarations for cross/batch operations, ISA-family files. */
-void bench_cross_serial(environment_t const &env);
-void bench_cross_x8664(environment_t const &env);
-void bench_cross_arm64(environment_t const &env);
-void bench_cross_blas(environment_t const &env);
-void bench_cross_riscv64(environment_t const &env);
-void bench_cross_ppc64(environment_t const &env);
-void bench_cross_wasm(environment_t const &env);
-void bench_cross_loongarch64(environment_t const &env);
-nk::status_t bench_cross_cuda(environment_t const &env, device_backend_t const &runtime);
-nk::status_t bench_cross_rocm(environment_t const &env, device_backend_t const &runtime);
-nk::status_t bench_cross_metal(environment_t const &env, device_backend_t const &runtime);
+void bench_cross_serial(bench_settings_t const &env);
+void bench_cross_x8664(bench_settings_t const &env);
+void bench_cross_arm64(bench_settings_t const &env);
+void bench_cross_blas(bench_settings_t const &env);
+void bench_cross_riscv64(bench_settings_t const &env);
+void bench_cross_ppc64(bench_settings_t const &env);
+void bench_cross_wasm(bench_settings_t const &env);
+void bench_cross_loongarch64(bench_settings_t const &env);
+nk::status_t bench_cross_cuda(bench_settings_t const &env, device_backend_t const &runtime);
+nk::status_t bench_cross_rocm(bench_settings_t const &env, device_backend_t const &runtime);
+nk::status_t bench_cross_metal(bench_settings_t const &env, device_backend_t const &runtime);
 
 } // namespace ashvardanian::numkong::bench
 

@@ -4,6 +4,7 @@
  *  @date December 28, 2025
  *  @brief Bilinear and Mahalanobis tests.
  */
+#undef NDEBUG // ! A test's oracle must stay live in every build
 
 #include "harness.hpp"
 #include "numkong/curved.hpp" // `nk::bilinear`
@@ -35,29 +36,31 @@ void make_psd(scalar_type_ *data, nk_size_t n) {
 
 /** Template for bilinear form test: a^T * M * b. */
 template <typename scalar_type_>
-error_stats_t test_bilinear(settings_t const &settings, typename scalar_type_::curved_kernel_t kernel) {
+error_stats_t test_bilinear(typename scalar_type_::curved_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::curved_result_t;
     using reference_t = tracked<reference_for<scalar_t>>;
 
     error_stats_t stats(nk_bilinear_error_bound(scalar_t::dtype()));
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
 
-    auto a = make_vector<scalar_t>(settings.curved_dimensions), b = make_vector<scalar_t>(settings.curved_dimensions);
-    auto m = make_vector<scalar_t>(settings.curved_dimensions * settings.curved_dimensions);
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
-        fill_random(settings, generator, a);
-        fill_random(settings, generator, b);
-        fill_random(settings, generator, m);
+    auto a = make_vector<scalar_t>(test_run.settings.curved_dimensions),
+         b = make_vector<scalar_t>(test_run.settings.curved_dimensions);
+    auto m = make_vector<scalar_t>(test_run.settings.curved_dimensions * test_run.settings.curved_dimensions);
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
+        fill_random(generator, a);
+        fill_random(generator, b);
+        fill_random(generator, m);
 
         result_t result;
-        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(), settings.curved_dimensions,
-                            &result.raw_, nullptr));
+        stats.expect_status(kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(),
+                                   test_run.settings.curved_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect(nk::bilinear<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
-                                                         settings.curved_dimensions, &reference, no_tiers_k));
+        stats.expect_status(nk::bilinear<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
+                                                                test_run.settings.curved_dimensions, &reference,
+                                                                no_tiers_k));
 
         stats.accumulate(result, reference);
     }
@@ -67,119 +70,118 @@ error_stats_t test_bilinear(settings_t const &settings, typename scalar_type_::c
 
 /** Template for Mahalanobis distance test: sqrt((a-b)^T * M * (a-b)). */
 template <typename scalar_type_>
-error_stats_t test_mahalanobis(settings_t const &settings, typename scalar_type_::curved_kernel_t kernel) {
+error_stats_t test_mahalanobis(typename scalar_type_::curved_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::curved_result_t;
     using reference_t = tracked<reference_for<scalar_t>>;
 
     error_stats_t stats(nk_mahalanobis_error_bound(scalar_t::dtype()));
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
 
-    auto a = make_vector<scalar_t>(settings.curved_dimensions), b = make_vector<scalar_t>(settings.curved_dimensions);
-    auto m = make_vector<scalar_t>(settings.curved_dimensions * settings.curved_dimensions);
+    auto a = make_vector<scalar_t>(test_run.settings.curved_dimensions),
+         b = make_vector<scalar_t>(test_run.settings.curved_dimensions);
+    auto m = make_vector<scalar_t>(test_run.settings.curved_dimensions * test_run.settings.curved_dimensions);
 
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
-        fill_random(settings, generator, a);
-        fill_random(settings, generator, b);
-        fill_random(settings, generator, m);
-        make_psd(m.values_data(), settings.curved_dimensions);
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
+        fill_random(generator, a);
+        fill_random(generator, b);
+        fill_random(generator, m);
+        make_psd(m.values_data(), test_run.settings.curved_dimensions);
 
         result_t result;
-        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(), settings.curved_dimensions,
-                            &result.raw_, nullptr));
+        stats.expect_status(kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(),
+                                   test_run.settings.curved_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect(nk::mahalanobis<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
-                                                            settings.curved_dimensions, &reference, no_tiers_k));
+        stats.expect_status(nk::mahalanobis<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
+                                                                   test_run.settings.curved_dimensions, &reference,
+                                                                   no_tiers_k));
 
         stats.accumulate(result, reference);
     }
     return stats;
 }
 
-void test_curved(error_stats_section_t &check) {
+void run_curved_cases() {
+    auto const serial = nk_cap_serial_k;
 
-    check.section("Curved Kernels Serial", nk_cap_serial_k);
-    check("bilinear_f32_serial", test_bilinear<f32_t>, nk_bilinear_f32_serial);
-    check("bilinear_f64_serial", test_bilinear<f64_t>, nk_bilinear_f64_serial);
-    check("bilinear_f32c_serial", test_bilinear<f32c_t>, nk_bilinear_f32c_serial);
-    check("bilinear_f64c_serial", test_bilinear<f64c_t>, nk_bilinear_f64c_serial);
-    check("mahalanobis_f32_serial", test_mahalanobis<f32_t>, nk_mahalanobis_f32_serial);
-    check("mahalanobis_f64_serial", test_mahalanobis<f64_t>, nk_mahalanobis_f64_serial);
-    check("bilinear_f16_serial", test_bilinear<f16_t>, nk_bilinear_f16_serial);
-    check("bilinear_f16c_serial", test_bilinear<f16c_t>, nk_bilinear_f16c_serial);
-    check("mahalanobis_f16_serial", test_mahalanobis<f16_t>, nk_mahalanobis_f16_serial);
-    check("bilinear_bf16_serial", test_bilinear<bf16_t>, nk_bilinear_bf16_serial);
-    check("bilinear_bf16c_serial", test_bilinear<bf16c_t>, nk_bilinear_bf16c_serial);
-    check("mahalanobis_bf16_serial", test_mahalanobis<bf16_t>, nk_mahalanobis_bf16_serial);
+    run_kernel_case("nk_bilinear_f32_serial", test_bilinear<f32_t>, serial, nk_bilinear_f32_serial);
+    run_kernel_case("nk_bilinear_f64_serial", test_bilinear<f64_t>, serial, nk_bilinear_f64_serial);
+    run_kernel_case("nk_bilinear_f32c_serial", test_bilinear<f32c_t>, serial, nk_bilinear_f32c_serial);
+    run_kernel_case("nk_bilinear_f64c_serial", test_bilinear<f64c_t>, serial, nk_bilinear_f64c_serial);
+    run_kernel_case("nk_mahalanobis_f32_serial", test_mahalanobis<f32_t>, serial, nk_mahalanobis_f32_serial);
+    run_kernel_case("nk_mahalanobis_f64_serial", test_mahalanobis<f64_t>, serial, nk_mahalanobis_f64_serial);
+    run_kernel_case("nk_bilinear_f16_serial", test_bilinear<f16_t>, serial, nk_bilinear_f16_serial);
+    run_kernel_case("nk_bilinear_f16c_serial", test_bilinear<f16c_t>, serial, nk_bilinear_f16c_serial);
+    run_kernel_case("nk_mahalanobis_f16_serial", test_mahalanobis<f16_t>, serial, nk_mahalanobis_f16_serial);
+    run_kernel_case("nk_bilinear_bf16_serial", test_bilinear<bf16_t>, serial, nk_bilinear_bf16_serial);
+    run_kernel_case("nk_bilinear_bf16c_serial", test_bilinear<bf16c_t>, serial, nk_bilinear_bf16c_serial);
+    run_kernel_case("nk_mahalanobis_bf16_serial", test_mahalanobis<bf16_t>, serial, nk_mahalanobis_bf16_serial);
 
 #if !NUMKONG_HEADER_ONLY
-    check.section("Curved Kernels Runtime Dispatch", nk_cap_serial_k);
-    check("bilinear_f32", test_bilinear<f32_t>, cpu_best<nk_bilinear_f32_best>);
-    check("bilinear_f64", test_bilinear<f64_t>, cpu_best<nk_bilinear_f64_best>);
-    check("bilinear_f32c", test_bilinear<f32c_t>, cpu_best<nk_bilinear_f32c_best>);
-    check("bilinear_f64c", test_bilinear<f64c_t>, cpu_best<nk_bilinear_f64c_best>);
-    check("mahalanobis_f32", test_mahalanobis<f32_t>, cpu_best<nk_mahalanobis_f32_best>);
-    check("mahalanobis_f64", test_mahalanobis<f64_t>, cpu_best<nk_mahalanobis_f64_best>);
+    run_kernel_case("nk_bilinear_f32_best", test_bilinear<f32_t>, serial, cpu_best<nk_bilinear_f32_best>);
+    run_kernel_case("nk_bilinear_f64_best", test_bilinear<f64_t>, serial, cpu_best<nk_bilinear_f64_best>);
+    run_kernel_case("nk_bilinear_f32c_best", test_bilinear<f32c_t>, serial, cpu_best<nk_bilinear_f32c_best>);
+    run_kernel_case("nk_bilinear_f64c_best", test_bilinear<f64c_t>, serial, cpu_best<nk_bilinear_f64c_best>);
+    run_kernel_case("nk_mahalanobis_f32_best", test_mahalanobis<f32_t>, serial, cpu_best<nk_mahalanobis_f32_best>);
+    run_kernel_case("nk_mahalanobis_f64_best", test_mahalanobis<f64_t>, serial, cpu_best<nk_mahalanobis_f64_best>);
 #endif
 
 #if NUMKONG_TARGET_NEON
-    check.section("Curved Kernels NEON", nk_cap_neon_k);
-    check("bilinear_f64_neon", test_bilinear<f64_t>, nk_bilinear_f64_neon);
-    check("mahalanobis_f64_neon", test_mahalanobis<f64_t>, nk_mahalanobis_f64_neon);
-    check("bilinear_f32_neon", test_bilinear<f32_t>, nk_bilinear_f32_neon);
-    check("bilinear_f32c_neon", test_bilinear<f32c_t>, nk_bilinear_f32c_neon);
-    check("mahalanobis_f32_neon", test_mahalanobis<f32_t>, nk_mahalanobis_f32_neon);
-    check("bilinear_f16_neon", test_bilinear<f16_t>, nk_bilinear_f16_neon);
-    check("bilinear_f16c_neon", test_bilinear<f16c_t>, nk_bilinear_f16c_neon);
-    check("mahalanobis_f16_neon", test_mahalanobis<f16_t>, nk_mahalanobis_f16_neon);
+    run_kernel_case("nk_bilinear_f64_neon", test_bilinear<f64_t>, nk_cap_neon_k, nk_bilinear_f64_neon);
+    run_kernel_case("nk_mahalanobis_f64_neon", test_mahalanobis<f64_t>, nk_cap_neon_k, nk_mahalanobis_f64_neon);
+    run_kernel_case("nk_bilinear_f32_neon", test_bilinear<f32_t>, nk_cap_neon_k, nk_bilinear_f32_neon);
+    run_kernel_case("nk_bilinear_f32c_neon", test_bilinear<f32c_t>, nk_cap_neon_k, nk_bilinear_f32c_neon);
+    run_kernel_case("nk_mahalanobis_f32_neon", test_mahalanobis<f32_t>, nk_cap_neon_k, nk_mahalanobis_f32_neon);
+    run_kernel_case("nk_bilinear_f16_neon", test_bilinear<f16_t>, nk_cap_neon_k, nk_bilinear_f16_neon);
+    run_kernel_case("nk_bilinear_f16c_neon", test_bilinear<f16c_t>, nk_cap_neon_k, nk_bilinear_f16c_neon);
+    run_kernel_case("nk_mahalanobis_f16_neon", test_mahalanobis<f16_t>, nk_cap_neon_k, nk_mahalanobis_f16_neon);
 #endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_NEONBFDOT
-    check.section("Curved Kernels NEON BF16", nk_cap_neonbfdot_k);
-    check("bilinear_bf16_neonbfdot", test_bilinear<bf16_t>, nk_bilinear_bf16_neonbfdot);
-    check("bilinear_bf16c_neonbfdot", test_bilinear<bf16c_t>, nk_bilinear_bf16c_neonbfdot);
-    check("mahalanobis_bf16_neonbfdot", test_mahalanobis<bf16_t>, nk_mahalanobis_bf16_neonbfdot);
+    auto const neonbfdot = nk_cap_neonbfdot_k;
+    run_kernel_case("nk_bilinear_bf16_neonbfdot", test_bilinear<bf16_t>, neonbfdot, nk_bilinear_bf16_neonbfdot);
+    run_kernel_case("nk_bilinear_bf16c_neonbfdot", test_bilinear<bf16c_t>, neonbfdot, nk_bilinear_bf16c_neonbfdot);
+    run_kernel_case("nk_mahalanobis_bf16_neonbfdot", test_mahalanobis<bf16_t>, neonbfdot,
+                    nk_mahalanobis_bf16_neonbfdot);
 #endif // NUMKONG_TARGET_NEONBFDOT
 
 #if NUMKONG_TARGET_HASWELL
-    check.section("Curved Kernels Haswell", nk_cap_haswell_k);
-    check("bilinear_f64_haswell", test_bilinear<f64_t>, nk_bilinear_f64_haswell);
-    check("mahalanobis_f64_haswell", test_mahalanobis<f64_t>, nk_mahalanobis_f64_haswell);
-    check("bilinear_f32_haswell", test_bilinear<f32_t>, nk_bilinear_f32_haswell);
-    check("bilinear_f16_haswell", test_bilinear<f16_t>, nk_bilinear_f16_haswell);
-    check("bilinear_bf16_haswell", test_bilinear<bf16_t>, nk_bilinear_bf16_haswell);
-    check("mahalanobis_f32_haswell", test_mahalanobis<f32_t>, nk_mahalanobis_f32_haswell);
-    check("mahalanobis_f16_haswell", test_mahalanobis<f16_t>, nk_mahalanobis_f16_haswell);
-    check("mahalanobis_bf16_haswell", test_mahalanobis<bf16_t>, nk_mahalanobis_bf16_haswell);
+    auto const haswell = nk_cap_haswell_k;
+    run_kernel_case("nk_bilinear_f64_haswell", test_bilinear<f64_t>, haswell, nk_bilinear_f64_haswell);
+    run_kernel_case("nk_mahalanobis_f64_haswell", test_mahalanobis<f64_t>, haswell, nk_mahalanobis_f64_haswell);
+    run_kernel_case("nk_bilinear_f32_haswell", test_bilinear<f32_t>, haswell, nk_bilinear_f32_haswell);
+    run_kernel_case("nk_bilinear_f16_haswell", test_bilinear<f16_t>, haswell, nk_bilinear_f16_haswell);
+    run_kernel_case("nk_bilinear_bf16_haswell", test_bilinear<bf16_t>, haswell, nk_bilinear_bf16_haswell);
+    run_kernel_case("nk_mahalanobis_f32_haswell", test_mahalanobis<f32_t>, haswell, nk_mahalanobis_f32_haswell);
+    run_kernel_case("nk_mahalanobis_f16_haswell", test_mahalanobis<f16_t>, haswell, nk_mahalanobis_f16_haswell);
+    run_kernel_case("nk_mahalanobis_bf16_haswell", test_mahalanobis<bf16_t>, haswell, nk_mahalanobis_bf16_haswell);
 #endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_SKYLAKE
-    check.section("Curved Kernels Skylake", nk_cap_skylake_k);
-    check("bilinear_f32_skylake", test_bilinear<f32_t>, nk_bilinear_f32_skylake);
-    check("bilinear_f64_skylake", test_bilinear<f64_t>, nk_bilinear_f64_skylake);
-    check("bilinear_f32c_skylake", test_bilinear<f32c_t>, nk_bilinear_f32c_skylake);
-    check("bilinear_f64c_skylake", test_bilinear<f64c_t>, nk_bilinear_f64c_skylake);
-    check("mahalanobis_f32_skylake", test_mahalanobis<f32_t>, nk_mahalanobis_f32_skylake);
-    check("mahalanobis_f64_skylake", test_mahalanobis<f64_t>, nk_mahalanobis_f64_skylake);
+    auto const skylake = nk_cap_skylake_k;
+    run_kernel_case("nk_bilinear_f32_skylake", test_bilinear<f32_t>, skylake, nk_bilinear_f32_skylake);
+    run_kernel_case("nk_bilinear_f64_skylake", test_bilinear<f64_t>, skylake, nk_bilinear_f64_skylake);
+    run_kernel_case("nk_bilinear_f32c_skylake", test_bilinear<f32c_t>, skylake, nk_bilinear_f32c_skylake);
+    run_kernel_case("nk_bilinear_f64c_skylake", test_bilinear<f64c_t>, skylake, nk_bilinear_f64c_skylake);
+    run_kernel_case("nk_mahalanobis_f32_skylake", test_mahalanobis<f32_t>, skylake, nk_mahalanobis_f32_skylake);
+    run_kernel_case("nk_mahalanobis_f64_skylake", test_mahalanobis<f64_t>, skylake, nk_mahalanobis_f64_skylake);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_GENOA
-    check.section("Curved Kernels Genoa", nk_cap_genoa_k);
-    check("bilinear_bf16_genoa", test_bilinear<bf16_t>, nk_bilinear_bf16_genoa);
-    check("bilinear_bf16c_genoa", test_bilinear<bf16c_t>, nk_bilinear_bf16c_genoa);
-    check("mahalanobis_bf16_genoa", test_mahalanobis<bf16_t>, nk_mahalanobis_bf16_genoa);
+    run_kernel_case("nk_bilinear_bf16_genoa", test_bilinear<bf16_t>, nk_cap_genoa_k, nk_bilinear_bf16_genoa);
+    run_kernel_case("nk_bilinear_bf16c_genoa", test_bilinear<bf16c_t>, nk_cap_genoa_k, nk_bilinear_bf16c_genoa);
+    run_kernel_case("nk_mahalanobis_bf16_genoa", test_mahalanobis<bf16_t>, nk_cap_genoa_k, nk_mahalanobis_bf16_genoa);
 #endif // NUMKONG_TARGET_GENOA
 
 #if NUMKONG_TARGET_SMEF64
-    check.section("Curved Kernels SME F64", nk_cap_smef64_k);
-    check("bilinear_f32_smef64", test_bilinear<f32_t>, nk_bilinear_f32_smef64);
-    check("bilinear_f32c_smef64", test_bilinear<f32c_t>, nk_bilinear_f32c_smef64);
-    check("mahalanobis_f32_smef64", test_mahalanobis<f32_t>, nk_mahalanobis_f32_smef64);
-    check("bilinear_f64_smef64", test_bilinear<f64_t>, nk_bilinear_f64_smef64);
-    check("bilinear_f64c_smef64", test_bilinear<f64c_t>, nk_bilinear_f64c_smef64);
-    check("mahalanobis_f64_smef64", test_mahalanobis<f64_t>, nk_mahalanobis_f64_smef64);
+    run_kernel_case("nk_bilinear_f32_smef64", test_bilinear<f32_t>, nk_cap_smef64_k, nk_bilinear_f32_smef64);
+    run_kernel_case("nk_bilinear_f32c_smef64", test_bilinear<f32c_t>, nk_cap_smef64_k, nk_bilinear_f32c_smef64);
+    run_kernel_case("nk_mahalanobis_f32_smef64", test_mahalanobis<f32_t>, nk_cap_smef64_k, nk_mahalanobis_f32_smef64);
+    run_kernel_case("nk_bilinear_f64_smef64", test_bilinear<f64_t>, nk_cap_smef64_k, nk_bilinear_f64_smef64);
+    run_kernel_case("nk_bilinear_f64c_smef64", test_bilinear<f64c_t>, nk_cap_smef64_k, nk_bilinear_f64c_smef64);
+    run_kernel_case("nk_mahalanobis_f64_smef64", test_mahalanobis<f64_t>, nk_cap_smef64_k, nk_mahalanobis_f64_smef64);
 #endif // NUMKONG_TARGET_SMEF64
 }
 

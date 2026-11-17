@@ -266,7 +266,8 @@ impl<Scalar: KullbackLeibler + JensenShannon> ProbabilitySimilarity for Scalar {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{FloatLike, NumberLike, TestableType, assert_close, bf16, f16};
+    use crate::testing::{TestableType, assert_close};
+    use crate::types::{FloatLike, NumberLike, bf16, f16};
 
     fn check_kld<Scalar>(distribution_a: &[f32], distribution_b: &[f32], expected: f64)
     where
@@ -305,7 +306,7 @@ mod tests {
     }
 
     #[test]
-    fn divergences() {
+    fn divergences_match_their_closed_forms() {
         let distribution_a = &[0.1_f32, 0.9, 0.0];
         let distribution_b = &[0.2_f32, 0.8, 0.0];
 

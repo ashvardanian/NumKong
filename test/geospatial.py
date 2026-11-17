@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Test the many-to-many geospatial distances: nk.sqeuclideans3d and the packed nk.haversines and nk.vincentys.
 
-DTypes: float64, int32.
+Covers: float64, int32.
 Baselines: NumPy unit-vector Haversine, NumPy Vincenty inverse formula, NumPy squared differences.
 Matches C++ suite: test/geospatial.cpp.
+Run: python -m pytest test/geospatial.py
 
 File: test/geospatial.py
 Author: Ash Vardanian
@@ -12,25 +13,14 @@ Date: December 22, 2025
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import pytest
-
-
-if TYPE_CHECKING:
-    import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
-
-try:
-    import numpy as np
-except Exception:
-    pass
-
 from base import SETTINGS, assert_allclose, collect_errors, numpy_available, timed_call
 
 import numkong as nk
 
 
-requires_numpy = pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+if numpy_available:
+    import numpy as np
 
 EARTH_MEAN_RADIUS = 6371008.8
 """The IUGG mean radius R₁ in metres, the sphere of `haversines_packed`."""
@@ -117,9 +107,9 @@ def record_errors(stats, capabilities, kind: str, dtype: str, expected, accurate
     )
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
-def test_haversines_packed(stats, capabilities, np_rng: np.random.Generator):
+def test_haversines_match_unit_vectors_over_the_sphere(stats, capabilities, np_rng: np.random.Generator):
     """Haversine over the whole sphere against unit vectors in NumPy, down to coincident and antipodal pairs,
     with strided rows and float32 columns cast to float64."""
     angle = SETTINGS.max_coord_angle_degrees
@@ -134,14 +124,15 @@ def test_haversines_packed(stats, capabilities, np_rng: np.random.Generator):
     accurate_ns, expected = timed_call(
         reference_haversines, a_latitudes, a_longitudes, b_latitudes.astype(np.float64), b_longitudes.astype(np.float64)
     )
-    assert result.dtype == np.float64 and result.shape == (ROWS, COLUMNS)
+    assert result.dtype == np.float64
+    assert result.shape == (ROWS, COLUMNS)
     assert_allclose(result, expected, atol=1e-6, rtol=0)
     record_errors(stats, capabilities, "haversines", "float64", expected, accurate_ns, result, result_ns)
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
-def test_vincentys_packed(stats, capabilities, np_rng: np.random.Generator):
+def test_vincentys_match_the_inverse_formula(stats, capabilities, np_rng: np.random.Generator):
     """Vincenty against its inverse formula in NumPy, the longitudes within 160° of each other, away from the
     antipode where the iteration need not converge."""
     half_span = min(SETTINGS.max_coord_angle_degrees, 160.0) / 2
@@ -151,13 +142,14 @@ def test_vincentys_packed(stats, capabilities, np_rng: np.random.Generator):
     result_ns, result = timed_call(nk.vincentys_packed, a_packed, b_packed, capabilities=capabilities)
     result = np.asarray(result)
     accurate_ns, expected = timed_call(reference_vincentys, a_latitudes, a_longitudes, b_latitudes, b_longitudes)
-    assert result.dtype == np.float64 and result.shape == (ROWS, COLUMNS)
+    assert result.dtype == np.float64
+    assert result.shape == (ROWS, COLUMNS)
     assert_allclose(result, expected, atol=1e-3, rtol=0)
     record_errors(stats, capabilities, "vincentys", "float64", expected, accurate_ns, result, result_ns)
 
 
-@requires_numpy
-def test_vincentys_flinders_peak_to_buninyong(capabilities):
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_vincentys_matches_the_flinders_peak_to_buninyong_survey(capabilities):
     """Vincenty's own worked example in the 1975 Survey Review, 54,972.271 m, from the kernel and the reference."""
     latitudes = -np.radians([37 + 57 / 60 + 3.72030 / 3600, 37 + 39 / 60 + 10.15610 / 3600])
     longitudes = np.radians([144 + 25 / 60 + 29.52440 / 3600, 143 + 55 / 60 + 35.38390 / 3600])
@@ -169,8 +161,8 @@ def test_vincentys_flinders_peak_to_buninyong(capabilities):
     assert_allclose(expected, [[54972.2711]], atol=1e-3, rtol=0)
 
 
-@requires_numpy
-def test_vincentys_pole_to_pole(capabilities):
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_vincentys_keep_the_poles_a_meridian_apart(capabilities):
     """The poles are antipodes half a WGS-84 meridian apart, 20,003,931.4586 m, which no kernel may zero."""
     north = nk.vincentys_pack(np.radians([90.0]), np.zeros(1))
     south = nk.vincentys_pack(np.radians([-90.0]), np.zeros(1))
@@ -178,10 +170,10 @@ def test_vincentys_pole_to_pole(capabilities):
     assert_allclose(result, [[20003931.4586]], atol=1e-3, rtol=0)
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
 @pytest.mark.parametrize("dtype", ["int32", "float64"])
-def test_sqeuclideans3d(stats, capabilities, dtype: str, np_rng: np.random.Generator):
+def test_sqeuclideans3d_square_coordinates_exactly(stats, capabilities, dtype: str, np_rng: np.random.Generator):
     """int32 squares exactly up to Earth-fixed centimetres at 4,359 km of altitude, the axis differences
     filling 31 bits, and float64 within 1e-12 relative, with strided rows."""
     if dtype == "int32":
@@ -206,13 +198,14 @@ def test_sqeuclideans3d(stats, capabilities, dtype: str, np_rng: np.random.Gener
     record_errors(stats, capabilities, "sqeuclideans3d", dtype, expected, accurate_ns, result, result_ns)
 
 
-@requires_numpy
-def test_empty_and_single_point(capabilities):
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_geospatial_handles_empty_and_single_points(capabilities):
     """An empty side yields an empty matrix, and a single point lies within a nanometre of itself."""
     empty, latitudes, longitudes = np.empty(0), np.radians([51.5007]), np.radians([-0.1246])
     for pack, packed in ((nk.haversines_pack, nk.haversines_packed), (nk.vincentys_pack, nk.vincentys_packed)):
         nothing, single = pack(empty, empty), pack(latitudes, longitudes)
-        assert len(nothing) == 0 and nothing.shape == (0, 2)
+        assert len(nothing) == 0
+        assert nothing.shape == (0, 2)
         assert np.asarray(packed(nothing, single, capabilities=capabilities)).shape == (0, 1)
         assert np.asarray(packed(single, nothing, capabilities=capabilities)).shape == (1, 0)
         assert_allclose(np.asarray(packed(single, single, capabilities=capabilities)), [[0.0]], atol=1e-9, rtol=0)
@@ -221,10 +214,10 @@ def test_empty_and_single_point(capabilities):
     assert np.asarray(nk.sqeuclideans3d(point, -point, capabilities=capabilities)).tolist() == [[4 * 169]]
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", ["int32", "float64"])
 @pytest.mark.parametrize("threads", [0, 4])
-def test_sqeuclideans3d_threads(capabilities, dtype: str, threads: int, np_rng: np.random.Generator):
+def test_sqeuclideans3d_threads_match_serial(capabilities, dtype: str, threads: int, np_rng: np.random.Generator):
     """Splitting 129 rows, two whole tiles of 64 and a tail, across threads returns the serial squares bit for bit."""
     a = np_rng.normal(scale=1e6, size=(129, 3)).astype(dtype)
     b = np_rng.normal(scale=1e6, size=(7, 3)).astype(dtype)
@@ -233,26 +226,28 @@ def test_sqeuclideans3d_threads(capabilities, dtype: str, threads: int, np_rng: 
     np.testing.assert_array_equal(parallel, serial)
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("kind", ["haversines", "vincentys"])
-def test_packed_matrices(kind: str, np_rng: np.random.Generator):
+def test_geospatial_packs_report_their_shape(kind: str, np_rng: np.random.Generator):
     """A pack reports its point count, shape and size, which its header and planar arrays fix."""
     pack, packed_type = getattr(nk, f"{kind}_pack"), getattr(nk, f"{kind.capitalize()}PackedMatrix")
     latitudes, longitudes = random_points(np_rng, 5, 90.0, 180.0)
     packed, single = pack(latitudes, longitudes), pack(latitudes[:1], longitudes[:1])
     assert type(packed) is packed_type
-    assert len(packed) == packed.points == 5 and packed.shape == (5, 2)
-    assert packed.nbytes == packed_type.pack_size(5) and single.nbytes == packed_type.pack_size(1)
+    assert len(packed) == packed.points == 5
+    assert packed.shape == (5, 2)
+    assert packed.nbytes == packed_type.pack_size(5)
+    assert single.nbytes == packed_type.pack_size(1)
     assert repr(packed) == f"<numkong.{packed_type.__name__} points=5 nbytes={packed.nbytes}>"
 
 
-@requires_numpy
-def test_geospatial_errors():
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_geospatial_refuses_malformed_inputs():
     """Malformed coordinates, mixed packs and mismatched dtypes raise before any kernel runs."""
     zeros = np.zeros(3)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="must have the same length"):
         nk.haversines_pack(zeros, zeros[:2])
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="latitudes and longitudes must be"):
         nk.vincentys_pack(zeros.reshape(3, 1), zeros.reshape(3, 1))
     haversines, vincentys = nk.haversines_pack(zeros, zeros), nk.vincentys_pack(zeros, zeros)
     with pytest.raises(TypeError):
@@ -260,7 +255,7 @@ def test_geospatial_errors():
     with pytest.raises(TypeError):
         nk.vincentys_packed(vincentys, zeros)
     points = np.zeros((2, 3), dtype=np.int32)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="points must be"):
         nk.sqeuclideans3d(points[:, :2], points[:, :2])
     with pytest.raises(TypeError):
         nk.sqeuclideans3d(points, points.astype(np.float64))

@@ -1917,7 +1917,8 @@ mod tests {
     use super::*;
     use crate::{
         tensor::DEFAULT_ALIGNMENT,
-        types::{FloatLike, TestableType, assert_close},
+        testing::{TestableType, assert_close},
+        types::FloatLike,
     };
 
     #[test]
@@ -1960,7 +1961,7 @@ mod tests {
     }
 
     #[test]
-    fn from_packed_bytes_roundtrips() {
+    fn from_packed_bytes_round_trips() {
         crate::capabilities::configure_cpu_thread().unwrap();
         let (tokens, heads, depth) = (6usize, 2usize, 8usize);
         let keys = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.1)).unwrap();
@@ -2126,7 +2127,7 @@ mod tests {
     }
 
     #[test]
-    fn rope_split_half() {
+    fn rope_rotates_split_halves_as_the_reference_does() {
         let values: Vec<f32> = (0..2 * 2 * 2 * 8).map(|i| ((i % 11) as f32 - 5.0) * 0.3).collect();
         check_attention_rope::<f32>(&values, 2, 16);
         check_attention_rope::<bf16>(&values, 2, 16);
@@ -2134,7 +2135,7 @@ mod tests {
     }
 
     #[test]
-    fn rope_strided_section() {
+    fn rope_rotates_only_its_strided_section() {
         use crate::tensor::{SliceRange, Tensor};
 
         // Rotate the left __[rows,width]__ column-section of a __[rows,2×width]__ buffer in place

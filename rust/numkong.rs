@@ -149,6 +149,9 @@ pub mod tensor;
 pub mod types;
 pub mod vector;
 
+#[cfg(test)]
+mod testing;
+
 // Re-export scalar types at crate root
 pub use types::{
     DimMut, DimRef, FloatConvertible, FloatLike, NumberLike, StorageElement, Ue4m3, Ue8m0, bf16, bf16c, e2m1x2, e2m3,
@@ -266,14 +269,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn dot_smoke() {
+    fn dot_sums_the_products_of_two_vectors() {
         let first = [1.0_f32, 2.0, 3.0];
         let second = [4.0_f32, 5.0, 6.0];
         assert!((<f32 as Dot>::dot(&first, &second).unwrap() - 32.0).abs() < 0.01);
     }
 
     #[test]
-    fn angular_smoke() {
+    fn angular_of_orthogonal_vectors_is_one() {
         let first = [1.0_f32, 0.0];
         let second = [0.0_f32, 1.0];
         // Orthogonal vectors → angular distance = 1.0
@@ -281,14 +284,14 @@ mod tests {
     }
 
     #[test]
-    fn euclidean_smoke() {
+    fn euclidean_of_a_three_four_five_triangle_is_five() {
         let first = [0.0_f32, 0.0, 0.0];
         let second = [3.0_f32, 4.0, 0.0];
         assert!((f32::euclidean(&first, &second).unwrap() - 5.0).abs() < 0.1);
     }
 
     #[test]
-    fn maxsim_smoke() {
+    fn maxsim_of_constant_packs_is_finite() {
         capabilities::configure_cpu_thread().unwrap();
         let queries = Tensor::<f32>::full(&[4, 16], 1.0).unwrap();
         let documents = Tensor::<f32>::full(&[8, 16], 1.0).unwrap();
@@ -303,7 +306,7 @@ mod tests {
     }
 
     #[test]
-    fn attention_smoke() {
+    fn attention_over_constant_values_returns_them() {
         capabilities::configure_cpu_thread().unwrap();
         let (tokens, heads, depth) = (24usize, 2usize, 32usize);
         let keys = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.25)).unwrap();
@@ -325,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn attention_kv_cache_reuse() {
+    fn attention_repacking_reuses_the_cache_allocation() {
         capabilities::configure_cpu_thread().unwrap();
         let (heads, depth) = (2usize, 32usize);
         let small = Tensor::<bf16>::full(&[10, heads * depth], bf16::from_f32(0.25)).unwrap();
@@ -397,7 +400,7 @@ mod tests {
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     #[test]
-    fn attention_capabilities_symmetry() {
+    fn attention_pack_size_and_parallel_paths_match_serial() {
         capabilities::configure_cpu_thread().unwrap();
         let (heads, depth) = (4usize, 64usize);
         let lengths = [7u32, 250, 0, 33, 129]; // ragged mix incl. a pad segment
@@ -435,7 +438,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_dots_smoke() {
+    fn tensor_dots_packed_sum_constant_rows() {
         capabilities::configure_cpu_thread().unwrap();
         let queries = Tensor::<f32>::full(&[2, 4], 1.0).unwrap();
         let targets = Tensor::<f32>::full(&[3, 4], 1.0).unwrap();

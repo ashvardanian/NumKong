@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Test curved-space distances: nk.bilinear, nk.mahalanobis.
 
-DTypes: float64, float32, float16, bfloat16, e4m3, e5m2, e2m3, e3m2, complex64, complex128.
+Covers: float64, float32, float16, bfloat16, e4m3, e5m2, e2m3, e3m2, complex64, complex128.
 Baselines: high-precision Decimal quadratic forms, SciPy mahalanobis.
 Matches C++ suite: test/curved.cpp.
+Run: python -m pytest test/curved.py
 
 File: test/curved.py
 Author: Ash Vardanian
@@ -14,21 +15,8 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 import pytest
-
-
-if TYPE_CHECKING:
-    import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
-
-try:
-    import numpy as np
-
-    numpy_available = True
-except Exception:
-    numpy_available = False
-
 from base import (
     NUMKONG_ATOL,
     NUMKONG_RTOL,
@@ -40,29 +28,37 @@ from base import (
     hex_array,
     numpy_available,
     precise_decimal,
+    scipy_available,
     timed_call,
 )
 
 import numkong as nk
 
 
+if numpy_available:
+    import numpy as np
+
+
 def baseline_bilinear(x, y, z, dtype=None):
+    """Bilinear form `x @ z @ y` in NumPy, the reference for `nk.bilinear`."""
     return x @ z @ y
 
 
-try:
+if scipy_available:
     import scipy.spatial.distance as spd
 
     def baseline_mahalanobis(x: np.ndarray, y: np.ndarray, z: np.ndarray, dtype: str | None = None) -> float:
+        """Mahalanobis distance through SciPy, the reference for `nk.mahalanobis`."""
         with np.errstate(invalid="ignore"):
             result = float(spd.mahalanobis(x, y, z))
-        if math.isnan(result):
-            pytest.skip("SciPy Mahalanobis distance took the `sqrt` of a negative number")
-        return result
+        # A positive semi-definite form rounds below zero only beside a zero distance, where SciPy's
+        # `sqrt` is NaN
+        return 0.0 if math.isnan(result) else result
 
-except ImportError:
+else:
 
     def baseline_mahalanobis(x, y, z, dtype=None):
+        """Mahalanobis distance in NumPy, the reference for `nk.mahalanobis` without SciPy."""
         diff = x - y
         return np.sqrt(diff @ z @ diff)
 
@@ -115,9 +111,8 @@ KERNELS_CURVED: dict[str, tuple[Callable, Callable, Callable]] = {
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
-@pytest.mark.parametrize("ndim", SETTINGS.curved_dims)
 @pytest.mark.parametrize(
-    "dtypes",
+    ("dtype", "compute_dtype"),
     [
         ("float64", "float64"),
         ("float32", "float32"),
@@ -125,10 +120,12 @@ KERNELS_CURVED: dict[str, tuple[Callable, Callable, Callable]] = {
         ("bfloat16", "float32"),
     ],
 )
+@pytest.mark.parametrize("ndim", SETTINGS.curved_dims)
 @pytest.mark.parametrize("metric", ["bilinear", "mahalanobis"])
-def test_curved_random_accuracy(stats, capabilities, ndim: int, dtypes: str, metric: str, np_rng: np.random.Generator):
+def test_curved_forms_match_the_precise_reference(
+    stats, capabilities, ndim: int, dtype: str, compute_dtype: str, metric: str, np_rng: np.random.Generator
+):
     """Bilinear and Mahalanobis for float and bfloat16 dtypes against high-precision baselines."""
-    dtype, compute_dtype = dtypes
 
     # Generate structured data at f32
     a_vector_f32 = np.abs(np_rng.standard_normal(ndim).astype(np.float32))
@@ -190,9 +187,9 @@ def test_curved_random_accuracy(stats, capabilities, ndim: int, dtypes: str, met
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
-@pytest.mark.parametrize("ndim", SETTINGS.curved_dims)
 @pytest.mark.parametrize("dtype", ["complex128", "complex64"])
-def test_bilinear_complex_accuracy(stats, capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
+@pytest.mark.parametrize("ndim", SETTINGS.curved_dims)
+def test_complex_bilinear_matches_numpy(stats, capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Complex bilinear form against NumPy at extended precision."""
     a_vector = (np_rng.standard_normal(ndim) + 1.0j * np_rng.standard_normal(ndim)).astype(dtype)
     b_vector = (np_rng.standard_normal(ndim) + 1.0j * np_rng.standard_normal(ndim)).astype(dtype)

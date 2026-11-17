@@ -56,7 +56,7 @@ namespace ashvardanian::numkong::bench {
 /** Runs a transport @p kernel on equal and unequal clouds of 32, 128 and 512 points, besides the
  *  16 × 16 tile every vendor shares. */
 template <nk_dtype_t input_dtype_, typename kernel_type_>
-void run_transport_cuda(environment_t const &env, std::string const &name, cuda_backend_t const &backend,
+void run_transport_cuda(bench_settings_t const &env, std::string const &name, cuda_backend_t const &backend,
                         kernel_type_ kernel) {
     run_shapes_packed<input_dtype_>(env, name, backend, kernel);
     run_shapes_packed<input_dtype_>(
@@ -66,13 +66,13 @@ void run_transport_cuda(environment_t const &env, std::string const &name, cuda_
 
 /** Times a CUDA geodesic kernel over @p rows and @p columns points drawn anywhere on Earth, packed
  *  on the device by the CUDA routine of the same family. */
-void measure_geodesics_cuda(loop_t &loop, environment_t const &env, cuda_backend_t backend,
+void measure_geodesics_cuda(loop_t &loop, bench_settings_t const &env, cuda_backend_t backend,
                             nk_status_t (*pack_size)(nk_size_t, nk_size_t *),
                             nk_status_t (*pack)(nk_f64_t const *, nk_f64_t const *, nk_size_t, void *, nk_stream_t),
                             nk_status_t (*kernel)(void const *, void const *, nk_f64_t *, nk_size_t, nk_stream_t),
                             std::size_t rows, std::size_t columns) {
     std::size_t const points = rows + columns;
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     std::vector<nk_f64_t> latitudes(points), longitudes(points);
     nk::fill_coordinates(generator, latitudes.data(), longitudes.data(), points);
     nk_size_t a_bytes = 0, b_bytes = 0;
@@ -108,9 +108,9 @@ void measure_geodesics_cuda(loop_t &loop, environment_t const &env, cuda_backend
 
 /** Times CUDA clearances of @p rows viewpoints to @p columns targets across a random-walk terrain
  *  of @p cells × @p cells, 30 m apart, packed on the device, every point 2 m above its ground. */
-void measure_clearances_cuda(loop_t &loop, environment_t const &env, cuda_backend_t backend, std::size_t rows,
+void measure_clearances_cuda(loop_t &loop, bench_settings_t const &env, cuda_backend_t backend, std::size_t rows,
                              std::size_t columns, std::size_t cells) {
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     std::normal_distribution<float> step(0.0f, 4.0f);
     std::uniform_real_distribution<float> unit(0.0f, 1.0f);
     std::vector<nk_f32_t> heights(cells * cells), points((rows + columns) * 3);
@@ -157,7 +157,7 @@ void measure_clearances_cuda(loop_t &loop, environment_t const &env, cuda_backen
 #endif // NUMKONG_TARGET_CUDA
 
 /** The CUDA baseline rows the tensor-core capabilities have no faster path for, on every device. */
-void bench_cross_cuda([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
+void bench_cross_cuda([[maybe_unused]] bench_settings_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
                       [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_CUDA
     if (!(enabled & nk_cap_cuda_k)) return;
@@ -227,7 +227,7 @@ void bench_cross_cuda([[maybe_unused]] environment_t const &env, [[maybe_unused]
 }
 
 /** Every Ampere entry point, compiled only when the architecture list includes the family. */
-void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
+void bench_cross_ampere([[maybe_unused]] bench_settings_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
                         [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_AMPERE
     if (!(enabled & nk_cap_ampere_k)) return;
@@ -411,7 +411,7 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
 }
 
 /** Every Hopper entry point, compiled only when the architecture list includes "90a". */
-void bench_cross_hopper([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
+void bench_cross_hopper([[maybe_unused]] bench_settings_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
                         [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_HOPPER
     if (!(enabled & nk_cap_hopper_k)) return;
@@ -532,7 +532,7 @@ void bench_cross_hopper([[maybe_unused]] environment_t const &env, [[maybe_unuse
 }
 
 /** Every Blackwell entry point, compiled only when the architecture list includes the family. */
-void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
+void bench_cross_blackwell([[maybe_unused]] bench_settings_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
                            [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_BLACKWELL
     if (!(enabled & nk_cap_blackwell_k)) return;
@@ -743,7 +743,8 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
 }
 
 /** Every Blackwell RTX entry point, compiled only when the architecture list includes it. */
-void bench_cross_blackwellrtx([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
+void bench_cross_blackwellrtx([[maybe_unused]] bench_settings_t const &env,
+                              [[maybe_unused]] cuda_backend_t const &backend,
                               [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_BLACKWELLRTX
     if (!(enabled & nk_cap_blackwellrtx_k)) return;
@@ -819,7 +820,7 @@ void bench_cross_blackwellrtx([[maybe_unused]] environment_t const &env, [[maybe
 }
 
 /** Every Blackwell Ultra entry point, compiled only when the architecture list includes it. */
-void bench_cross_blackwellultra([[maybe_unused]] environment_t const &env,
+void bench_cross_blackwellultra([[maybe_unused]] bench_settings_t const &env,
                                 [[maybe_unused]] cuda_backend_t const &backend,
                                 [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_BLACKWELLULTRA
@@ -844,8 +845,8 @@ void bench_cross_blackwellultra([[maybe_unused]] environment_t const &env,
 #pragma region Baseline Helpers
 
 /** Prints why a baseline row is missing, when @p name passes the filter. */
-void print_skipped(environment_t const &env, std::string const &name, char const *reason) {
-    if (env.settings.selects(name)) print(row_t {name, 0, {}, std::string_view(reason)});
+void print_skipped(bench_settings_t const &env, std::string const &name, char const *reason) {
+    if (env.filter.selects(name)) print(row_t {name, 0, {}, std::string_view(reason)});
 }
 
 /** The codes behind a kernel operand: the pointer itself, or a block-scaled reference's elements,
@@ -859,7 +860,7 @@ void const *operand_codes(operand_type_ operand) noexcept {
 /** Runs a baseline @p kernel over dense B rows through @c run_packed, with a copy of B as
  *  its pack. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename kernel_type_>
-void run_unpacked(environment_t const &env, std::string const &name, expected_metric_t compute_expected,
+void run_unpacked(bench_settings_t const &env, std::string const &name, expected_metric_t compute_expected,
                   kernel_type_ kernel, cuda_backend_t const &backend) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     auto const packed_size = [](std::size_t columns, std::size_t depth, nk_size_t *bytes) {
@@ -1022,14 +1023,13 @@ struct cublaslt_plan_t {
 
 /** Runs a cuBLASLt row, or prints why cuBLASLt has no algorithm for it. */
 template <nk_dtype_t input_dtype_, typename output_type_ = typename nk::type_for<input_dtype_>::type::dot_result_t>
-void run_dots_with_cublaslt(environment_t const &env, std::string const &name, cuda_backend_t const &backend) {
+void run_dots_with_cublaslt(bench_settings_t const &env, std::string const &name, cuda_backend_t const &backend) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     std::size_t const dimensions_per_value = nk::dimensions_per_value<input_t>();
-    std::size_t const a_row_bytes = nk::divide_round_up(env.settings.matrix_depth, dimensions_per_value) *
-                                    sizeof(input_t);
+    std::size_t const a_row_bytes = nk::divide_round_up(env.matrix_depth, dimensions_per_value) * sizeof(input_t);
     auto const plan = std::make_shared<cublaslt_plan_t>();
     if (cublasStatus_t const status = plan->build(
-            input_dtype_, env.settings.matrix_height, env.settings.matrix_width, env.settings.matrix_depth,
+            input_dtype_, env.matrix_height, env.matrix_width, env.matrix_depth,
             backend.row_stride(a_row_bytes) / sizeof(input_t) * dimensions_per_value, backend))
         return print_skipped(env, name, cublasLtGetStatusName(status));
     run_unpacked<input_dtype_, output_type_>(
@@ -1041,7 +1041,7 @@ void run_dots_with_cublaslt(environment_t const &env, std::string const &name, c
 
 /** Runs DGEMM through cuBLAS's fixed-point emulation, which only the handle API runs on 12.x
  *  devices. */
-void run_dots_f64_with_cublas(environment_t const &env, std::string const &name, cuda_backend_t const &backend) {
+void run_dots_f64_with_cublas(bench_settings_t const &env, std::string const &name, cuda_backend_t const &backend) {
     cublasHandle_t raw_handle = nullptr;
     if (cublasStatus_t const status = cublasCreate(&raw_handle))
         return print_skipped(env, name, cublasGetStatusName(status));
@@ -1066,7 +1066,7 @@ void run_dots_f64_with_cublas(environment_t const &env, std::string const &name,
 #endif // NUMKONG_COMPARE_TO_CUBLAS
 
 /** Every cuBLASLt row, one per dtype, and cuBLAS's emulated DGEMM. */
-void bench_cross_cublas([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend) {
+void bench_cross_cublas([[maybe_unused]] bench_settings_t const &env, [[maybe_unused]] cuda_backend_t const &backend) {
 #if NUMKONG_COMPARE_TO_CUBLAS
     run_dots_with_cublaslt<nk_f64_k>(env, "dots_packed_f64_with_cublaslt", backend);
     run_dots_f64_with_cublas(env, "dots_packed_f64_with_cublas", backend);
@@ -1388,7 +1388,7 @@ struct cudnn_attention_plan_t {
 /** Runs one cuDNN row of @p shape through @c run_attention_row, with K and V copied into each
  *  set's cache. */
 template <nk_dtype_t input_dtype_, attention_visibility_t visibility_>
-void run_attention_row_with_cudnn(environment_t const &env, std::string const &name, attention_shape_t shape,
+void run_attention_row_with_cudnn(bench_settings_t const &env, std::string const &name, attention_shape_t shape,
                                   cuda_backend_t const &backend) {
     auto const plan = std::make_shared<cudnn_attention_plan_t>();
     if (cudnnStatus_t const status = plan->build(input_dtype_, visibility_, shape, backend))
@@ -1417,7 +1417,7 @@ void run_attention_row_with_cudnn(environment_t const &env, std::string const &n
 /** Runs cuDNN rows beside the NumKong ones: bidirectional, causal, and windowed where the
  *  window clips. */
 template <nk_dtype_t input_dtype_>
-void run_attention_with_cudnn(environment_t const &env, std::string const &name, cuda_backend_t const &backend) {
+void run_attention_with_cudnn(bench_settings_t const &env, std::string const &name, cuda_backend_t const &backend) {
     for (attention_shape_t const shape : attention_shapes(env)) {
         run_attention_row_with_cudnn<input_dtype_, attention_visibility_t::bidirectional_k>(env, name, shape, backend);
         run_attention_row_with_cudnn<input_dtype_, attention_visibility_t::causal_k>(env, name, shape, backend);
@@ -1431,7 +1431,7 @@ void run_attention_with_cudnn(environment_t const &env, std::string const &name,
 
 /** Every cuDNN row: BF16, F16 and E4M3 attention, bidirectional, causal, and windowed where the
  *  window clips. */
-void bench_cross_cudnn([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend) {
+void bench_cross_cudnn([[maybe_unused]] bench_settings_t const &env, [[maybe_unused]] cuda_backend_t const &backend) {
 #if NUMKONG_COMPARE_TO_CUDNN
     run_attention_with_cudnn<nk_bf16_k>(env, "attention_packed_bf16_with_cudnn", backend);
     run_attention_with_cudnn<nk_f16_k>(env, "attention_packed_f16_with_cudnn", backend);
@@ -1457,7 +1457,7 @@ DLManagedTensor dlpack_matrix(void const *data, std::int64_t *shape, std::uint8_
 /** Runs @c cuvsPairwiseDistance as a cosine or L2-expanded row beside NumKong's angular or
  *  euclidean one. */
 template <nk_dtype_t input_dtype_>
-void run_spatials_with_cuvs(environment_t const &env, std::string const &name, expected_metric_t compute_expected,
+void run_spatials_with_cuvs(bench_settings_t const &env, std::string const &name, expected_metric_t compute_expected,
                             cuvsDistanceType distance, cuda_backend_t const &backend) {
     std::shared_ptr<cuvsResources_t> const resources(new cuvsResources_t {}, [](cuvsResources_t *resources) {
         cuvsResourcesDestroy(*resources);
@@ -1488,7 +1488,7 @@ void run_spatials_with_cuvs(environment_t const &env, std::string const &name, e
 #endif // NUMKONG_COMPARE_TO_CUVS
 
 /** Every cuVS row: cosine and L2 distances over F32 and F16. */
-void bench_cross_cuvs([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend) {
+void bench_cross_cuvs([[maybe_unused]] bench_settings_t const &env, [[maybe_unused]] cuda_backend_t const &backend) {
 #if NUMKONG_COMPARE_TO_CUVS
     run_spatials_with_cuvs<nk_f32_k>(env, "angulars_packed_f32_with_cuvs", angular_compensated_f64, CosineExpanded,
                                      backend);
@@ -1509,7 +1509,7 @@ void bench_cross_cuvs([[maybe_unused]] environment_t const &env, [[maybe_unused]
 namespace ashvardanian::numkong::bench {
 
 /** Every CUDA row: the kernel families this device runs, then the baselines compiled in. */
-nk::status_t bench_cross_cuda([[maybe_unused]] environment_t const &env,
+nk::status_t bench_cross_cuda([[maybe_unused]] bench_settings_t const &env,
                               [[maybe_unused]] device_backend_t const &runtime) {
 #if NUMKONG_ARCH_CUDA_
     device_scope<cudaGetDevice, cudaSetDevice> const selected(static_cast<int>(runtime.device.ordinal()));

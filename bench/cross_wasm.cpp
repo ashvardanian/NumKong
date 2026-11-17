@@ -17,7 +17,7 @@
 
 namespace ashvardanian::numkong::bench {
 
-void bench_cross_wasm(environment_t const &env) {
+void bench_cross_wasm(bench_settings_t const &env) {
     constexpr nk_dtype_t f64_k = nk_f64_k;
     constexpr nk_dtype_t f32_k = nk_f32_k;
     constexpr nk_dtype_t bf16_k = nk_bf16_k;

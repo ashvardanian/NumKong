@@ -19,16 +19,16 @@ namespace ashvardanian::numkong::test {
 /** @p count random clouds of @p scalar_type_ of @p points each, packed on the host into @p backend
  *  memory. */
 template <typename scalar_type_, typename backend_type_>
-auto device_random_packed(settings_t const &settings, backend_type_ const &backend, std::mt19937 &generator,
-                          std::size_t count, std::size_t points, error_stats_t &stats) {
+auto device_random_packed(backend_type_ const &backend, split_mix_generator_t &generator, std::size_t count,
+                          std::size_t points, error_stats_t &stats) {
     auto coordinates = make_vector<scalar_type_>(count * points * 3);
-    fill_random(settings, generator, coordinates);
+    fill_random(generator, coordinates);
     std::vector<std::span<scalar_type_ const>> clouds(count);
     for (std::size_t index = 0; index != count; ++index)
         clouds[index] = {coordinates.values_data() + index * points * 3, points * 3};
     using packs_t = nk::shapes_packed<scalar_type_, typename backend_type_::template allocator<char>>;
     auto packs = packs_t::make(clouds, allocator_of<char>(backend));
-    stats.expect(packs.status);
+    stats.expect_status(packs.status);
     return std::move(packs.value);
 }
 
@@ -36,24 +36,24 @@ auto device_random_packed(settings_t const &settings, backend_type_ const &backe
  *  fold the matrix units sum in their own order: n roundings of the moments in the distance type,
  *  n × ε × spread², through the square root. */
 template <typename scalar_type_, typename backend_type_, typename kernel_type_>
-error_stats_t test_rmsds_packed(settings_t const &settings, kernel_type_ kernel) {
+error_stats_t test_rmsds_packed(kernel_type_ kernel) {
     using distance_t = typename scalar_type_::shapes_distance_t;
     using raw_distance_t = typename distance_t::raw_t;
     using reference_t = reference_for<scalar_type_>;
     error_stats_t stats(comparison_family_t::bounded_k);
-    auto backend = make_backend<backend_type_>(settings);
-    std::mt19937 generator(settings.seed.value);
-    std::size_t const points = settings.shape_points, rows = 37, columns = 45;
-    auto const row_packs = device_random_packed<scalar_type_>(settings, backend, generator, rows, points, stats);
-    auto const column_packs = device_random_packed<scalar_type_>(settings, backend, generator, columns, points, stats);
+    auto backend = make_backend<backend_type_>();
+    split_mix_generator_t generator(case_stream_key());
+    std::size_t const points = test_run.settings.shape_points, rows = 37, columns = 45;
+    auto const row_packs = device_random_packed<scalar_type_>(backend, generator, rows, points, stats);
+    auto const column_packs = device_random_packed<scalar_type_>(backend, generator, columns, points, stats);
     auto results = make_vector<distance_t>(backend, rows * columns);
     backend.call(kernel, row_packs.data(), rows, column_packs.data(), columns, results.raw_values_data(),
                  columns * sizeof(raw_distance_t));
-    if (!stats.expect(backend.synchronize())) return stats;
+    if (!stats.expect_status(backend.synchronize())) return stats;
     std::vector<reference_t> expected(rows * columns);
-    stats.expect(nk::rmsds_packed<scalar_type_, reference_t>(row_packs.data(), rows, column_packs.data(), columns,
-                                                             expected.data(), columns * sizeof(reference_t),
-                                                             no_tiers_k));
+    stats.expect_status(nk::rmsds_packed<scalar_type_, reference_t>(row_packs.data(), rows, column_packs.data(),
+                                                                    columns, expected.data(),
+                                                                    columns * sizeof(reference_t), no_tiers_k));
     for (std::size_t row = 0; row != rows; ++row)
         for (std::size_t column = 0; column != columns; ++column) {
             auto const radius = [](void const *packed) {
@@ -99,14 +99,14 @@ bool shapes_rotation_is_flip(nk_f32_t const *rotation, void const *a_packed, voi
  *  so a distance moves by the root of a few roundings of the norms in the distance type, and a
  *  rotation, built from the same frames, by a few F32 roundings of each entry. */
 template <typename scalar_type_, nk_kernel_kind_t kind_, typename backend_type_, typename kernel_type_>
-error_stats_t test_shapes_flips(settings_t const &settings, kernel_type_ kernel) {
+error_stats_t test_shapes_flips(kernel_type_ kernel) {
     using distance_t = typename scalar_type_::shapes_distance_t;
     using raw_distance_t = typename distance_t::raw_t;
     using reference_t = reference_for<scalar_type_>;
     error_stats_t stats(comparison_family_t::bounded_k);
-    auto backend = make_backend<backend_type_>(settings);
-    std::mt19937 generator(settings.seed.value);
-    std::size_t const points = settings.shape_points, rows = 7, columns = 9;
+    auto backend = make_backend<backend_type_>();
+    split_mix_generator_t generator(case_stream_key());
+    std::size_t const points = test_run.settings.shape_points, rows = 7, columns = 9;
     auto results = make_vector<distance_t>(backend, rows * columns);
     auto rotations = make_vector<f32_t>(backend, rows * columns * 9);
     raw_distance_t *score = results.raw_values_data();
@@ -127,24 +127,23 @@ error_stats_t test_shapes_flips(settings_t const &settings, kernel_type_ kernel)
                             raw_distance_t const *limit) {
         auto const launch = [&](auto... arguments) { backend.call(kernel, arguments...); };
         call(launch, launch, a, row_count, b, column_count, score, rotation, limit);
-        return stats.expect(backend.synchronize());
+        return stats.expect_status(backend.synchronize());
     };
     auto const radius = [](void const *packed) {
         return static_cast<nk_f64_t>(static_cast<nk::shapes_header_<scalar_type_> const *>(packed)->max_radius);
     };
 
-    auto const row_packs = device_random_packed<scalar_type_>(settings, backend, generator, rows, points, stats);
-    auto const column_packs = device_random_packed<scalar_type_>(settings, backend, generator, columns, points + 3,
-                                                                 stats);
+    auto const row_packs = device_random_packed<scalar_type_>(backend, generator, rows, points, stats);
+    auto const column_packs = device_random_packed<scalar_type_>(backend, generator, columns, points + 3, stats);
     raw_distance_t const unbounded = distance_t::positive_infinity().raw_;
     if (!device(row_packs.data(), rows, column_packs.data(), columns, &unbounded)) return stats;
     std::vector<reference_t> expected(rows * columns), expected_rotations(rows * columns * 9);
     if constexpr (kind_ == nk_kernel_chamfers_packed_k)
-        stats.expect(nk::chamfers_packed<scalar_type_, reference_t, reference_t>(
+        stats.expect_status(nk::chamfers_packed<scalar_type_, reference_t, reference_t>(
             row_packs.data(), rows, column_packs.data(), columns, expected.data(), columns * sizeof(reference_t),
             expected_rotations.data(), reference_t::positive_infinity(), nullptr, 0, no_tiers_k));
     else
-        stats.expect(nk::hausdorffs_packed<scalar_type_, reference_t, reference_t>(
+        stats.expect_status(nk::hausdorffs_packed<scalar_type_, reference_t, reference_t>(
             row_packs.data(), rows, column_packs.data(), columns, expected.data(), columns * sizeof(reference_t),
             expected_rotations.data(), reference_t::positive_infinity(), no_tiers_k));
     for (std::size_t cell = 0; cell != rows * columns; ++cell) {
@@ -158,8 +157,8 @@ error_stats_t test_shapes_flips(settings_t const &settings, kernel_type_ kernel)
 
     // Limits below, at and above each exact distance, on clouds spanning several slabs.
     std::size_t const slabbed = nk::max_of<std::size_t>(points, 97);
-    auto const slab_rows = device_random_packed<scalar_type_>(settings, backend, generator, 3, slabbed, stats);
-    auto const slab_columns = device_random_packed<scalar_type_>(settings, backend, generator, 3, slabbed + 3, stats);
+    auto const slab_rows = device_random_packed<scalar_type_>(backend, generator, 3, slabbed, stats);
+    auto const slab_columns = device_random_packed<scalar_type_>(backend, generator, 3, slabbed + 3, stats);
     nk_f64_t const roundoff = half_ulp<distance_t>(1.0);
     for (std::size_t row = 0; row != 3; ++row)
         for (std::size_t column = 0; column != 3; ++column) {
@@ -171,14 +170,15 @@ error_stats_t test_shapes_flips(settings_t const &settings, kernel_type_ kernel)
             for (raw_distance_t limit : {raw_distance_t(0), exact / 4, exact / 2, exact, exact * 2}) {
                 if (!device(slab_rows.data() + row, 1, slab_columns.data() + column, 1, &limit)) return stats;
                 if (exact <= limit) {
-                    stats.expect(score[0] == exact && !std::memcmp(rotation, exact_rotation, sizeof(exact_rotation)),
-                                 "a limit changed a distance within it or its rotation");
+                    stats.expect_true(
+                        score[0] == exact && !std::memcmp(rotation, exact_rotation, sizeof(exact_rotation)),
+                        "a limit changed a distance within it or its rotation");
                     continue;
                 }
-                stats.expect(score[0] > limit && (limit != 0 || score[0] < exact) && score[0] <= exact + reach,
-                             "a pair past its limit reported no lower bound past the limit");
-                stats.expect(shapes_rotation_is_flip<scalar_type_>(rotation, slab_rows[row], slab_columns[column]),
-                             "a stopped pair reported no flip of its frames");
+                stats.expect_true(score[0] > limit && (limit != 0 || score[0] < exact) && score[0] <= exact + reach,
+                                  "a pair past its limit reported no lower bound past the limit");
+                stats.expect_true(shapes_rotation_is_flip<scalar_type_>(rotation, slab_rows[row], slab_columns[column]),
+                                  "a stopped pair reported no flip of its frames");
             }
         }
     return stats;
@@ -191,10 +191,10 @@ enum class transport_layout_t { random_k, lattice_k, repeated_k, ring_k };
 /** Packs @p count clouds of @p points each of @p scalar_type_ in @p layout on the host into
  *  @p backend memory, back to back, and the table of their addresses after them. */
 template <typename scalar_type_, typename backend_type_>
-auto device_transport_packs(settings_t const &settings, backend_type_ const &backend, std::mt19937 &generator,
-                            transport_layout_t layout, std::size_t count, std::size_t points, error_stats_t &stats) {
+auto device_transport_packs(backend_type_ const &backend, split_mix_generator_t &generator, transport_layout_t layout,
+                            std::size_t count, std::size_t points, error_stats_t &stats) {
     auto coordinates = make_vector<scalar_type_>(count * points * 3);
-    fill_random(settings, generator, coordinates);
+    fill_random(generator, coordinates);
     std::vector<std::span<scalar_type_ const>> clouds(count);
     std::size_t const corners = points > 8 ? points - points / 8 : points;
     for (std::size_t index = 0; index != count; ++index) {
@@ -219,7 +219,7 @@ auto device_transport_packs(settings_t const &settings, backend_type_ const &bac
     }
     using packs_t = nk::shapes_packed<scalar_type_, typename backend_type_::template allocator<char>>;
     auto packs = packs_t::make(clouds, allocator_of<char>(backend));
-    stats.expect(packs.status);
+    stats.expect_status(packs.status);
     return std::move(packs.value);
 }
 
@@ -231,18 +231,17 @@ auto device_transport_packs(settings_t const &settings, backend_type_ const &bac
  *  closer than the f16 ones land. */
 template <typename scalar_type_, nk_kernel_kind_t kind_, typename backend_type_, typename workspace_size_type_,
           typename kernel_type_>
-error_stats_t test_transport_packed(settings_t const &settings, workspace_size_type_ workspace_size,
-                                    kernel_type_ kernel) {
+error_stats_t test_transport_packed(workspace_size_type_ workspace_size, kernel_type_ kernel) {
     using distance_t = typename scalar_type_::shapes_distance_t;
     using raw_distance_t = typename distance_t::raw_t;
     using reference_t = reference_for<scalar_type_>;
     constexpr bool procrustes_k = kind_ == nk_kernel_wassersteinprocrustes_packed_k;
     error_stats_t stats(comparison_family_t::bounded_k);
-    auto backend = make_backend<backend_type_>(settings);
-    std::mt19937 generator(settings.seed.value);
-    std::size_t const points = settings.shape_points, rows = 5, columns = 7, largest = points + 3;
+    auto backend = make_backend<backend_type_>();
+    split_mix_generator_t generator(case_stream_key());
+    std::size_t const points = test_run.settings.shape_points, rows = 5, columns = 7, largest = points + 3;
     nk_size_t bytes = 0;
-    stats.expect(workspace_size(largest, largest, &bytes));
+    stats.expect_status(workspace_size(largest, largest, &bytes));
     std::size_t const reference_bytes =
         procrustes_k
             ? nk::wassersteinprocrustes_workspace_size<scalar_type_, reference_t>(largest, largest, no_tiers_k).value
@@ -257,23 +256,22 @@ error_stats_t test_transport_packed(settings_t const &settings, workspace_size_t
     nk_f64_t const roundoff = half_ulp<distance_t>(1.0), terms = static_cast<nk_f64_t>(points + largest);
     for (transport_layout_t const layout : {transport_layout_t::random_k, transport_layout_t::lattice_k,
                                             transport_layout_t::repeated_k, transport_layout_t::ring_k}) {
-        auto const row_packs = device_transport_packs<scalar_type_>(settings, backend, generator, layout, rows, points,
-                                                                    stats);
-        auto const column_packs = device_transport_packs<scalar_type_>(settings, backend, generator, layout, columns,
-                                                                       largest, stats);
+        auto const row_packs = device_transport_packs<scalar_type_>(backend, generator, layout, rows, points, stats);
+        auto const column_packs = device_transport_packs<scalar_type_>(backend, generator, layout, columns, largest,
+                                                                       stats);
         backend.call(kernel, row_packs.data(), nk_size_t(rows), column_packs.data(), nk_size_t(columns),
                      results.raw_values_data(), columns * sizeof(raw_distance_t), rotations.raw_values_data(),
                      static_cast<void *>(workspace.raw_values_data()), bytes);
-        if (!stats.expect(backend.synchronize())) return stats;
+        if (!stats.expect_status(backend.synchronize())) return stats;
         nk_f64_t const layout_roundoff = !procrustes_k && layout == transport_layout_t::ring_k
                                              ? nk::max_of(roundoff, half_ulp<f32_t>(1.0) / 10)
                                              : roundoff;
         if constexpr (procrustes_k)
-            stats.expect(nk::wassersteinprocrustes_packed<scalar_type_, reference_t, reference_t>(
+            stats.expect_status(nk::wassersteinprocrustes_packed<scalar_type_, reference_t, reference_t>(
                 row_packs.data(), rows, column_packs.data(), columns, expected.data(), columns * sizeof(reference_t),
                 nullptr, reference_scratch, no_tiers_k));
         else
-            stats.expect(nk::gromovwassersteins_packed<scalar_type_, reference_t, reference_t>(
+            stats.expect_status(nk::gromovwassersteins_packed<scalar_type_, reference_t, reference_t>(
                 row_packs.data(), rows, column_packs.data(), columns, expected.data(), columns * sizeof(reference_t),
                 nullptr, reference_scratch, no_tiers_k));
         for (std::size_t row = 0; row != rows; ++row)
@@ -303,17 +301,17 @@ error_stats_t test_transport_packed(settings_t const &settings, workspace_size_t
 
 /** The dispatching entry points, over the capabilities of the device @p backend_type_ runs on. */
 template <typename backend_type_>
-void test_cross_dispatch(error_stats_section_t &check) {
-    check.section("Cross Dispatch", nk_cap_cuda_k | nk_cap_rocm_k | nk_cap_metal_k);
-    check(
-        "dots_packed_i8_dispatch", test_dots_packed<i8_t, backend_type_>,
-        [capabilities = check.available](auto... arguments) noexcept {
+void run_cross_dispatch_cases() {
+    run_kernel_case(
+        "test_dots_packed<i8_t, backend_type_>(nk_dots_packed_i8_best)", test_dots_packed<i8_t, backend_type_>,
+        nk_cap_cuda_k | nk_cap_rocm_k | nk_cap_metal_k,
+        [capabilities = test_run.settings.capabilities](auto... arguments) noexcept {
             return call_best<nk_dots_pack_size_i8_best>(capabilities, arguments...);
         },
-        [capabilities = check.available](auto... arguments) noexcept {
+        [capabilities = test_run.settings.capabilities](auto... arguments) noexcept {
             return call_best<nk_dots_pack_i8_best>(capabilities, arguments...);
         },
-        [capabilities = check.available](auto... arguments) noexcept {
+        [capabilities = test_run.settings.capabilities](auto... arguments) noexcept {
             return call_best<nk_dots_packed_i8_best>(capabilities, arguments...);
         });
 }

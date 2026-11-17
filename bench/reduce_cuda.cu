@@ -14,7 +14,7 @@ namespace ashvardanian::numkong::bench {
 
 #if NUMKONG_ARCH_CUDA_
 
-void bench_reduce_cuda([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
+void bench_reduce_cuda([[maybe_unused]] bench_settings_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
                        [[maybe_unused]] nk_capability_t enabled) {
     [[maybe_unused]] std::size_t const tokens = 4096, hidden = 4096;
 #if NUMKONG_TARGET_CUDA

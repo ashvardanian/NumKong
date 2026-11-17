@@ -24,13 +24,15 @@ import math
 import os
 import random
 import re
-import secrets
 import sys
+import sysconfig
 import time
 from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Literal, NewType
+from typing import TYPE_CHECKING, Any, Literal, NewType, NoReturn
+
+import pytest
 
 import numkong as nk
 
@@ -40,81 +42,100 @@ if TYPE_CHECKING:
 
 faulthandler.enable()
 
-Seed = NewType("Seed", int)  # 32-bit; derive streams from it with `stream_key`, never add to it
-StreamKey = NewType("StreamKey", int)  # 64-bit, from `stream_key`; seeds one test's generators
 Threads = NewType("Threads", int)  # resolved count, never 0: `parse_threads` maps 0 to all cores
 Bytes = NewType("Bytes", int)  # a size in bytes, never an element count
 Nanoseconds = NewType("Nanoseconds", int)  # a `time.perf_counter_ns` difference
 
 DType = Literal[
-    "float64", "float32", "float16", "bfloat16", "bf16", "e5m2", "e4m3", "e3m2", "e2m3", "e2m1",
+    "float64", "float32", "float16", "bfloat16", "e5m2", "e4m3", "e3m2", "e2m3", "e2m1",
     "int64", "int32", "int16", "int8", "int4", "uint64", "uint32", "uint16", "uint8", "uint4", "uint1",
     "complex128", "complex64",
 ]  # fmt: skip
 BufferDType = Literal["float64", "float32", "int8", "uint8"]
 
-
-def env_text(name: str) -> str | None:
-    """Reads `name`, or `None` when it is unset or empty."""
-    return os.environ.get(name) or None
+# region Shared Settings
+_UINT64_MASK = 2**64 - 1
 
 
-def env_parsed[T](name: str, fallback: T, parse: Callable[[str], T | None], expected: str) -> T:
-    """Reads `name` through `parse`, or `fallback` when unset or empty; exits with status 1 on bad text."""
-    text = env_text(name)
+def env_text(variable: str) -> str | None:
+    """The stripped text of the environment `variable`, or None when unset or blank."""
+    text = os.environ.get(variable, "").strip()
+    return text or None
+
+
+def exit_unparsed(variable: str, text: str, expected: str) -> NoReturn:
+    """Stops the session on a setting that does not parse, naming it as the C and C++ suites do."""
+    raise SystemExit(f'{variable}="{text}" does not parse, expected {expected}')
+
+
+def env_seed(variable: str) -> int:
+    """An unsigned 64-bit seed: 42 when unset, drawn afresh for `random`."""
+    text = env_text(variable)
+    if text is None:
+        return 42
+    if text == "random":
+        return random.SystemRandom().getrandbits(64)
+    if not text.isdigit() or int(text) > _UINT64_MASK:
+        exit_unparsed(variable, text, "an unsigned integer or random")
+    return int(text)
+
+
+def env_real(variable: str, fallback: float) -> float:
+    """A positive real, `fallback` when unset."""
+    text = env_text(variable)
     if text is None:
         return fallback
     try:
-        parsed = parse(text)
-    except (ValueError, TypeError):
-        parsed = None
-    if parsed is None:
-        raise SystemExit(f'{name}="{text}" does not parse, expected {expected}')
-    return parsed
+        value = float(text)
+    except ValueError:
+        value = 0.0
+    if not value > 0 or value == float("inf"):
+        exit_unparsed(variable, text, "a positive number like 0.1 or 10")
+    return value
 
 
-def env_count(name: str, fallback: int) -> int:
-    """Reads a positive count like `128`, or `fallback` when unset or empty."""
-    return env_parsed(name, fallback, parse_count, "a positive count")
+def env_count(variable: str, fallback: int) -> int:
+    """A whole number, `fallback` when unset."""
+    text = env_text(variable)
+    if text is None:
+        return fallback
+    if not text.isdigit():
+        exit_unparsed(variable, text, "a whole number")
+    return int(text)
 
 
-def env_flag(name: str, fallback: bool) -> bool:
-    """Reads `0`, `1`, `true` or `false`, or `fallback` when unset or empty."""
-    return env_parsed(name, fallback, {"0": False, "false": False, "1": True, "true": True}.get, "0, 1, true or false")
+def env_flag(variable: str, fallback: bool = False) -> bool:
+    """A switch, `fallback` when unset: 0, false, off and no turn it off."""
+    text = env_text(variable)
+    if text is None:
+        return fallback
+    return text not in {"0", "false", "off", "no"}
 
 
-def env_seed(name: str, fallback: Seed) -> Seed:
-    """Reads an unsigned 32-bit seed or `random`, or `fallback` when unset or empty."""
-    return env_parsed(name, fallback, parse_seed, "an unsigned integer or random")
+@dataclass(frozen=True)
+class Filter:
+    """Which node ids a run selects: a regex search when the pattern compiles, else a substring, all when empty."""
+
+    pattern: str
+    regex: re.Pattern[str] | None
+
+    def selects(self, nodeid: str) -> bool:
+        """Whether `nodeid` passes the filter."""
+        if not self.pattern:
+            return True
+        if self.regex is not None:
+            return self.regex.search(nodeid) is not None
+        return self.pattern in nodeid
 
 
-def parse_count(text: str) -> int | None:
-    """Parses a positive whole number in ASCII digits, like `128`; zero is `None`."""
-    digits = re.fullmatch(r"[0-9]+", text) is not None
-    return (int(text) or None) if digits else None
-
-
-def parse_dims(text: str) -> list[int] | None:
-    """Parses one count like `128` or a comma list like `64,128,256,512`."""
-    counts = [count for piece in text.split(",") if (count := parse_count(piece)) is not None]
-    return counts if len(counts) == text.count(",") + 1 else None
-
-
-def parse_seed(text: str) -> Seed | None:
-    """Parses an unsigned 32-bit integer like `42`, or `random` to draw one from system entropy."""
-    if text == "random":
-        return Seed(secrets.randbits(32))
-    digits = re.fullmatch(r"[0-9]+", text) is not None
-    return Seed(int(text)) if digits and int(text) < 2**32 else None
-
-
-def parse_angle_degrees(text: str) -> float | None:
-    """Parses an angle in degrees within `[0, 180]`, like the C++ harness."""
-    angle = float(text)
-    return angle if 0 <= angle <= 180 else None
-
-
-_UINT64_MASK = 2**64 - 1
+def env_filter(variable: str) -> Filter:
+    """The filter the environment `variable` spells, compiled once."""
+    pattern = env_text(variable) or ""
+    try:
+        regex = re.compile(pattern) if pattern else None
+    except re.error:
+        regex = None
+    return Filter(pattern, regex)
 
 
 def mix(value: int) -> int:
@@ -124,23 +145,36 @@ def mix(value: int) -> int:
     return value ^ (value >> 31)
 
 
-def stream_key(seed: Seed, name: str) -> StreamKey:
-    """The key of stream `name`, `mix(mix(seed ^ fnv1a64(name)))`, bit-identical to C++ `stream_key`."""
+def stream_key(seed: int, name: str, index: int = 0) -> int:
+    """The `index`-th stream of the family `name` under `seed`, identical in C, C++, Rust and Mojo."""
     hashed = 0xCBF29CE484222325
     for byte in name.encode():
         hashed = ((hashed ^ byte) * 0x100000001B3) & _UINT64_MASK
-    return StreamKey(mix(mix(seed ^ hashed)))
+    return mix((mix(seed ^ hashed) + index) & _UINT64_MASK)
+
+
+# endregion Shared Settings
+
+
+def env_dims(variable: str, fallback: list[int]) -> list[int]:
+    """Positive counts like `128` or `64,128,256` from the environment `variable`, `fallback` when unset."""
+    text = env_text(variable)
+    if text is None:
+        return fallback
+    pieces = text.split(",")
+    if not all(piece.isdigit() and int(piece) > 0 for piece in pieces):
+        exit_unparsed(variable, text, "positive counts like 64,128")
+    return [int(piece) for piece in pieces]
 
 
 @dataclass(frozen=True)
 class Settings:
     """Every `NUMKONG_*` variable the Python suite reads, parsed once at import."""
 
-    seed: Seed
-    filter: str
-    filter_pattern: re.Pattern[str] | None
+    seed: int
+    filter: Filter
+    scale: float
     in_qemu: bool
-    repetitions: int
     dims: list[int]
     dims_height: list[int]
     dims_width: list[int]
@@ -152,57 +186,54 @@ class Settings:
     expect_simd: bool
 
     @property
+    def repetitions(self) -> int:
+        """How many times each randomized test repeats: ten at scale 1."""
+        return max(1, round(10 * self.scale))
+
+    @property
     def reduced_repetitions(self) -> int:
         """A fifth of `repetitions`, for the costlier matrix and shape sweeps."""
-        return max(1, self.repetitions // 5)
-
-    def selects(self, name: str) -> bool:
-        """Whether `NUMKONG_FILTER` selects the test `name`, as a regex or else as a substring."""
-        return bool(self.filter_pattern.search(name)) if self.filter_pattern else self.filter in name
+        return max(1, round(2 * self.scale))
 
 
 def read_settings() -> Settings:
     """Reads every `NUMKONG_*` variable, exiting with status 1 on the first that does not parse."""
-    seed = env_seed("NUMKONG_SEED", Seed(42))
-    filter = env_text("NUMKONG_FILTER") or ""
-    try:
-        filter_pattern = re.compile(filter) if filter else None
-    except re.error:
-        filter_pattern = None
-    in_qemu = env_flag("NUMKONG_IN_QEMU", False)
-    repetitions = env_count("NUMKONG_REPETITIONS", 3 if in_qemu else 10)
+    in_qemu = env_flag("NUMKONG_IN_QEMU")
     # Simple cases first, then tiny ones, then the corners around common sizes.
     wide = [4, 8, 16, 64, 128, 1, 2, 3, 5, 7, 9, 15, 17, 31, 32, 33, 63, 65, 97]
-    dims = env_parsed(
-        "NUMKONG_DIMS", [1, 4, 16, 33, 64] if in_qemu else wide, parse_dims, "positive counts like 64,128"
-    )
+    dims = env_dims("NUMKONG_DIMS", [1, 4, 16, 33, 64] if in_qemu else wide)
 
-    def sampled(name: str, sample_key: int, count: int) -> list[int]:
-        fallback = sorted(random.Random(sample_key).sample(dims, min(count, len(dims))))
-        return env_parsed(name, fallback, parse_dims, "positive counts like 64,128")
+    def sampled(variable: str, sample_key: int, count: int) -> list[int]:
+        return env_dims(variable, sorted(random.Random(sample_key).sample(dims, min(count, len(dims)))))
 
+    max_coord_angle_degrees = env_real("NUMKONG_MAX_COORD_ANGLE", 180.0)
+    if max_coord_angle_degrees > 180:
+        exit_unparsed(
+            "NUMKONG_MAX_COORD_ANGLE", env_text("NUMKONG_MAX_COORD_ANGLE") or "", "a number of degrees up to 180"
+        )
     return Settings(
-        seed=seed,
-        filter=filter,
-        filter_pattern=filter_pattern,
+        seed=env_seed("NUMKONG_SEED"),
+        filter=env_filter("NUMKONG_FILTER"),
+        scale=env_real("NUMKONG_SCALE", 0.3 if in_qemu else 1.0),
         in_qemu=in_qemu,
-        repetitions=repetitions,
         dims=dims,
         # Deterministic subsamples for the `[rows, columns, depth]` axes, named as in `dots.h`.
         dims_height=sampled("NUMKONG_DIMS_HEIGHT", 42, 6),
         dims_width=sampled("NUMKONG_DIMS_WIDTH", 43, 6),
         dims_depth=sampled("NUMKONG_DIMS_DEPTH", 44, 6),
         curved_dims=sampled("NUMKONG_CURVED_DIMS", 45, 5),
-        sparse_dims=env_parsed("NUMKONG_SPARSE_DIMS", [256], parse_dims, "positive counts like 64,128"),
+        sparse_dims=env_dims("NUMKONG_SPARSE_DIMS", [256]),
         shape_points=env_count("NUMKONG_SHAPE_POINTS", 32),
-        max_coord_angle_degrees=env_parsed(
-            "NUMKONG_MAX_COORD_ANGLE", 180.0, parse_angle_degrees, "a number in [0, 180]"
-        ),
-        expect_simd=env_flag("NUMKONG_EXPECT_SIMD", True),
+        max_coord_angle_degrees=max_coord_angle_degrees,
+        # On unless set to `0`, as the dispatch check holds on every SIMD-capable machine.
+        expect_simd=env_flag("NUMKONG_EXPECT_SIMD", fallback=True),
     )
 
 
 SETTINGS = read_settings()
+
+BACKEND_AXES = {"capabilities"}
+"""The axes the seed and the case cap leave out, so every CPU capability draws the same inputs."""
 
 try:
     import numpy as np
@@ -213,6 +244,17 @@ except Exception:
 
 scipy_available = importlib.util.find_spec("scipy") is not None
 ml_dtypes_available = importlib.util.find_spec("ml_dtypes") is not None
+rdkit_available = importlib.util.find_spec("rdkit") is not None
+pot_available = importlib.util.find_spec("ot") is not None
+
+requires_free_threading = pytest.mark.skipif(
+    not sysconfig.get_config_var("Py_GIL_DISABLED") or getattr(sys, "_is_gil_enabled", lambda: True)(),
+    reason="needs a free-threaded Python 3.13t or newer with the GIL disabled",
+)
+requires_metal = pytest.mark.skipif(not nk.count_devices_metal(), reason="no Metal device")
+requires_numpy_dtype_registration = pytest.mark.skipif(
+    not hasattr(nk.bfloat16, "dtype"), reason="needs NumPy dtype registration"
+)
 
 
 NUMKONG_RTOL = 0.1
@@ -223,7 +265,6 @@ NATIVE_COMPUTE_DTYPE: dict[str, type[Any]] = (
         "float64": np.float64,
         "float32": np.float32,
         "bfloat16": np.float32,
-        "bf16": np.float32,
         "float16": np.float32,
         "e5m2": np.float32,
         "e4m3": np.float32,
@@ -310,6 +351,36 @@ def scipy_metric_name(metric: str) -> str:
     return metric
 
 
+if scipy_available:
+    import scipy.spatial.distance as spd
+
+    def baseline_euclidean(x, y, dtype=None):
+        """Euclidean distance through SciPy, the reference for `nk.euclidean`."""
+        return np.array(spd.euclidean(x, y))
+
+    def baseline_sqeuclidean(x, y, dtype=None):
+        """Squared Euclidean distance through SciPy, the reference for `nk.sqeuclidean`."""
+        return spd.sqeuclidean(x, y)
+
+    def baseline_angular(x, y, dtype=None):
+        """Cosine distance through SciPy, the reference for `nk.angular`."""
+        return spd.cosine(x, y)
+
+else:
+
+    def baseline_angular(x, y, dtype=None):
+        """Cosine distance in NumPy, the reference for `nk.angular` without SciPy."""
+        return 1.0 - np.dot(x, y) / (np.linalg.norm(x) * np.linalg.norm(y))
+
+    def baseline_euclidean(x, y, dtype=None):
+        """Euclidean distance in NumPy, the reference for `nk.euclidean` without SciPy."""
+        return np.array([np.sqrt(np.sum((x - y) ** 2))])
+
+    def baseline_sqeuclidean(x, y, dtype=None):
+        """Squared Euclidean distance in NumPy, the reference for `nk.sqeuclidean` without SciPy."""
+        return np.sum((x - y) ** 2)
+
+
 def to_array(x: Any, dtype: str | None = None) -> np.ndarray:
     """Copies `x` into a NumPy array, cast to `dtype` when one is given."""
     array = np.array(x)
@@ -320,7 +391,6 @@ _DTYPE_TOLERANCES: dict[str, tuple[float, float]] = {
     "float64": (1e-6, 1e-6),
     "float32": (1e-4, 1e-4),
     "bfloat16": (NUMKONG_ATOL, NUMKONG_RTOL),
-    "bf16": (NUMKONG_ATOL, NUMKONG_RTOL),
     "float16": (NUMKONG_ATOL, NUMKONG_RTOL),
     "e5m2": (NUMKONG_ATOL, NUMKONG_RTOL),
     "e4m3": (NUMKONG_ATOL, NUMKONG_RTOL),
@@ -396,7 +466,8 @@ def i8_downcast_to_i4(array: Any) -> np.ndarray:
     Input values must be in [-8, 7]. Preserves leading dimensions for 2-D+ inputs.
     """
     array = np.asarray(array, dtype=np.int8)
-    assert np.all(array >= -8) and np.all(array <= 7), "values must be in [-8, 7]"
+    assert np.all(array >= -8), "values must be in [-8, 7]"
+    assert np.all(array <= 7), "values must be in [-8, 7]"
     return _pack_nibbles(array)
 
 
@@ -501,7 +572,7 @@ def _make_random_numpy(shape: tuple[int, ...], dtype: DType, generator: np.rando
         baseline = raw.astype(np.float64)
         return raw, baseline
 
-    if dtype in ("bfloat16", "bf16"):
+    if dtype == "bfloat16":
         f32_arr = generator.standard_normal(shape).astype(np.float32)
         f32_rounded, bf16_raw = f32_downcast_to_bf16(f32_arr)
         baseline = f32_rounded.astype(np.float64)
@@ -597,19 +668,30 @@ def downcast_f32_to_dtype(f32_arr: np.ndarray, dtype: str) -> tuple[np.ndarray, 
     The baseline is always derived from the *actually stored* values
     (post-quantization), not the original f32.
     """
-    if dtype in ("bfloat16", "bf16"):
+    if dtype == "bfloat16":
         f32_rounded, raw = f32_downcast_to_bf16(f32_arr)
         return raw, f32_rounded.astype(np.float64)
     raw = f32_arr.astype(dtype)
     return raw, raw.astype(np.float64)
 
 
-possible_capabilities: list[str] = [
+POSSIBLE_CAPABILITIES: list[str] = [
     str(capability.name).lower() for capability in nk.Capability if capability in nk.capabilities_enabled_cpu()
 ]
 """Must be `enabled`, not `detected`: parametrizing over a capability this CPU has but this binary
 lacks silently tests the serial fallback while claiming to cover the SIMD kernel. A binary holds one
 CPU capability group, serial first, so no per-architecture list is needed.
+"""
+
+ALGEBRAIC_DTYPES = ["float32", "float64"]
+"""The dtypes the algebraic-identity tests hold to, precise enough for identities to survive rounding."""
+
+ALGEBRAIC_NDIMS = [7, 97]
+"""Dimensions for the algebraic-identity tests: one below and one far above every SIMD width."""
+
+MAX_CASES_PER_TEST = 2376
+"""The most parameter combinations one test function may collect, backend and repeat axes aside, at the
+default settings; `conftest.py` refuses a collection above it, so no matrix grows unnoticed.
 """
 
 

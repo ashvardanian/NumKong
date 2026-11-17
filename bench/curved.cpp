@@ -93,7 +93,7 @@ nk_status_t bilinear_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_f
  *  @param[in] dimensions The number of dimensions in the vectors.
  */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void measure_curved(loop_t &loop, environment_t const &env, kernel_type_ kernel, std::size_t dimensions) {
+void measure_curved(loop_t &loop, bench_settings_t const &env, kernel_type_ kernel, std::size_t dimensions) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
     using output_t = typename input_t::curved_result_t;
@@ -103,7 +103,7 @@ void measure_curved(loop_t &loop, environment_t const &env, kernel_type_ kernel,
     std::size_t const vector_count = input_sets_count(
         dtype_bytes(input_dtype_, 2 * dimensions + dimensions * dimensions));
     std::vector<input_vector_t> first_vectors(vector_count), second_vectors(vector_count), tensors(vector_count);
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     for (std::size_t index = 0; index != vector_count; ++index) {
         first_vectors[index] = make_vector<input_t>(dimensions);
         second_vectors[index] = make_vector<input_t>(dimensions);
@@ -128,13 +128,12 @@ void measure_curved(loop_t &loop, environment_t const &env, kernel_type_ kernel,
 }
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void run_curved(environment_t const &env, std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(env.settings.curved_dimensions) + ">";
-    run_benchmark(env, bench_name, measure_curved<input_dtype_, kernel_type_ *>, kernel,
-                  env.settings.curved_dimensions);
+void run_curved(bench_settings_t const &env, std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(env.curved_dimensions) + ">";
+    run_benchmark(env, bench_name, measure_curved<input_dtype_, kernel_type_ *>, kernel, env.curved_dimensions);
 }
 
-void bench_curved(environment_t const &env) {
+void bench_curved(bench_settings_t const &env) {
     constexpr nk_dtype_t f64_k = nk_f64_k;
     constexpr nk_dtype_t f32_k = nk_f32_k;
     constexpr nk_dtype_t f16_k = nk_f16_k;

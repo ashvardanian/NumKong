@@ -59,7 +59,7 @@ template <typename packed_size_kernel_type_, typename... arguments_types_>
 std::size_t pack_size_bytes(error_stats_t &stats, packed_size_kernel_type_ packed_size_fn,
                             arguments_types_... arguments) noexcept {
     nk_size_t bytes = 0;
-    stats.expect(packed_size_fn(arguments..., &bytes));
+    stats.expect_status(packed_size_fn(arguments..., &bytes));
     return bytes;
 }
 
@@ -98,7 +98,7 @@ std::size_t workspace_size_bytes(error_stats_t &stats,
                                  scratch_kernel<kernel_type_, workspace_size_kernel_type_> scratch,
                                  arguments_types_... arguments) noexcept {
     nk_size_t bytes = 0;
-    stats.expect(scratch.workspace_size(arguments..., &bytes));
+    stats.expect_status(scratch.workspace_size(arguments..., &bytes));
     return bytes;
 }
 
@@ -170,8 +170,8 @@ std::vector<double> decode_rows(nk::vector<scalar_type_, allocator_type_> const 
 /** Folds every attention output into @p stats: the scale threshold of the largest reference,
  *  floored by @p weights_. */
 template <attention_weights_t weights_, typename output_vector_, typename reference_vector_, typename values_vector_>
-void accumulate_attention(settings_t const &settings, error_stats_t &stats, output_vector_ const &output,
-                          reference_vector_ const &reference, values_vector_ const &values) {
+void accumulate_attention(error_stats_t &stats, output_vector_ const &output, reference_vector_ const &reference,
+                          values_vector_ const &values) {
     if constexpr (weights_ == attention_weights_t::unquantized_k) {
         for (std::size_t index = 0; index < output.size_values(); index++)
             stats.accumulate(output[index], reference[index]);
@@ -182,7 +182,7 @@ void accumulate_attention(settings_t const &settings, error_stats_t &stats, outp
             largest_value = nk::max_of(largest_value, std::fabs(value));
         for (std::size_t index = 0; index < reference.size_values(); index++)
             largest_reference = nk::max_of(largest_reference, std::fabs(static_cast<double>(reference[index])));
-        double const bound = nk::max_of(settings.scale_threshold * largest_reference,
+        double const bound = nk::max_of(test_run.settings.scale_threshold * largest_reference,
                                         std::ldexp(largest_value, -static_cast<int>(weights_) - 1));
         for (std::size_t index = 0; index < output.size_values(); index++)
             stats.accumulate_bounded(output[index], static_cast<double>(reference[index]), bound);
@@ -229,7 +229,7 @@ void expect_padding_untouched(error_stats_t &stats, vector_type_ const &output, 
     std::size_t overwritten = 0;
     for (std::size_t row = 0; row < rows; row++)
         overwritten += overwritten_bytes(output, row * stride + row_bytes, (row + 1) * stride);
-    stats.expect(overwritten == 0, "wrote into the output stride padding");
+    stats.expect_true(overwritten == 0, "wrote into the output stride padding");
 }
 
 /** Expects a Gram matrix of @p count rows to hold @c canary_k below the diagonal and outside the
@@ -244,8 +244,8 @@ void expect_symmetric_untouched(error_stats_t &stats, vector_type_ const &output
         (computed ? below_diagonal : outside_rows) += overwritten_bytes(
             output, row * stride, row * stride + untouched_columns * sizeof(result_type_));
     }
-    stats.expect(below_diagonal == 0, "wrote below the diagonal");
-    stats.expect(outside_rows == 0, "wrote rows outside [rows_begin, rows_end)");
+    stats.expect_true(below_diagonal == 0, "wrote below the diagonal");
+    stats.expect_true(outside_rows == 0, "wrote rows outside [rows_begin, rows_end)");
     expect_padding_untouched(stats, output, count, count * sizeof(result_type_), stride);
 }
 
@@ -308,7 +308,8 @@ attention_segments<backend_type_> make_attention_segments(backend_type_ const &b
  *  over 9 or 130 keys, so with a group of 8 two-tile items alternate unevenly within every block's
  *  schedule with single-tile items of one or two panels, whose second S shares tile 1's columns. */
 template <typename backend_type_>
-attention_segments<backend_type_> make_many_attention_segments(backend_type_ const &backend, std::mt19937 &generator) {
+attention_segments<backend_type_> make_many_attention_segments(backend_type_ const &backend,
+                                                               split_mix_generator_t &generator) {
     std::vector<nk_u32_t> lengths, query_counts;
     std::uniform_int_distribution<int> run_distribution(1, 4);
     std::bernoulli_distribution long_distribution(0.5);
@@ -458,12 +459,12 @@ nk::vector<std::byte> serial_attention_pack(error_stats_t &stats, nk::vector<sca
     for (std::size_t segment = 0; segment < count; segment++) key_tokens += lengths[segment];
     auto const size = nk::attention_pack_size<format_type_>(layout.key_value_head_count, layout.depth, key_tokens,
                                                             count, 0);
-    stats.expect(size.status);
+    stats.expect_status(size.status);
     auto packed = make_vector<std::byte>(size.value);
-    stats.expect(nk::attention_pack<format_type_>(layout.key_value_head_count, layout.depth, key_offsets, lengths,
-                                                  count, key_scales.operand(keys.values_data()), stride,
-                                                  value_scales.operand(values.values_data()), stride,
-                                                  packed.raw_values_data(), 0, static_cast<std::size_t>(-1), 0));
+    stats.expect_status(nk::attention_pack<format_type_>(layout.key_value_head_count, layout.depth, key_offsets,
+                                                         lengths, count, key_scales.operand(keys.values_data()), stride,
+                                                         value_scales.operand(values.values_data()), stride,
+                                                         packed.raw_values_data(), 0, static_cast<std::size_t>(-1), 0));
     return packed;
 }
 
@@ -489,7 +490,7 @@ attention_reference_t reference_attention_unmasked(
     auto const key_value_packed_reference = serial_attention_pack<format_type_>(
         stats, keys, values, key_scales, value_scales, layout, segments.key_offsets.values_data(),
         segments.lengths.values_data(), segments.count());
-    stats.expect(nk::attention_packed<format_type_, f32_t>(
+    stats.expect_status(nk::attention_packed<format_type_, f32_t>(
         layout.head_count, layout.key_value_head_count, layout.depth, segments.query_offsets.values_data(),
         segments.query_tokens(), layout.scale, attention_all_keys_k, attention_all_keys_k,
         query_scales.operand(queries.values_data()), query_stride, key_value_packed_reference.raw_values_data(),
@@ -517,7 +518,7 @@ attention_reference_t reference_attention_masked(
         .output = make_vector<f32_t>(segments.query_tokens() * layout.query_width()),
         .log_sum_exp = make_vector<f32_t>(segments.query_tokens() * layout.head_count),
     };
-    stats.expect(reference.log_sum_exp.fill(f32_t(-std::numeric_limits<float>::infinity())));
+    stats.expect_status(reference.log_sum_exp.fill(f32_t(-std::numeric_limits<float>::infinity())));
     for (std::size_t segment = 0; segment < segments.count(); segment++) {
         std::size_t const length = segments.lengths.values_data()[segment];
         for (std::size_t row = 0; row < segments.queries(segment); row++) {
@@ -532,7 +533,7 @@ attention_reference_t reference_attention_masked(
             auto const key_value_packed_reference = serial_attention_pack<format_type_>(
                 stats, keys, values, key_scales, value_scales, layout, visible_offsets, &visible_length, 1);
             std::size_t const query_row = segments.query_offsets.values_data()[segment] + row;
-            stats.expect(nk::attention_packed<format_type_, f32_t>(
+            stats.expect_status(nk::attention_packed<format_type_, f32_t>(
                 layout.head_count, layout.key_value_head_count, layout.depth, single_query_offsets, 1, layout.scale,
                 attention_all_keys_k, attention_all_keys_k,
                 query_scales.operand(queries.values_data() + query_row * query_values, query_row), query_stride,
@@ -699,7 +700,7 @@ struct operand_scales {
 /** Scales for @p rows rows of @p depth dimensions whose codes lie @p stride bytes apart, UE8M0 ones
  *  within @p exponent_limit binades of two to the power of @p exponent_center. */
 template <typename scalar_type_, typename backend_type_>
-auto random_scales(backend_type_ &backend, std::mt19937 &generator, std::size_t rows, std::size_t depth,
+auto random_scales(backend_type_ &backend, split_mix_generator_t &generator, std::size_t rows, std::size_t depth,
                    std::size_t stride, float tensor_scale, int exponent_limit = 3, int exponent_center = 0) {
     using operand_t = operand_scales<scalar_type_, backend_type_>;
     using scale_t = typename operand_t::scale_t;
@@ -782,11 +783,12 @@ struct dots_packed_case_t {
 /** The configured shape, single cells, odd edges, exact tiles, a deep reduction, and an
  *  ill-conditioned F64 product. */
 template <typename scalar_type_>
-std::vector<dots_packed_case_t> dots_packed_cases(settings_t const &settings) {
+std::vector<dots_packed_case_t> dots_packed_cases() {
     dots_strides_t const tight = dots_strides_t::tight_k, padded = dots_strides_t::padded_k;
     dots_operands_t const random = dots_operands_t::random_k;
     std::vector<dots_packed_case_t> cases {
-        {settings.matrix_height, settings.matrix_width, settings.matrix_depth, tight, random},
+        {test_run.settings.matrix_height, test_run.settings.matrix_width, test_run.settings.matrix_depth, tight,
+         random},
         {1, 1, 1, tight, random},
         {1, 7, 3, tight, random},
         {17, 33, 65, tight, random},
@@ -844,8 +846,8 @@ double worst_error_ulps(computed_type_ computed, reference_vector_type_ const &r
  *  left untouched. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename dots_kernel_type_>
-error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend, pack_size_kernel_type_ packed_size_fn,
-                               pack_kernel_type_ pack_fn, dots_kernel_type_ dots_fn) {
+error_stats_t test_dots_packed(backend_type_ backend, pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
+                               dots_kernel_type_ dots_fn) {
     constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
     using scalar_t = typename nk::type_for<format.element_dtype>::type;
     using result_t = typename scalar_type_::dot_result_t;
@@ -862,9 +864,9 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
         backend.call(pack_fn, &operand, 65, 0, 0, packed.raw_values_data(), 0, 65);
         backend.call(kernel_of(dots_fn), &operand, packed.raw_values_data(), result.raw_values_data(), 33, 65, 0, 0,
                      65 * sizeof(result_t), nullptr, 0);
-        if (!stats.expect(backend.synchronize())) return stats;
+        if (!stats.expect_status(backend.synchronize())) return stats;
         for (std::size_t i = 0; i < result.size(); ++i)
-            stats.expect(std::isnan(static_cast<float>(result[i])), "empty NVFP4 dot loses infinite tensor scale");
+            stats.expect_true(std::isnan(static_cast<float>(result[i])), "empty NVFP4 dot loses infinite tensor scale");
     }
     if constexpr (scalar_type_::dtype() == nk_mxfp4_k) {
         auto codes = make_vector<scalar_t>(backend, format.block_size);
@@ -878,8 +880,8 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
         backend.call(pack_fn, &b, 1, format.block_size, format.block_bytes, packed.raw_values_data(), 0, 1);
         backend.call(kernel_of(dots_fn), &a, packed.raw_values_data(), result.raw_values_data(), 1, 1,
                      format.block_size, format.block_bytes, sizeof(result_t), nullptr, 0);
-        if (!stats.expect(backend.synchronize())) return stats;
-        stats.expect(static_cast<float>(result[0]) == 0, "MXFP4 zero scale decodes as a nonzero exponent");
+        if (!stats.expect_status(backend.synchronize())) return stats;
+        stats.expect_true(static_cast<float>(result[0]) == 0, "MXFP4 zero scale decodes as a nonzero exponent");
     }
     if constexpr (format.block_size != 0) {
         using scale_t = typename nk::type_for<format.scale_dtype>::type;
@@ -907,16 +909,17 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
         backend.call(pack_fn, &b, columns, depth, row_bytes, packed.raw_values_data(), 0, columns);
         backend.call(kernel_of(dots_fn), &a, packed.raw_values_data(), result.raw_values_data(), 1, columns, depth,
                      row_bytes, columns * sizeof(result_t), nullptr, 0);
-        if (!stats.expect(backend.synchronize())) return stats;
+        if (!stats.expect_status(backend.synchronize())) return stats;
         for (std::size_t column = 0; column < columns; ++column)
-            stats.expect(std::isnan(static_cast<float>(result[column])), "a NaN block scale does not reach the dot");
+            stats.expect_true(std::isnan(static_cast<float>(result[column])),
+                              "a NaN block scale does not reach the dot");
     }
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, dimensions_per_value);
-    std::vector<dots_packed_case_t> const cases = dots_packed_cases<scalar_type_>(settings);
+    std::vector<dots_packed_case_t> const cases = dots_packed_cases<scalar_type_>();
 
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
         for (dots_packed_case_t const &test_case : cases) {
             std::size_t const rows = test_case.rows, columns = test_case.columns;
             std::size_t const depth = nk::divide_round_up(test_case.depth, depth_multiple) * depth_multiple;
@@ -936,7 +939,7 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
             std::size_t const scratch_size = workspace_size_bytes(stats, dots_fn, rows, columns, depth);
             auto scratch = make_vector<std::byte>(backend, scratch_size);
 
-            fill_random(settings, generator, a), fill_random(settings, generator, b);
+            fill_random(generator, a), fill_random(generator, b);
             if constexpr (std::is_same_v<scalar_t, f64_t>)
                 if (test_case.operands == dots_operands_t::ill_conditioned_k)
                     fill_ill_conditioned(generator, a, a_stride_values, b, b_stride_values, rows, columns, depth);
@@ -964,19 +967,20 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
                 backend.call(kernel_of(dots_fn), a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
                              c.raw_values_data(), rows, columns, depth, a_stride, c_stride, scratch.raw_values_data(),
                              scratch_size - 1);
-                stats.expect(backend.synchronize() == nk_unexpected_dimensions_k, "a short workspace was accepted");
+                stats.expect_true(backend.synchronize() == nk_unexpected_dimensions_k,
+                                  "a short workspace was accepted");
             }
             backend.call(kernel_of(dots_fn), a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
                          c.raw_values_data(), rows, columns, depth, a_stride, c_stride, scratch.raw_values_data(),
                          scratch_size);
-            if (!stats.expect(backend.synchronize())) return stats;
+            if (!stats.expect_status(backend.synchronize())) return stats;
 
             std::vector<reference_t> c_reference(rows * columns);
             auto b_packed_reference = make_vector<std::byte>(
                 nk::dots_pack_size<scalar_type_>(columns, depth, no_tiers_k).value);
-            stats.expect(nk::dots_pack<scalar_type_>(b_scales.operand(b.values_data()), columns, depth, b_stride,
-                                                     b_packed_reference.raw_values_data(), no_tiers_k, nullptr));
-            stats.expect(nk::dots_packed<scalar_type_, reference_t>(
+            stats.expect_status(nk::dots_pack<scalar_type_>(b_scales.operand(b.values_data()), columns, depth, b_stride,
+                                                            b_packed_reference.raw_values_data(), no_tiers_k, nullptr));
+            stats.expect_status(nk::dots_packed<scalar_type_, reference_t>(
                 a_scales.operand(a.values_data()), b_packed_reference.raw_values_data(), c_reference.data(), rows,
                 columns, depth, a_stride, columns * sizeof(reference_t), {}, no_tiers_k, nullptr));
 
@@ -1000,40 +1004,40 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
                     auto const computed = [&](std::size_t row, std::size_t column) {
                         return static_cast<double>(c[row * c_stride / sizeof(result_t) + column]);
                     };
-                    stats.expect(worst_error_ulps(naive, c_reference, rows, columns) >= 1e3,
-                                 "the ill-conditioned case is beyond 1000 ulp for plain F64");
-                    stats.expect(worst_error_ulps(computed, c_reference, rows, columns) <= 4,
-                                 "compensated F64 dots stay within 4 ulp on the ill-conditioned case");
+                    stats.expect_true(worst_error_ulps(naive, c_reference, rows, columns) >= 1e3,
+                                      "the ill-conditioned case is beyond 1000 ulp for plain F64");
+                    stats.expect_true(worst_error_ulps(computed, c_reference, rows, columns) <= 4,
+                                      "compensated F64 dots stay within 4 ulp on the ill-conditioned case");
                 }
         }
     }
     return stats;
 }
 
-/** @c test_dots_packed on the backend selected by @p settings. */
+/** @c test_dots_packed on the backend of the device the cases run on. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename dots_kernel_type_>
-error_stats_t test_dots_packed(settings_t const &settings, pack_size_kernel_type_ packed_size_fn,
-                               pack_kernel_type_ pack_fn, dots_kernel_type_ dots_fn) {
-    return test_dots_packed<scalar_type_, backend_type_>(settings, make_backend<backend_type_>(settings),
-                                                         packed_size_fn, pack_fn, dots_fn);
+error_stats_t test_dots_packed(pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
+                               dots_kernel_type_ dots_fn) {
+    return test_dots_packed<scalar_type_, backend_type_>(make_backend<backend_type_>(), packed_size_fn, pack_fn,
+                                                         dots_fn);
 }
 
 /** The packed B layout over the widths and depths of @c dots_packed_cases: packing two column
  *  windows equals packing all columns at once byte for byte, and @c packed_shape_fn_ reads back the
  *  columns and depth the pack was given. */
 template <typename scalar_type_, typename backend_type_, auto packed_size_fn_, auto packed_shape_fn_, auto pack_fn_>
-error_stats_t test_dots_pack_layout(settings_t const &settings, backend_type_ backend) {
+error_stats_t test_dots_pack_layout(backend_type_ backend) {
     constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
     using scalar_t = typename nk::type_for<format.element_dtype>::type;
 
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, dimensions_per_value);
-    std::vector<dots_packed_case_t> const cases = dots_packed_cases<scalar_type_>(settings);
+    std::vector<dots_packed_case_t> const cases = dots_packed_cases<scalar_type_>();
 
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
         for (dots_packed_case_t const &test_case : cases) {
             std::size_t const columns = test_case.columns;
             std::size_t const depth = nk::divide_round_up(test_case.depth, depth_multiple) * depth_multiple;
@@ -1042,7 +1046,7 @@ error_stats_t test_dots_pack_layout(settings_t const &settings, backend_type_ ba
             auto b = make_vector<scalar_t>(backend, columns * depth);
             auto whole = make_vector<std::byte>(backend, packed_size),
                  windows = make_vector<std::byte>(backend, packed_size);
-            fill_random(settings, generator, b);
+            fill_random(generator, b);
             fill_canary(whole), fill_canary(windows);
             auto const b_scales = random_scales<scalar_type_>(backend, generator, columns, depth, row_bytes, 0.75f);
             auto const b_operand = b_scales.operand(b.raw_values_data());
@@ -1054,11 +1058,11 @@ error_stats_t test_dots_pack_layout(settings_t const &settings, backend_type_ ba
             backend.call(pack_fn_, b_operand, columns, depth, row_bytes, windows.raw_values_data(), columns / 2,
                          columns);
             backend.call(packed_shape_fn_, whole.raw_values_data(), &shape_width, &shape_depth);
-            if (!stats.expect(backend.synchronize())) return stats;
+            if (!stats.expect_status(backend.synchronize())) return stats;
 
-            stats.expect(shape_width == columns && shape_depth == depth, "packed_shape disagrees with the pack");
-            stats.expect(std::memcmp(whole.raw_values_data(), windows.raw_values_data(), whole.size_bytes()) == 0,
-                         "two column windows pack differently from one pack of every column");
+            stats.expect_true(shape_width == columns && shape_depth == depth, "packed_shape disagrees with the pack");
+            stats.expect_true(std::memcmp(whole.raw_values_data(), windows.raw_values_data(), whole.size_bytes()) == 0,
+                              "two column windows pack differently from one pack of every column");
         }
     }
     return stats;
@@ -1066,9 +1070,9 @@ error_stats_t test_dots_pack_layout(settings_t const &settings, backend_type_ ba
 
 /** @c test_dots_pack_layout on a default-constructed @p backend_type_. */
 template <typename scalar_type_, typename backend_type_, auto packed_size_fn_, auto packed_shape_fn_, auto pack_fn_>
-error_stats_t test_dots_pack_layout(settings_t const &settings) {
+error_stats_t test_dots_pack_layout() {
     return test_dots_pack_layout<scalar_type_, backend_type_, packed_size_fn_, packed_shape_fn_, pack_fn_>(
-        settings, make_backend<backend_type_>(settings));
+        make_backend<backend_type_>());
 }
 
 /** One Gram-matrix case over @c count vectors, computing rows [rows_begin, rows_end)
@@ -1093,10 +1097,10 @@ struct dots_symmetric_case_t {
 
 /** The configured shape, then a single cell, whole matrices, a range cut through a tile, and one
  *  clipped at the end. */
-inline std::vector<dots_symmetric_case_t> dots_symmetric_cases(settings_t const &settings) {
+inline std::vector<dots_symmetric_case_t> dots_symmetric_cases() {
     dots_strides_t const tight = dots_strides_t::tight_k, padded = dots_strides_t::padded_k;
     return {
-        {settings.matrix_height, settings.matrix_depth, 0, settings.matrix_height, tight},
+        {test_run.settings.matrix_height, test_run.settings.matrix_depth, 0, test_run.settings.matrix_height, tight},
         {1, 1, 0, 1, tight},
         {17, 65, 0, 17, padded},
         {129, 300, 0, 129, padded},
@@ -1109,20 +1113,20 @@ inline std::vector<dots_symmetric_case_t> dots_symmetric_cases(settings_t const 
  *  above the diagonal of the computed rows, with everything else in the output left untouched.
  *  External baselines summing less precisely than NumKong pass their own @p term_error_bound. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename symmetric_kernel_type_>
-error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ backend,
-                                  symmetric_kernel_type_ symmetric_fn, nk_f64_t term_error_bound) {
+error_stats_t test_dots_symmetric(backend_type_ backend, symmetric_kernel_type_ symmetric_fn,
+                                  nk_f64_t term_error_bound) {
     constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
     using scalar_t = typename nk::type_for<format.element_dtype>::type;
     using result_t = typename scalar_type_::dot_result_t;
     using reference_t = bounded_reference_for<scalar_type_, result_t>;
 
     error_stats_t stats(term_error_bound);
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, dimensions_per_value);
-    std::vector<dots_symmetric_case_t> const cases = dots_symmetric_cases(settings);
+    std::vector<dots_symmetric_case_t> const cases = dots_symmetric_cases();
 
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
         for (dots_symmetric_case_t const &test_case : cases) {
             std::size_t const count = test_case.count, rows_begin = test_case.rows_begin;
             std::size_t const rows_end = nk::min_of(count, test_case.rows_end);
@@ -1135,7 +1139,7 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
 
             auto a = make_vector<scalar_t>(backend, count * stride_values * dimensions_per_value);
             auto c = make_vector<result_t>(backend, count * c_stride / sizeof(result_t));
-            fill_random(settings, generator, a);
+            fill_random(generator, a);
             fill_padding_canary(a, count, row_bytes, stride), fill_canary(c);
             // An NVFP4 tensor scale whose square is an F32 subnormal, never rounded on the way
             auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, stride, 0x1.4p-66f);
@@ -1147,15 +1151,16 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
                 backend.call(kernel_of(symmetric_fn), scales.operand(a.raw_values_data()), count, depth, stride,
                              c.raw_values_data(), c_stride, rows_begin, test_case.rows_end, scratch.raw_values_data(),
                              scratch_size - 1);
-                stats.expect(backend.synchronize() == nk_unexpected_dimensions_k, "a short workspace was accepted");
+                stats.expect_true(backend.synchronize() == nk_unexpected_dimensions_k,
+                                  "a short workspace was accepted");
             }
             backend.call(kernel_of(symmetric_fn), scales.operand(a.raw_values_data()), count, depth, stride,
                          c.raw_values_data(), c_stride, rows_begin, test_case.rows_end, scratch.raw_values_data(),
                          scratch_size);
-            if (!stats.expect(backend.synchronize())) return stats;
+            if (!stats.expect_status(backend.synchronize())) return stats;
 
             std::vector<reference_t> c_reference(count * count);
-            stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
+            stats.expect_status(nk::dots_symmetric<scalar_type_, reference_t>(
                 scales.operand(a.values_data()), count, depth, stride, c_reference.data(), count * sizeof(reference_t),
                 rows_begin, rows_end, {}, no_tiers_k, nullptr));
 
@@ -1170,25 +1175,22 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
 
 /** @c test_dots_symmetric on @p backend, held to the @c nk_dot_error_bound of @p scalar_type_. */
 template <typename scalar_type_, typename backend_type_, typename symmetric_kernel_type_>
-error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ backend,
-                                  symmetric_kernel_type_ symmetric_fn) {
-    return test_dots_symmetric<scalar_type_, backend_type_>(settings, backend, symmetric_fn,
+error_stats_t test_dots_symmetric(backend_type_ backend, symmetric_kernel_type_ symmetric_fn) {
+    return test_dots_symmetric<scalar_type_, backend_type_>(backend, symmetric_fn,
                                                             nk_dot_error_bound(scalar_type_::dtype()));
 }
 
 /** @c test_dots_symmetric on a default-constructed @p backend_type_. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename symmetric_kernel_type_>
-error_stats_t test_dots_symmetric(settings_t const &settings, symmetric_kernel_type_ symmetric_fn,
-                                  nk_f64_t term_error_bound) {
-    return test_dots_symmetric<scalar_type_, backend_type_>(settings, make_backend<backend_type_>(settings),
-                                                            symmetric_fn, term_error_bound);
+error_stats_t test_dots_symmetric(symmetric_kernel_type_ symmetric_fn, nk_f64_t term_error_bound) {
+    return test_dots_symmetric<scalar_type_, backend_type_>(make_backend<backend_type_>(), symmetric_fn,
+                                                            term_error_bound);
 }
 
 /** @c test_dots_symmetric held to the @c nk_dot_error_bound of @p scalar_type_. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename symmetric_kernel_type_>
-error_stats_t test_dots_symmetric(settings_t const &settings, symmetric_kernel_type_ symmetric_fn) {
-    return test_dots_symmetric<scalar_type_, backend_type_>(settings, symmetric_fn,
-                                                            nk_dot_error_bound(scalar_type_::dtype()));
+error_stats_t test_dots_symmetric(symmetric_kernel_type_ symmetric_fn) {
+    return test_dots_symmetric<scalar_type_, backend_type_>(symmetric_fn, nk_dot_error_bound(scalar_type_::dtype()));
 }
 
 /** The launch contract of a backend refusing misaligned operands, which a CPU backend has no part
@@ -1196,7 +1198,7 @@ error_stats_t test_dots_symmetric(settings_t const &settings, symmetric_kernel_t
  *  column, and an A or vectors pointer or stride off 16 bytes, or a C stride off the result size,
  *  is refused before launch with its output untouched. A NaN input comes out NaN. */
 template <typename scalar_type_, typename backend_type_, auto packed_size_fn_, auto dots_fn_, auto symmetric_fn_>
-error_stats_t test_dots_launch_contract(settings_t const &settings, backend_type_ backend) {
+error_stats_t test_dots_launch_contract(backend_type_ backend) {
     constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
     using scalar_t = typename nk::type_for<format.element_dtype>::type;
     using raw_t = typename scalar_t::raw_t;
@@ -1207,19 +1209,19 @@ error_stats_t test_dots_launch_contract(settings_t const &settings, backend_type
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, dimensions_per_value);
 
-    for (dots_packed_case_t const &test_case : dots_packed_cases<scalar_type_>(settings)) {
+    for (dots_packed_case_t const &test_case : dots_packed_cases<scalar_type_>()) {
         std::size_t const columns = test_case.columns;
         std::size_t const depth = nk::divide_round_up(test_case.depth, depth_multiple) * depth_multiple;
         std::size_t const row_bytes = depth / dimensions_per_value * sizeof(scalar_t);
-        stats.expect(pack_size_bytes(stats, packed_size_fn_, columns, depth) >=
-                         64 + columns * row_bytes + columns * sizeof(norm_t),
-                     "pack size below a header, every row, and every norm");
+        stats.expect_true(pack_size_bytes(stats, packed_size_fn_, columns, depth) >=
+                              64 + columns * row_bytes + columns * sizeof(norm_t),
+                          "pack size below a header, every row, and every norm");
     }
 
     std::size_t const count = 4,
                       depth = nk::divide_round_up(16 * dimensions_per_value, depth_multiple) * depth_multiple;
     std::size_t const row_bytes = depth / dimensions_per_value * sizeof(scalar_t);
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
     std::size_t const aligned_stride = backend.row_stride(row_bytes), output_stride = count * sizeof(result_t);
     std::size_t const odd_stride = row_bytes % 16 == 15 ? row_bytes + 2 : row_bytes + 1;
     auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, aligned_stride, 1.5f);
@@ -1232,47 +1234,47 @@ error_stats_t test_dots_launch_contract(settings_t const &settings, backend_type
     auto const *shifted = reinterpret_cast<raw_t const *>(rows.raw_values_data() + 1);
     auto *cells = output.raw_values_data();
     void const *b_packed = packed.raw_values_data();
-    stats.expect(backend.refuses_misaligned(dots_fn_, scales.operand(shifted), b_packed, cells, count, count, depth,
-                                            aligned_stride, output_stride, nullptr, 0),
-                 "packed took an A off 16 bytes");
-    stats.expect(backend.refuses_misaligned(dots_fn_, scales.operand(aligned), b_packed, cells, count, count, depth,
-                                            odd_stride, output_stride, nullptr, 0),
-                 "packed took an A stride off 16 bytes");
-    stats.expect(backend.refuses_misaligned(symmetric_fn_, scales.operand(shifted), count, depth, aligned_stride, cells,
-                                            output_stride, 0, count, nullptr, 0),
-                 "symmetric took vectors off 16 bytes");
-    stats.expect(backend.refuses_misaligned(symmetric_fn_, scales.operand(aligned), count, depth, odd_stride, cells,
-                                            output_stride, 0, count, nullptr, 0),
-                 "symmetric took a vectors stride off 16 bytes");
+    stats.expect_true(backend.refuses_misaligned(dots_fn_, scales.operand(shifted), b_packed, cells, count, count,
+                                                 depth, aligned_stride, output_stride, nullptr, 0),
+                      "packed took an A off 16 bytes");
+    stats.expect_true(backend.refuses_misaligned(dots_fn_, scales.operand(aligned), b_packed, cells, count, count,
+                                                 depth, odd_stride, output_stride, nullptr, 0),
+                      "packed took an A stride off 16 bytes");
+    stats.expect_true(backend.refuses_misaligned(symmetric_fn_, scales.operand(shifted), count, depth, aligned_stride,
+                                                 cells, output_stride, 0, count, nullptr, 0),
+                      "symmetric took vectors off 16 bytes");
+    stats.expect_true(backend.refuses_misaligned(symmetric_fn_, scales.operand(aligned), count, depth, odd_stride,
+                                                 cells, output_stride, 0, count, nullptr, 0),
+                      "symmetric took a vectors stride off 16 bytes");
     // Four bytes of padding keep 4-byte results aligned, so only 8-byte results can be caught off their size
     if constexpr (sizeof(result_t) == 8) {
         std::size_t const word_stride = output_stride + 4;
-        stats.expect(backend.refuses_misaligned(dots_fn_, scales.operand(aligned), b_packed, cells, count, count, depth,
-                                                aligned_stride, word_stride, nullptr, 0),
-                     "packed took a C stride off the result size");
-        stats.expect(backend.refuses_misaligned(symmetric_fn_, scales.operand(aligned), count, depth, aligned_stride,
-                                                cells, word_stride, 0, count, nullptr, 0),
-                     "symmetric took a result stride off the result size");
+        stats.expect_true(backend.refuses_misaligned(dots_fn_, scales.operand(aligned), b_packed, cells, count, count,
+                                                     depth, aligned_stride, word_stride, nullptr, 0),
+                          "packed took a C stride off the result size");
+        stats.expect_true(backend.refuses_misaligned(symmetric_fn_, scales.operand(aligned), count, depth,
+                                                     aligned_stride, cells, word_stride, 0, count, nullptr, 0),
+                          "symmetric took a result stride off the result size");
     }
-    if (!stats.expect(backend.synchronize())) return stats;
-    stats.expect(overwritten_bytes(output, 0, output.size_bytes()) == 0, "a refused call wrote its output");
+    if (!stats.expect_status(backend.synchronize())) return stats;
+    stats.expect_true(overwritten_bytes(output, 0, output.size_bytes()) == 0, "a refused call wrote its output");
 
     // A NaN input reaches every sum it enters, however the capability widens its codes
     if constexpr (nk::nan_capable_dtype<scalar_t>) {
         reinterpret_cast<scalar_t *>(rows.raw_values_data())[0] = scalar_t::quiet_nan();
         backend.call(symmetric_fn_, scales.operand(aligned), count, depth, aligned_stride, cells, output_stride, 0,
                      count, nullptr, 0);
-        if (!stats.expect(backend.synchronize())) return stats;
-        stats.expect(std::isnan(static_cast<double>(cells[0])), "a NaN input summed to a finite dot");
+        if (!stats.expect_status(backend.synchronize())) return stats;
+        stats.expect_true(std::isnan(static_cast<double>(cells[0])), "a NaN input summed to a finite dot");
     }
     return stats;
 }
 
 /** @c test_dots_launch_contract on a default-constructed @p backend_type_. */
 template <typename scalar_type_, typename backend_type_, auto packed_size_fn_, auto dots_fn_, auto symmetric_fn_>
-error_stats_t test_dots_launch_contract(settings_t const &settings) {
+error_stats_t test_dots_launch_contract() {
     return test_dots_launch_contract<scalar_type_, backend_type_, packed_size_fn_, dots_fn_, symmetric_fn_>(
-        settings, make_backend<backend_type_>(settings));
+        make_backend<backend_type_>());
 }
 
 #pragma endregion Dots
@@ -1286,8 +1288,8 @@ struct matrix_shape_t {
 
 /** The configured shape, then one to three rows and columns over depths off every vector width, and
  *  a depth past one 512-bit tile over odd tile edges. */
-inline std::vector<matrix_shape_t> matrix_shapes(settings_t const &settings) {
-    return {{settings.matrix_height, settings.matrix_width, settings.matrix_depth},
+inline std::vector<matrix_shape_t> matrix_shapes() {
+    return {{test_run.settings.matrix_height, test_run.settings.matrix_width, test_run.settings.matrix_depth},
             {1, 1, 3},
             {2, 3, 17},
             {3, 2, 33},
@@ -1299,18 +1301,18 @@ inline std::vector<matrix_shape_t> matrix_shapes(settings_t const &settings) {
  *  empty for Jaccard, so cell (0, 0) has an empty union. */
 template <typename scalar_type_, nk_kernel_kind_t kind_, typename pack_size_kernel_type_, typename pack_kernel_type_,
           typename sets_kernel_type_>
-error_stats_t test_sets_packed(settings_t const &settings, pack_size_kernel_type_ packed_size_fn,
-                               pack_kernel_type_ pack_fn, sets_kernel_type_ sets_fn) {
+error_stats_t test_sets_packed(pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
+                               sets_kernel_type_ sets_fn) {
     constexpr bool jaccard = kind_ == nk_kernel_jaccard_k;
     using scalar_t = scalar_type_;
     using result_t = std::conditional_t<jaccard, f32_t, u32_t>;
 
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
 
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
-        for (matrix_shape_t const &shape : matrix_shapes(settings)) {
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();)
+        for (matrix_shape_t const &shape : matrix_shapes()) {
             std::size_t const rows = shape.rows, columns = shape.columns;
             std::size_t const depth = nk::divide_round_up(shape.depth, dimensions_per_value) * dimensions_per_value;
             std::size_t const stride = nk::divide_round_up(depth, 8) * sizeof(scalar_t);
@@ -1323,24 +1325,24 @@ error_stats_t test_sets_packed(settings_t const &settings, pack_size_kernel_type
             auto b_packed = make_vector<std::byte>(pack_size_bytes(stats, packed_size_fn, columns, depth)),
                  b_packed_reference = make_vector<std::byte>(
                      nk::dots_pack_size<scalar_t>(columns, depth, no_tiers_k).value);
-            fill_random(settings, generator, a);
-            fill_random(settings, generator, b);
+            fill_random(generator, a);
+            fill_random(generator, b);
             if constexpr (jaccard)
                 std::memset(a.raw_values_data(), 0, stride), std::memset(b.raw_values_data(), 0, stride);
 
-            stats.expect(
+            stats.expect_status(
                 pack_fn(b.raw_values_data(), columns, depth, stride, b_packed.raw_values_data(), 0, columns, nullptr));
-            stats.expect(sets_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), rows, columns,
-                                 depth, stride, c_stride, nullptr, 0, nullptr));
+            stats.expect_status(sets_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), rows,
+                                        columns, depth, stride, c_stride, nullptr, 0, nullptr));
 
-            stats.expect(nk::dots_pack<scalar_t>(b.values_data(), columns, depth, stride,
-                                                 b_packed_reference.raw_values_data(), no_tiers_k));
+            stats.expect_status(nk::dots_pack<scalar_t>(b.values_data(), columns, depth, stride,
+                                                        b_packed_reference.raw_values_data(), no_tiers_k));
             if constexpr (jaccard)
-                stats.expect(nk::jaccards_packed<scalar_t, result_t>(
+                stats.expect_status(nk::jaccards_packed<scalar_t, result_t>(
                     a.values_data(), b_packed_reference.raw_values_data(), c_reference.values_data(), rows, columns,
                     depth, stride, c_stride, {}, no_tiers_k));
             else
-                stats.expect(nk::hammings_packed<scalar_t, result_t>(
+                stats.expect_status(nk::hammings_packed<scalar_t, result_t>(
                     a.values_data(), b_packed_reference.raw_values_data(), c_reference.values_data(), rows, columns,
                     depth, stride, c_stride, {}, no_tiers_k));
 
@@ -1353,17 +1355,17 @@ error_stats_t test_sets_packed(settings_t const &settings, pack_size_kernel_type
  *  the serial `nk::` reference over the upper triangle, and untouched below it. Row 0 is empty for
  *  Jaccard, so the first diagonal cell has an empty union. */
 template <typename scalar_type_, nk_kernel_kind_t kind_, typename symmetric_kernel_type_>
-error_stats_t test_sets_symmetric(settings_t const &settings, symmetric_kernel_type_ symmetric_fn) {
+error_stats_t test_sets_symmetric(symmetric_kernel_type_ symmetric_fn) {
     constexpr bool jaccard = kind_ == nk_kernel_jaccard_k;
     using scalar_t = scalar_type_;
     using result_t = std::conditional_t<jaccard, f32_t, u32_t>;
 
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
 
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
-        for (matrix_shape_t const &shape : matrix_shapes(settings)) {
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();)
+        for (matrix_shape_t const &shape : matrix_shapes()) {
             std::size_t const count = shape.rows;
             std::size_t const depth = nk::divide_round_up(shape.depth, dimensions_per_value) * dimensions_per_value;
             std::size_t const stride = nk::divide_round_up(depth, 8) * sizeof(scalar_t);
@@ -1372,20 +1374,20 @@ error_stats_t test_sets_symmetric(settings_t const &settings, symmetric_kernel_t
 
             auto a = make_vector<scalar_t>(count * stride_dimensions);
             auto c = make_vector<result_t>(count * count), c_reference = make_vector<result_t>(count * count);
-            fill_random(settings, generator, a);
+            fill_random(generator, a);
             if constexpr (jaccard) std::memset(a.raw_values_data(), 0, stride);
             fill_canary(c);
 
-            stats.expect(symmetric_fn(a.raw_values_data(), count, depth, stride, c.raw_values_data(), c_stride, 0,
-                                      count, nullptr, 0, nullptr));
+            stats.expect_status(symmetric_fn(a.raw_values_data(), count, depth, stride, c.raw_values_data(), c_stride,
+                                             0, count, nullptr, 0, nullptr));
             if constexpr (jaccard)
-                stats.expect(nk::jaccards_symmetric<scalar_t, result_t>(a.values_data(), count, depth, stride,
-                                                                        c_reference.values_data(), c_stride, 0, count,
-                                                                        {}, no_tiers_k));
+                stats.expect_status(nk::jaccards_symmetric<scalar_t, result_t>(a.values_data(), count, depth, stride,
+                                                                               c_reference.values_data(), c_stride, 0,
+                                                                               count, {}, no_tiers_k));
             else
-                stats.expect(nk::hammings_symmetric<scalar_t, result_t>(a.values_data(), count, depth, stride,
-                                                                        c_reference.values_data(), c_stride, 0, count,
-                                                                        {}, no_tiers_k));
+                stats.expect_status(nk::hammings_symmetric<scalar_t, result_t>(a.values_data(), count, depth, stride,
+                                                                               c_reference.values_data(), c_stride, 0,
+                                                                               count, {}, no_tiers_k));
 
             for (std::size_t row = 0; row < count; row++)
                 for (std::size_t column = row; column < count; column++)
@@ -1397,26 +1399,26 @@ error_stats_t test_sets_symmetric(settings_t const &settings, symmetric_kernel_t
 
 /** @c test_sets_packed over Hamming distances. */
 template <typename scalar_type_, typename... kernels_types_>
-error_stats_t test_hammings_packed(settings_t const &settings, kernels_types_... kernels) {
-    return test_sets_packed<scalar_type_, nk_kernel_hamming_k>(settings, kernels...);
+error_stats_t test_hammings_packed(kernels_types_... kernels) {
+    return test_sets_packed<scalar_type_, nk_kernel_hamming_k>(kernels...);
 }
 
 /** @c test_sets_symmetric over Hamming distances. */
 template <typename scalar_type_, typename... kernels_types_>
-error_stats_t test_hammings_symmetric(settings_t const &settings, kernels_types_... kernels) {
-    return test_sets_symmetric<scalar_type_, nk_kernel_hamming_k>(settings, kernels...);
+error_stats_t test_hammings_symmetric(kernels_types_... kernels) {
+    return test_sets_symmetric<scalar_type_, nk_kernel_hamming_k>(kernels...);
 }
 
 /** @c test_sets_packed over Jaccard distances. */
 template <typename scalar_type_, typename... kernels_types_>
-error_stats_t test_jaccards_packed(settings_t const &settings, kernels_types_... kernels) {
-    return test_sets_packed<scalar_type_, nk_kernel_jaccard_k>(settings, kernels...);
+error_stats_t test_jaccards_packed(kernels_types_... kernels) {
+    return test_sets_packed<scalar_type_, nk_kernel_jaccard_k>(kernels...);
 }
 
 /** @c test_sets_symmetric over Jaccard distances. */
 template <typename scalar_type_, typename... kernels_types_>
-error_stats_t test_jaccards_symmetric(settings_t const &settings, kernels_types_... kernels) {
-    return test_sets_symmetric<scalar_type_, nk_kernel_jaccard_k>(settings, kernels...);
+error_stats_t test_jaccards_symmetric(kernels_types_... kernels) {
+    return test_sets_symmetric<scalar_type_, nk_kernel_jaccard_k>(kernels...);
 }
 
 #pragma endregion Set Distances
@@ -1447,10 +1449,10 @@ void expect_near_parallel_integers(error_stats_t &stats, backend_type_ &backend,
     values[depth + depth / 3] -= widest > 0 ? 1 : -1;
     auto codes = make_vector<scalar_type_>(backend, rows * stride_values * dimensions_per_value);
     for (std::size_t row = 0; row != rows; ++row)
-        stats.expect(nk_cast_serial(values.data() + row * depth, nk_f64_k,
-                                    codes.raw_values_data() + row * stride_values, dtype, depth, nullptr));
+        stats.expect_status(nk_cast_serial(values.data() + row * depth, nk_f64_k,
+                                           codes.raw_values_data() + row * stride_values, dtype, depth, nullptr));
     auto results = make_vector<result_t>(backend, rows * rows);
-    if (!stats.expect(
+    if (!stats.expect_status(
             launch(codes.raw_values_data(), rows, depth, stride, results.raw_values_data(), rows * sizeof(result_t))))
         return;
 
@@ -1465,15 +1467,15 @@ void expect_near_parallel_integers(error_stats_t &stats, backend_type_ &backend,
             double const distance = static_cast<double>(results[i * rows + j]);
             std::int64_t const dot = exact_dot(i, j), a_sumsq = exact_dot(i, i), b_sumsq = exact_dot(j, j);
             if (dot == a_sumsq && dot == b_sumsq) {
-                stats.expect(distance == 0, "equal integer vectors are not exactly 0 apart");
+                stats.expect_true(distance == 0, "equal integer vectors are not exactly 0 apart");
                 continue;
             }
             double expected;
             if constexpr (angular_)
                 expected = static_cast<double>(angular_from_dot(f118_t(dot), f118_t(a_sumsq), f118_t(b_sumsq)));
             else expected = std::sqrt(static_cast<double>(a_sumsq + b_sumsq - 2 * dot));
-            stats.expect(std::fabs(distance - expected) <= std::ldexp(expected, angular_ ? -21 : -23),
-                         "integer vectors one step apart miss their exact distance");
+            stats.expect_true(std::fabs(distance - expected) <= std::ldexp(expected, angular_ ? -21 : -23),
+                              "integer vectors one step apart miss their exact distance");
         }
 }
 
@@ -1483,7 +1485,8 @@ void expect_near_parallel_integers(error_stats_t &stats, backend_type_ &backend,
  *  the NaN row. @p launch takes the operand, its rows, depth and stride, and the output and its
  *  stride, and returns once the output is readable. */
 template <typename scalar_type_, nk_kernel_kind_t kind_, typename backend_type_, typename launch_type_>
-void expect_angular_edges(error_stats_t &stats, backend_type_ &backend, std::mt19937 &generator, launch_type_ launch) {
+void expect_angular_edges(error_stats_t &stats, backend_type_ &backend, split_mix_generator_t &generator,
+                          launch_type_ launch) {
     constexpr bool symmetric_ = kind_ == nk_kernel_angulars_symmetric_k;
     constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
     using scalar_t = typename nk::type_for<format.element_dtype>::type;
@@ -1499,24 +1502,24 @@ void expect_angular_edges(error_stats_t &stats, backend_type_ &backend, std::mt1
     std::vector<double> values(depth, 1.0);
     for (std::size_t row = 2; row != rows; ++row) {
         if (row == 3 && !format.block_size) values[depth / 2] = std::numeric_limits<double>::quiet_NaN();
-        stats.expect(nk_cast_serial(values.data(), nk_f64_k, codes.raw_values_data() + row * stride_values,
-                                    scalar_t::dtype(), depth, nullptr));
+        stats.expect_status(nk_cast_serial(values.data(), nk_f64_k, codes.raw_values_data() + row * stride_values,
+                                           scalar_t::dtype(), depth, nullptr));
     }
     auto scales = random_scales<scalar_type_>(backend, generator, rows, depth, stride, 1.0f);
     if constexpr (format.block_size != 0)
         scales.blocks.data()[3 * scales.scale_stride] = decltype(scales)::scale_t::from_raw(
             format.scale_dtype == nk_ue4m3_k ? 0x7F : 0xFF);
     auto results = make_vector<result_t>(backend, rows * rows);
-    if (!stats.expect(launch(scales.operand(codes.raw_values_data()), rows, depth, stride, results.raw_values_data(),
-                             rows * sizeof(result_t))))
+    if (!stats.expect_status(launch(scales.operand(codes.raw_values_data()), rows, depth, stride,
+                                    results.raw_values_data(), rows * sizeof(result_t))))
         return;
 
     for (std::size_t i = 0; i != rows; ++i)
         for (std::size_t j = symmetric_ ? i + 1 : 0; j != rows; ++j) {
             double const angle = static_cast<double>(results[i * rows + j]);
-            if (i == 3 || j == 3) stats.expect(std::isnan(angle), "a NaN input gives no NaN angle");
-            else if (i < 2 && j < 2) stats.expect(angle == 0, "two zero vectors are not 0 apart");
-            else if (i < 2 || j < 2) stats.expect(angle == 1, "a zero vector is not 1 from a nonzero one");
+            if (i == 3 || j == 3) stats.expect_true(std::isnan(angle), "a NaN input gives no NaN angle");
+            else if (i < 2 && j < 2) stats.expect_true(angle == 0, "two zero vectors are not 0 apart");
+            else if (i < 2 || j < 2) stats.expect_true(angle == 1, "a zero vector is not 1 from a nonzero one");
         }
 }
 
@@ -1524,8 +1527,8 @@ void expect_angular_edges(error_stats_t &stats, backend_type_ &backend, std::mt1
  *  Row 0 of A is zero for euclidean, so row 0 of C reads every packed norm back as √‖b‖². */
 template <typename scalar_type_, typename backend_type_, nk_kernel_kind_t kind_, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename spatials_kernel_type_>
-error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_type_ packed_size_fn,
-                                   pack_kernel_type_ pack_fn, spatials_kernel_type_ spatials_fn) {
+error_stats_t test_spatials_packed(pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
+                                   spatials_kernel_type_ spatials_fn) {
     constexpr bool angular = kind_ == nk_kernel_angular_k;
     constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
     using scalar_t = typename nk::type_for<format.element_dtype>::type;
@@ -1533,7 +1536,7 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
         std::conditional_t<angular, typename scalar_type_::angular_result_t, typename scalar_type_::euclidean_result_t>;
     using reference_t = reference_for<scalar_type_>;
 
-    backend_type_ backend = make_backend<backend_type_>(settings);
+    backend_type_ backend = make_backend<backend_type_>();
     error_stats_t stats(angular ? nk_angular_error_bound(scalar_type_::dtype())
                                 : nk_euclidean_error_bound(scalar_type_::dtype()));
     if constexpr (angular && scalar_type_::dtype() == nk_mxfp8e5m2_k) {
@@ -1553,11 +1556,11 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
         backend.call(pack_fn, &b, 1, 32, 32, packed.raw_values_data(), 0, 1);
         backend.call(kernel_of(spatials_fn), &a, packed.raw_values_data(), result.raw_values_data(), 1, 1, 32, 32,
                      sizeof(result_t), nullptr, 0);
-        if (!stats.expect(backend.synchronize())) return stats;
-        stats.expect(static_cast<float>(result[0]) == 1,
-                     "orthogonal block-scaled vectors whose norms pass F32 range are not 1 apart");
+        if (!stats.expect_status(backend.synchronize())) return stats;
+        stats.expect_true(static_cast<float>(result[0]) == 1,
+                          "orthogonal block-scaled vectors whose norms pass F32 range are not 1 apart");
     }
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
     constexpr nk_kernel_kind_t packed_kind = angular ? nk_kernel_angulars_packed_k : nk_kernel_euclideans_packed_k;
     auto const launch = [&](auto operand, std::size_t rows, std::size_t depth, std::size_t stride, auto c,
                             std::size_t c_stride) {
@@ -1573,8 +1576,8 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, dimensions_per_value);
 
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
-        for (matrix_shape_t const &shape : matrix_shapes(settings)) {
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();)
+        for (matrix_shape_t const &shape : matrix_shapes()) {
             std::size_t const rows = shape.rows, columns = shape.columns;
             std::size_t const depth = nk::divide_round_up(shape.depth, depth_multiple) * depth_multiple;
             std::size_t const stride = backend.row_stride(nk::divide_round_up(depth, dimensions_per_value) *
@@ -1585,8 +1588,8 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
                  b = make_vector<scalar_t>(backend, columns * stride_values * dimensions_per_value);
             auto c = make_vector<result_t>(backend, rows * columns);
             auto b_packed = make_vector<std::byte>(backend, pack_size_bytes(stats, packed_size_fn, columns, depth));
-            fill_random(settings, generator, a);
-            fill_random(settings, generator, b);
+            fill_random(generator, a);
+            fill_random(generator, b);
             if constexpr (!angular) std::memset(a.raw_values_data(), 0, stride);
             auto const a_scales = random_scales<scalar_type_>(backend, generator, rows, depth, stride, 1.5f),
                        b_scales = random_scales<scalar_type_>(backend, generator, columns, depth, stride, 0.75f);
@@ -1602,28 +1605,29 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
                 backend.call(kernel_of(spatials_fn), a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
                              c.raw_values_data(), rows, columns, depth, stride, columns * sizeof(result_t),
                              scratch.raw_values_data(), scratch_size - 1);
-                stats.expect(backend.synchronize() == nk_unexpected_dimensions_k, "a short workspace was accepted");
+                stats.expect_true(backend.synchronize() == nk_unexpected_dimensions_k,
+                                  "a short workspace was accepted");
             }
             backend.call(kernel_of(spatials_fn), a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
                          c.raw_values_data(), rows, columns, depth, stride, columns * sizeof(result_t),
                          scratch.raw_values_data(), scratch_size);
-            if (!stats.expect(backend.synchronize())) return stats;
+            if (!stats.expect_status(backend.synchronize())) return stats;
 
             auto b_packed_reference = make_vector<std::byte>(
                 nk::dots_pack_size<scalar_type_>(columns, depth, no_tiers_k).value);
             auto dots_reference = make_vector<reference_t>(rows * columns);
             auto a_squared_norms = make_vector<reference_t>(rows), b_squared_norms = make_vector<reference_t>(columns);
-            stats.expect(nk::dots_pack<scalar_type_>(b_scales.operand(b.values_data()), columns, depth, stride,
-                                                     b_packed_reference.raw_values_data(), no_tiers_k, nullptr));
-            stats.expect(nk::dots_packed<scalar_type_, reference_t>(
+            stats.expect_status(nk::dots_pack<scalar_type_>(b_scales.operand(b.values_data()), columns, depth, stride,
+                                                            b_packed_reference.raw_values_data(), no_tiers_k, nullptr));
+            stats.expect_status(nk::dots_packed<scalar_type_, reference_t>(
                 a_scales.operand(a.values_data()), b_packed_reference.raw_values_data(), dots_reference.values_data(),
                 rows, columns, depth, stride, columns * sizeof(reference_t), {}, no_tiers_k, nullptr));
             for (std::size_t row = 0; row < rows; row++)
-                stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
+                stats.expect_status(nk::dots_symmetric<scalar_type_, reference_t>(
                     a_scales.operand(a.values_data() + row * stride_values, row), 1, depth, stride,
                     a_squared_norms.values_data() + row, sizeof(reference_t), 0, 1, {}, no_tiers_k, nullptr));
             for (std::size_t column = 0; column < columns; column++)
-                stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
+                stats.expect_status(nk::dots_symmetric<scalar_type_, reference_t>(
                     b_scales.operand(b.values_data() + column * stride_values, column), 1, depth, stride,
                     b_squared_norms.values_data() + column, sizeof(reference_t), 0, 1, {}, no_tiers_k, nullptr));
 
@@ -1642,7 +1646,7 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
 /** Symmetric angular or euclidean distances, as @p kind_ picks, over the upper triangle, zeros on
  *  the diagonal, and untouched below it. */
 template <typename scalar_type_, typename backend_type_, nk_kernel_kind_t kind_, typename symmetric_kernel_type_>
-error_stats_t test_spatials_symmetric(settings_t const &settings, symmetric_kernel_type_ symmetric_fn) {
+error_stats_t test_spatials_symmetric(symmetric_kernel_type_ symmetric_fn) {
     constexpr bool angular = kind_ == nk_kernel_angular_k;
     constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
     using scalar_t = typename nk::type_for<format.element_dtype>::type;
@@ -1650,10 +1654,10 @@ error_stats_t test_spatials_symmetric(settings_t const &settings, symmetric_kern
         std::conditional_t<angular, typename scalar_type_::angular_result_t, typename scalar_type_::euclidean_result_t>;
     using reference_t = reference_for<scalar_type_>;
 
-    backend_type_ backend = make_backend<backend_type_>(settings);
+    backend_type_ backend = make_backend<backend_type_>();
     error_stats_t stats(angular ? nk_angular_error_bound(scalar_type_::dtype())
                                 : nk_euclidean_error_bound(scalar_type_::dtype()));
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
     constexpr nk_kernel_kind_t symmetric_kind = angular ? nk_kernel_angulars_symmetric_k
                                                         : nk_kernel_euclideans_symmetric_k;
     auto const launch = [&](auto operand, std::size_t rows, std::size_t depth, std::size_t stride, auto c,
@@ -1667,8 +1671,8 @@ error_stats_t test_spatials_symmetric(settings_t const &settings, symmetric_kern
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, dimensions_per_value);
 
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
-        for (matrix_shape_t const &shape : matrix_shapes(settings)) {
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();)
+        for (matrix_shape_t const &shape : matrix_shapes()) {
             std::size_t const count = shape.rows, c_stride = count * sizeof(result_t);
             std::size_t const depth = nk::divide_round_up(shape.depth, depth_multiple) * depth_multiple;
             std::size_t const stride = backend.row_stride(nk::divide_round_up(depth, dimensions_per_value) *
@@ -1677,7 +1681,7 @@ error_stats_t test_spatials_symmetric(settings_t const &settings, symmetric_kern
 
             auto a = make_vector<scalar_t>(backend, count * stride_values * dimensions_per_value);
             auto c = make_vector<result_t>(backend, count * count);
-            fill_random(settings, generator, a);
+            fill_random(generator, a);
             fill_canary(c);
             auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, stride, 1.5f);
 
@@ -1686,14 +1690,15 @@ error_stats_t test_spatials_symmetric(settings_t const &settings, symmetric_kern
             if (scratch_size != 0) {
                 backend.call(kernel_of(symmetric_fn), scales.operand(a.raw_values_data()), count, depth, stride,
                              c.raw_values_data(), c_stride, 0, count, scratch.raw_values_data(), scratch_size - 1);
-                stats.expect(backend.synchronize() == nk_unexpected_dimensions_k, "a short workspace was accepted");
+                stats.expect_true(backend.synchronize() == nk_unexpected_dimensions_k,
+                                  "a short workspace was accepted");
             }
             backend.call(kernel_of(symmetric_fn), scales.operand(a.raw_values_data()), count, depth, stride,
                          c.raw_values_data(), c_stride, 0, count, scratch.raw_values_data(), scratch_size);
-            if (!stats.expect(backend.synchronize())) return stats;
+            if (!stats.expect_status(backend.synchronize())) return stats;
 
             auto dots_reference = make_vector<reference_t>(count * count);
-            stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
+            stats.expect_status(nk::dots_symmetric<scalar_type_, reference_t>(
                 scales.operand(a.values_data()), count, depth, stride, dots_reference.values_data(),
                 count * sizeof(reference_t), 0, count, {}, no_tiers_k, nullptr));
             for (std::size_t row = 0; row < count; row++)
@@ -1714,26 +1719,26 @@ error_stats_t test_spatials_symmetric(settings_t const &settings, symmetric_kern
 
 /** @c test_spatials_packed over angular distances. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename... kernels_types_>
-error_stats_t test_angulars_packed(settings_t const &settings, kernels_types_... kernels) {
-    return test_spatials_packed<scalar_type_, backend_type_, nk_kernel_angular_k>(settings, kernels...);
+error_stats_t test_angulars_packed(kernels_types_... kernels) {
+    return test_spatials_packed<scalar_type_, backend_type_, nk_kernel_angular_k>(kernels...);
 }
 
 /** @c test_spatials_symmetric over angular distances. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename... kernels_types_>
-error_stats_t test_angulars_symmetric(settings_t const &settings, kernels_types_... kernels) {
-    return test_spatials_symmetric<scalar_type_, backend_type_, nk_kernel_angular_k>(settings, kernels...);
+error_stats_t test_angulars_symmetric(kernels_types_... kernels) {
+    return test_spatials_symmetric<scalar_type_, backend_type_, nk_kernel_angular_k>(kernels...);
 }
 
 /** @c test_spatials_packed over euclidean distances. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename... kernels_types_>
-error_stats_t test_euclideans_packed(settings_t const &settings, kernels_types_... kernels) {
-    return test_spatials_packed<scalar_type_, backend_type_, nk_kernel_euclidean_k>(settings, kernels...);
+error_stats_t test_euclideans_packed(kernels_types_... kernels) {
+    return test_spatials_packed<scalar_type_, backend_type_, nk_kernel_euclidean_k>(kernels...);
 }
 
 /** @c test_spatials_symmetric over euclidean distances. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename... kernels_types_>
-error_stats_t test_euclideans_symmetric(settings_t const &settings, kernels_types_... kernels) {
-    return test_spatials_symmetric<scalar_type_, backend_type_, nk_kernel_euclidean_k>(settings, kernels...);
+error_stats_t test_euclideans_symmetric(kernels_types_... kernels) {
+    return test_spatials_symmetric<scalar_type_, backend_type_, nk_kernel_euclidean_k>(kernels...);
 }
 
 #pragma endregion Spatial Distances
@@ -1745,7 +1750,7 @@ error_stats_t test_euclideans_symmetric(settings_t const &settings, kernels_type
  *  reference's −∞ on rows that see no keys. */
 template <attention_weights_t weights_ = attention_weights_t::unquantized_k, typename actual_vector_type_,
           typename expected_vector_type_>
-void expect_log_sum_exp(settings_t const &settings, error_stats_t &stats, actual_vector_type_ const &actual,
+void expect_log_sum_exp(error_stats_t &stats, actual_vector_type_ const &actual,
                         expected_vector_type_ const &expected) {
     double const rounding = weights_ == attention_weights_t::unquantized_k
                                 ? 0
@@ -1753,10 +1758,11 @@ void expect_log_sum_exp(settings_t const &settings, error_stats_t &stats, actual
     bool held = true;
     for (std::size_t index = 0; index < actual.size_values(); index++) {
         double const result = static_cast<double>(actual[index]), reference = static_cast<double>(expected[index]);
-        double const bound = nk::max_of(settings.scale_threshold * nk::max_of(1.0, std::fabs(reference)), rounding);
+        double const bound = nk::max_of(test_run.settings.scale_threshold * nk::max_of(1.0, std::fabs(reference)),
+                                        rounding);
         held = held && (std::isinf(reference) ? result == reference : std::fabs(result - reference) <= bound);
     }
-    stats.expect(held, "log-sum-exp");
+    stats.expect_true(held, "log-sum-exp");
 }
 
 /** Ragged attention over @c attention_cases against @c reference_attention_unmasked, or against
@@ -1774,20 +1780,20 @@ void expect_log_sum_exp(settings_t const &settings, error_stats_t &stats, actual
 template <typename scalar_type_, typename backend_type_ = host_backend_t,
           attention_weights_t weights_ = attention_weights_t::unquantized_k, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename attention_kernel_type_>
-error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel_type_ packed_size_fn,
-                                    pack_kernel_type_ pack_fn, attention_kernel_type_ attention_fn) {
+error_stats_t test_attention_packed(pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
+                                    attention_kernel_type_ attention_fn) {
     constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
     using scalar_t = typename nk::type_for<format.element_dtype>::type;
     using result_t = typename scalar_type_::attention_result_t;
     std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, 1);
 
-    backend_type_ backend = make_backend<backend_type_>(settings);
+    backend_type_ backend = make_backend<backend_type_>();
     error_stats_t stats(attention_family(weights_));
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
 
     std::vector<attention_case_t> const cases = attention_cases();
 
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
         for (attention_case_t const &test_case : cases) {
             auto const segments = test_case.many_segments
                                       ? make_many_attention_segments(backend, generator)
@@ -1811,8 +1817,7 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
             auto queries = make_vector<scalar_t>(backend, query_tokens * layout.query_width());
             auto keys = make_vector<scalar_t>(backend, key_tokens * layout.key_value_width()),
                  values = make_vector<scalar_t>(backend, key_tokens * layout.key_value_width());
-            fill_random(settings, generator, queries), fill_random(settings, generator, keys),
-                fill_random(settings, generator, values);
+            fill_random(generator, queries), fill_random(generator, keys), fill_random(generator, values);
             // NVFP4 tensor scales keep scores near 1, as UE4M3 block scales reach 448
             auto query_scales = random_scales<scalar_type_>(backend, generator, query_tokens, layout.query_width(),
                                                             query_stride, 0x1.8p-8f);
@@ -1851,7 +1856,7 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
                 auto const queried = nk::attention_packed_workspace_size<scalar_type_>(
                     layout.head_count, layout.key_value_head_count, layout.depth, query_tokens, test_case.keys_before,
                     test_case.keys_after, backend.capabilities());
-                stats.expect(queried.status);
+                stats.expect_status(queried.status);
                 workspace_bytes = queried.value;
             }
             auto workspace = make_vector<std::byte>(backend, workspace_bytes);
@@ -1870,13 +1875,13 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
             attend(output, log_sum_exp, 0, NUMKONG_SIZE_MAX);
             for (std::size_t window : windows)
                 attend(windowed_output, windowed_log_sum_exp, bounds[window], bounds[window + 1]);
-            if (!stats.expect(backend.synchronize())) return stats;
+            if (!stats.expect_status(backend.synchronize())) return stats;
             void const *outputs[2] = {output.raw_values_data(), windowed_output.raw_values_data()};
             void const *log_sum_exps[2] = {log_sum_exp.raw_values_data(), windowed_log_sum_exp.raw_values_data()};
-            stats.expect(std::memcmp(outputs[0], outputs[1], output.size_bytes()) == 0,
-                         "random task windows output differently from one call over the grid");
-            stats.expect(std::memcmp(log_sum_exps[0], log_sum_exps[1], log_sum_exp.size_bytes()) == 0,
-                         "random task windows log-sum-exp differently from one call over the grid");
+            stats.expect_true(std::memcmp(outputs[0], outputs[1], output.size_bytes()) == 0,
+                              "random task windows output differently from one call over the grid");
+            stats.expect_true(std::memcmp(log_sum_exps[0], log_sum_exps[1], log_sum_exp.size_bytes()) == 0,
+                              "random task windows log-sum-exp differently from one call over the grid");
 
             auto const reference = test_case.unmasked()
                                        ? reference_attention_unmasked<scalar_type_>(stats, queries, keys, values,
@@ -1885,8 +1890,8 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
                                        : reference_attention_masked<scalar_type_>(
                                              stats, queries, keys, values, query_scales, key_scales, value_scales,
                                              segments, layout, test_case.keys_before, test_case.keys_after);
-            accumulate_attention<weights_>(settings, stats, output, reference.output, values);
-            expect_log_sum_exp<weights_>(settings, stats, log_sum_exp, reference.log_sum_exp);
+            accumulate_attention<weights_>(stats, output, reference.output, values);
+            expect_log_sum_exp<weights_>(stats, log_sum_exp, reference.log_sum_exp);
         }
     }
     return stats;
@@ -1901,15 +1906,15 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
  *  or more spread their first two scales past the window an MX plane rebases across. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename gradients_kernel_type_>
-error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_size_kernel_type_ packed_size_fn,
-                                              pack_kernel_type_ pack_fn, gradients_kernel_type_ gradients_fn) {
+error_stats_t test_attention_packed_gradients(pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
+                                              gradients_kernel_type_ gradients_fn) {
     constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
     using scalar_t = typename nk::type_for<format.element_dtype>::type;
     std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, 1);
 
-    backend_type_ backend = make_backend<backend_type_>(settings);
+    backend_type_ backend = make_backend<backend_type_>();
     error_stats_t stats(comparison_family_t::bounded_k);
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
 
     std::size_t const all = attention_all_keys_k;
     std::vector<attention_case_t> cases;
@@ -1922,7 +1927,7 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
     auto const segments = make_attention_segments(backend, {60, 130, 0, 33, 5}, {60, 24, 2, 1, 9});
     std::size_t const query_tokens = segments.query_tokens(), key_tokens = segments.key_tokens();
 
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
         for (attention_case_t const &test_case : cases) {
             attention_layout_t const layout {attention_key_value_heads_k * test_case.group, attention_key_value_heads_k,
                                              nk::divide_round_up(test_case.depth, depth_multiple) * depth_multiple,
@@ -1939,8 +1944,8 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
             auto keys = make_vector<scalar_t>(backend, key_tokens * layout.key_value_width()),
                  values = make_vector<scalar_t>(backend, key_tokens * layout.key_value_width());
             auto output_gradient = make_vector<f32_t>(backend, query_tokens * layout.query_width());
-            fill_random(settings, generator, queries), fill_random(settings, generator, keys),
-                fill_random(settings, generator, values), fill_random(settings, generator, output_gradient);
+            fill_random(generator, queries), fill_random(generator, keys), fill_random(generator, values),
+                fill_random(generator, output_gradient);
             // NVFP4 tensor scales keep scores near 1, as UE4M3 block scales reach 448
             auto const query_scales = random_scales<scalar_type_>(backend, generator, query_tokens,
                                                                   layout.query_width(), query_stride, 0x1.8p-8f);
@@ -1974,12 +1979,12 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
                     : reference_attention_masked<scalar_type_>(stats, queries, keys, values, query_scales, key_scales,
                                                                value_scales, segments, layout, test_case.keys_before,
                                                                test_case.keys_after);
-            expect_log_sum_exp(settings, stats, serial.log_sum_exp, reference.log_sum_exp);
+            expect_log_sum_exp(stats, serial.log_sum_exp, reference.log_sum_exp);
             double largest_output = 0;
             for (double value : reference.output) largest_output = nk::max_of(largest_output, std::fabs(value));
             for (std::size_t index = 0; index < reference.output.size(); index++)
                 stats.accumulate_bounded(serial.output[index], reference.output[index],
-                                         settings.scale_threshold * largest_output);
+                                         test_run.settings.scale_threshold * largest_output);
 
             auto output = make_vector<f32_t>(backend, query_tokens * layout.query_width());
             auto log_sum_exp = make_vector<f32_t>(backend, query_tokens * layout.head_count);
@@ -1999,7 +2004,7 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
                 auto const queried = nk::attention_packed_gradients_workspace_size<scalar_type_>(
                     layout.head_count, layout.key_value_head_count, layout.depth, query_tokens, test_case.keys_before,
                     test_case.keys_after, backend.capabilities());
-                stats.expect(queried.status);
+                stats.expect_status(queried.status);
                 workspace_bytes = queried.value;
             }
             auto workspace = make_vector<std::byte>(backend, workspace_bytes);
@@ -2013,7 +2018,7 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
                 for (double magnitude : magnitudes) largest = nk::max_of(largest, magnitude);
                 for (std::size_t index = 0; index < expected.size(); index++)
                     stats.accumulate_bounded(actual[index / width * actual_width + index % width], expected[index],
-                                             settings.scale_threshold * largest);
+                                             test_run.settings.scale_threshold * largest);
             };
             // A workspace takes the single pass where a capability has one, and none the two passes
             std::size_t const windows[2][2] = {{0, 1}, {1, NUMKONG_SIZE_MAX}};
@@ -2027,7 +2032,7 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
                         output_stride, log_sum_exp.raw_values_data(), query_gradient.raw_values_data(),
                         query_gradient_stride, key_gradient.raw_values_data(), value_gradient.raw_values_data(),
                         gradient_stride, window[0], window[1], workspace.raw_values_data(), scratch_bytes);
-                if (!stats.expect(backend.synchronize())) return stats;
+                if (!stats.expect_status(backend.synchronize())) return stats;
 
                 accumulate_gradient(query_gradient, query_gradient_width, reference.query_gradient,
                                     reference.query_magnitude, layout.query_width());
@@ -2040,7 +2045,7 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
                     for (std::size_t column = layout.query_width(); column < query_gradient_width; column++)
                         padding_kept &= std::isnan(
                             static_cast<double>(query_gradient[token * query_gradient_width + column]));
-                stats.expect(padding_kept, "query gradient written past its rows");
+                stats.expect_true(padding_kept, "query gradient written past its rows");
                 if (!scratch_bytes) break;
                 fill_canary(query_gradient), fill_canary(key_gradient), fill_canary(value_gradient);
             }
@@ -2052,33 +2057,34 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
 /** NeoX split-half RoPE of two heads over padded rows against an F64 reference: into a separate
  *  output, then in place. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename rope_kernel_type_>
-error_stats_t test_attention_rope(settings_t const &settings, rope_kernel_type_ rope_fn) {
+error_stats_t test_attention_rope(rope_kernel_type_ rope_fn) {
     using scalar_t = scalar_type_;
 
-    backend_type_ backend = make_backend<backend_type_>(settings);
+    backend_type_ backend = make_backend<backend_type_>();
     error_stats_t stats(nk_attention_rope_error_bound(scalar_t::dtype()));
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
     std::uniform_real_distribution<float> angle_distribution(-3.0f, 3.0f);
     std::size_t const rows = 33, head_count = 2, depth = 74, half_depth = depth / 2;
     std::size_t const row_values = head_count * depth + 8, row_bytes = row_values * sizeof(scalar_t);
 
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();)
         for (bool const in_place : {false, true}) {
             auto x = make_vector<scalar_t>(backend, rows * row_values),
                  y = make_vector<scalar_t>(backend, rows * row_values);
             auto cosines = make_vector<f32_t>(backend, rows * half_depth),
                  sines = make_vector<f32_t>(backend, rows * half_depth);
-            fill_random(settings, generator, x);
+            fill_random(generator, x);
             for (std::size_t index = 0; index < rows * half_depth; index++) {
                 float const angle = angle_distribution(generator);
                 cosines[index] = std::cos(angle), sines[index] = std::sin(angle);
             }
 
-            if (in_place && !stats.expect(backend.copy(y.raw_values_data(), x.raw_values_data(), rows * row_bytes)))
+            if (in_place &&
+                !stats.expect_status(backend.copy(y.raw_values_data(), x.raw_values_data(), rows * row_bytes)))
                 return stats;
             backend.call(rope_fn, in_place ? y.raw_values_data() : x.raw_values_data(), cosines.raw_values_data(),
                          sines.raw_values_data(), y.raw_values_data(), rows, head_count, depth, row_bytes, row_bytes);
-            if (!stats.expect(backend.synchronize())) return stats;
+            if (!stats.expect_status(backend.synchronize())) return stats;
 
             for (std::size_t row = 0; row < rows; row++)
                 for (std::size_t head = 0; head < head_count; head++)

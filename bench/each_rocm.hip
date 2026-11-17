@@ -14,7 +14,7 @@ namespace ashvardanian::numkong::bench {
 
 #if NUMKONG_ARCH_ROCM_
 
-void bench_each_rocm([[maybe_unused]] environment_t const &env, [[maybe_unused]] rocm_backend_t const &backend,
+void bench_each_rocm([[maybe_unused]] bench_settings_t const &env, [[maybe_unused]] rocm_backend_t const &backend,
                      [[maybe_unused]] nk_capability_t enabled) {
     [[maybe_unused]] constexpr nk_kernel_kind_t sum_k = nk_kernel_each_sum_k;
 #if NUMKONG_TARGET_ROCM

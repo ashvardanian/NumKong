@@ -50,7 +50,7 @@ nk_status_t blend_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t 
 
 #endif // NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
-void bench_each(environment_t const &env) {
+void bench_each(bench_settings_t const &env) {
     constexpr nk_dtype_t i8_k = nk_i8_k;
     constexpr nk_dtype_t u8_k = nk_u8_k;
     constexpr nk_dtype_t i16_k = nk_i16_k;

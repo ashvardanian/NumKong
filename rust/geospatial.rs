@@ -412,7 +412,7 @@ fn check_results<Distance>(rows: usize, columns: usize, results: &[Distance]) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::assert_close;
+    use crate::testing::assert_close;
 
     /// Rows in degrees: London, Sydney and the North Pole.
     const ROW_LATITUDES: [f64; 3] = [51.5074, -33.8688, 90.0];
@@ -458,7 +458,7 @@ mod tests {
     }
 
     #[test]
-    fn geospatial_vincentys_flinders_peak_to_buninyong() {
+    fn vincentys_matches_the_flinders_peak_to_buninyong_survey() {
         let radians =
             |degrees: f64, minutes: f64, seconds: f64| (degrees + minutes / 60.0 + seconds / 3600.0).to_radians();
         let flinders_peak = [-radians(37.0, 57.0, 3.72030), radians(144.0, 25.0, 29.52440)];
@@ -473,7 +473,7 @@ mod tests {
     }
 
     #[test]
-    fn geospatial_sqeuclideans3d_exact() {
+    fn sqeuclideans3d_stay_exact_past_two_to_the_53() {
         // Earth-fixed centimeters, whose squares sum past 2⁵³
         let a: [[i32; 3]; 2] = [[637_813_700, -637_813_700, 0], [-1, 2, -3]];
         let b: [[i32; 3]; 3] = [[-637_813_700, 637_813_700, 1], [0, 0, 0], [5, -7, 11]];
@@ -514,7 +514,7 @@ mod tests {
     }
 
     #[test]
-    fn geospatial_reject_mismatched_slices() {
+    fn geospatial_rejects_mismatched_slices() {
         let mismatch = |expected, got| Err(Error::ShapeMismatch { axis: 0, expected, got });
         let unequal = HaversinesPackedMatrix::new(&[0.0, 1.0], &[0.0]);
         assert_eq!(unequal.map(|_| ()), mismatch(2, 1));

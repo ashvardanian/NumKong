@@ -40,7 +40,7 @@ struct rocm_backend_t : device_backend_t {
     }
 
     /** Rows a token-row benchmark batches: a 4096-token prefill. */
-    static std::size_t token_rows(environment_t const &) noexcept { return 4096; }
+    static std::size_t token_rows(bench_settings_t const &) noexcept { return 4096; }
 
     nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
         return hipMemcpy(destination, source, bytes, hipMemcpyDefault) == hipSuccess ? nk_success_k
@@ -106,7 +106,7 @@ struct rocm_backend_t : device_backend_t {
 };
 
 /** The element-wise ROCm rows, in their own file like the CPU's. */
-void bench_each_rocm(environment_t const &env, rocm_backend_t const &backend, nk_capability_t enabled);
+void bench_each_rocm(bench_settings_t const &env, rocm_backend_t const &backend, nk_capability_t enabled);
 
 } // namespace ashvardanian::numkong::bench
 

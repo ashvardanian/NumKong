@@ -1710,7 +1710,7 @@ mod tests {
     use super::*;
     use crate::types::{bf16, f16, i4x2, u1x8, u4x2};
 
-    fn check_vector_roundtrip<Scalar: FloatConvertible>() {
+    fn check_vector_round_trip<Scalar: FloatConvertible>() {
         let dims_per_value = Scalar::dimensions_per_value();
         let test_dims = 16 * dims_per_value;
         let v = Vector::<Scalar>::zeros(test_dims).unwrap();
@@ -1737,18 +1737,18 @@ mod tests {
     }
 
     #[test]
-    fn vector_roundtrip_all_types() {
-        check_vector_roundtrip::<f32>();
-        check_vector_roundtrip::<f64>();
-        check_vector_roundtrip::<f16>();
-        check_vector_roundtrip::<bf16>();
-        check_vector_roundtrip::<i4x2>();
-        check_vector_roundtrip::<u4x2>();
-        check_vector_roundtrip::<u1x8>();
+    fn vectors_round_trip_every_type() {
+        check_vector_round_trip::<f32>();
+        check_vector_round_trip::<f64>();
+        check_vector_round_trip::<f16>();
+        check_vector_round_trip::<bf16>();
+        check_vector_round_trip::<i4x2>();
+        check_vector_round_trip::<u4x2>();
+        check_vector_round_trip::<u1x8>();
     }
 
     #[test]
-    fn vector_get_set_all_types() {
+    fn vectors_get_and_set_every_type() {
         check_vector_get_set::<f32>();
         check_vector_get_set::<f64>();
         check_vector_get_set::<i4x2>();
@@ -1794,7 +1794,7 @@ mod tests {
     }
 
     #[test]
-    fn vector_resize_all_types() {
+    fn vectors_resize_every_type() {
         check_vector_resize::<f32>();
         check_vector_resize::<f64>();
         check_vector_resize::<f16>();
@@ -1814,7 +1814,7 @@ mod tests {
     }
 
     #[test]
-    fn vec_index_signed() {
+    fn vectors_index_from_both_ends() {
         let v = Vector::<f32>::from_dims(&[10.0, 20.0, 30.0, 40.0, 50.0]).unwrap();
         // Positive indexing
         assert_eq!(v.get(0).unwrap(), 10.0);
@@ -1826,7 +1826,7 @@ mod tests {
     }
 
     #[test]
-    fn vector_view_stride() {
+    fn vector_views_read_forward_and_reversed() {
         let v = Vector::<f32>::from_scalars(&[1.0, 2.0, 3.0, 4.0, 5.0]).unwrap();
         let view = v.view();
         assert!(view.is_contiguous());
@@ -1839,7 +1839,7 @@ mod tests {
     }
 
     #[test]
-    fn vector_span_fill() {
+    fn vector_spans_fill_every_element() {
         let mut v = Vector::<f32>::zeros(4).unwrap();
         {
             let mut span = v.span();
@@ -1850,7 +1850,7 @@ mod tests {
     }
 
     #[test]
-    fn vector_iter() {
+    fn vectors_iterate_in_both_directions() {
         let v = Vector::<f32>::from_scalars(&[1.0, 2.0, 3.0]).unwrap();
         let values: Vec<f32> = v.iter().map(|x| *x).collect();
         assert_eq!(values, vec![1.0, 2.0, 3.0]);
@@ -1861,7 +1861,7 @@ mod tests {
     }
 
     #[test]
-    fn view_strided_iteration() {
+    fn strided_views_visit_every_other_element() {
         let v = Vector::<f32>::from_scalars(&[1.0, 2.0, 3.0, 4.0, 5.0]).unwrap();
         let view = v.view();
 
@@ -1873,7 +1873,7 @@ mod tests {
     }
 
     #[test]
-    fn vector_filled() {
+    fn full_vectors_hold_their_fill() {
         let v = Vector::<f32>::full(3, 7.5).unwrap();
         assert_eq!(v.get(0).unwrap(), 7.5);
         assert_eq!(v.get(1).unwrap(), 7.5);
@@ -1881,42 +1881,42 @@ mod tests {
     }
 
     #[test]
-    fn empty_vector() {
+    fn empty_vectors_have_no_elements() {
         let v = Vector::<f32>::zeros(0).unwrap();
         assert!(v.is_empty());
         assert_eq!(v.size(), 0);
     }
 
     #[test]
-    fn index_out_of_bounds() {
+    fn out_of_bounds_indices_are_errors() {
         let v = Vector::<f32>::zeros(3).unwrap();
         assert!(v.get(3_usize).is_err());
         assert!(v.get(-4_i32).is_err());
     }
 
     #[test]
-    fn vector_allclose_matching() {
+    fn allclose_accepts_vectors_within_tolerance() {
         let a = Vector::<f32>::full(4, 1.0).unwrap();
         let b = Vector::<f32>::full(4, 1.0 + 1e-7).unwrap();
         assert!(a.allclose(&b, 1e-6, 0.0));
     }
 
     #[test]
-    fn vector_allclose_mismatching() {
+    fn allclose_rejects_vectors_beyond_tolerance() {
         let a = Vector::<f32>::full(4, 1.0).unwrap();
         let b = Vector::<f32>::full(4, 2.0).unwrap();
         assert!(!a.allclose(&b, 1e-6, 0.0));
     }
 
     #[test]
-    fn vector_allclose_different_dims() {
+    fn allclose_rejects_vectors_of_other_lengths() {
         let a = Vector::<f32>::full(3, 1.0).unwrap();
         let b = Vector::<f32>::full(4, 1.0).unwrap();
         assert!(!a.allclose(&b, 1e-6, 1e-6));
     }
 
     #[test]
-    fn display_precision_forwarding() {
+    fn display_forwards_its_precision_to_elements() {
         let v = Vector::<f32>::full(3, 1.0).unwrap();
         let s = format!("{:.2}", v);
         assert_eq!(s, "[1.00, 1.00, 1.00]");
@@ -1924,7 +1924,7 @@ mod tests {
 
     /// `iter_mut` writes each element by index; reading back yields the written values, even across
     /// sub-byte packing where one container holds several logical dimensions.
-    fn check_iter_mut_roundtrip<Scalar: FloatConvertible>(values: &[f32])
+    fn check_iter_mut_round_trip<Scalar: FloatConvertible>(values: &[f32])
     where
         Scalar::DimScalar: core::fmt::Debug,
     {
@@ -1939,14 +1939,14 @@ mod tests {
     }
 
     #[test]
-    fn vector_span_iter_mut_roundtrips() {
-        check_iter_mut_roundtrip::<f32>(&[11.0, 12.0, 13.0]);
-        check_iter_mut_roundtrip::<i4x2>(&[1.0, 2.0, 3.0, 4.0]);
-        check_iter_mut_roundtrip::<u1x8>(&[1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0]);
+    fn vector_span_iter_mut_round_trips() {
+        check_iter_mut_round_trip::<f32>(&[11.0, 12.0, 13.0]);
+        check_iter_mut_round_trip::<i4x2>(&[1.0, 2.0, 3.0, 4.0]);
+        check_iter_mut_round_trip::<u1x8>(&[1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0]);
     }
 
     #[test]
-    fn vector_span_iter_double_ended() {
+    fn vector_span_iter_mut_writes_from_both_ends() {
         let mut v = Vector::<f32>::from_scalars(&[1.0, 2.0, 3.0]).unwrap();
         let mut span = v.span();
         let mut it = span.iter_mut();
@@ -1966,7 +1966,7 @@ mod tests {
     }
 
     #[test]
-    fn vector_iterator_alias_compat() {
+    fn vector_iterator_alias_names_the_iterator() {
         // VectorIterator type alias should still work
         let v = Vector::<f32>::from_scalars(&[1.0]).unwrap();
         let _it: VectorIterator<'_, f32> = v.iter();
@@ -1991,7 +1991,7 @@ mod tests {
     }
 
     #[test]
-    fn fill_zeros_and_fill_on_vector_and_span() {
+    fn fill_zeros_and_fill_reach_vectors_and_spans() {
         // Vector: Fill trait gives fill_zeros + fill methods.
         use crate::tensor::Fill;
 

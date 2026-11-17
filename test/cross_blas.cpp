@@ -4,6 +4,8 @@
  *  @date January 14, 2025
  *  @brief Batch operation tests - BLAS/MKL comparisons.
  */
+#undef NDEBUG // ! A test's oracle must stay live in every build
+
 #include "numkong/dot.hpp" // `nk::dot` for BLAS comparison
 
 #include "harness.hpp"
@@ -26,16 +28,17 @@ namespace ashvardanian::numkong::test {
  *  @param[in] term_error_bound What each term may add in the precision the routine sums in
  */
 template <typename scalar_type_, typename accumulator_type_, typename kernel_type_>
-error_stats_t test_dots_unpacked(settings_t const &settings, kernel_type_ dots_fn, nk_f64_t term_error_bound) {
+error_stats_t test_dots_unpacked(kernel_type_ dots_fn, nk_f64_t term_error_bound) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = accumulator_type_;
     using reference_t = bounded_reference_for<scalar_t, result_t>;
 
     error_stats_t stats(term_error_bound);
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
 
-    std::size_t m = settings.matrix_height, n = settings.matrix_width, k = settings.matrix_depth;
+    std::size_t m = test_run.settings.matrix_height, n = test_run.settings.matrix_width,
+                k = test_run.settings.matrix_depth;
     std::size_t a_stride = k * sizeof(raw_t);
     std::size_t b_stride = k * sizeof(raw_t);
     std::size_t c_stride = n * sizeof(typename result_t::raw_t);
@@ -43,9 +46,9 @@ error_stats_t test_dots_unpacked(settings_t const &settings, kernel_type_ dots_f
     auto a_buf = make_vector<scalar_t>(m * k), b_buf = make_vector<scalar_t>(n * k);
     auto c = make_vector<result_t>(m * n);
     std::vector<reference_t> c_ref(m * n);
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
-        fill_random(settings, generator, a_buf);
-        fill_random(settings, generator, b_buf);
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
+        fill_random(generator, a_buf);
+        fill_random(generator, b_buf);
 
         nk::dots_unpacked<scalar_t, reference_t>(a_buf.values_data(), b_buf.values_data(), c_ref.data(), m, n, k,
                                                  a_stride, b_stride, n * sizeof(reference_t));
@@ -63,17 +66,17 @@ error_stats_t test_dots_unpacked(settings_t const &settings, kernel_type_ dots_f
  *  reference must also conjugate B to match.
  */
 template <typename scalar_type_, typename accumulator_type_, typename kernel_type_>
-error_stats_t test_dots_unpacked_conjugated(settings_t const &settings, kernel_type_ dots_fn,
-                                            nk_f64_t term_error_bound) {
+error_stats_t test_dots_unpacked_conjugated(kernel_type_ dots_fn, nk_f64_t term_error_bound) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = accumulator_type_;
     using reference_t = bounded_reference_for<scalar_t, result_t>;
 
     error_stats_t stats(term_error_bound);
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
 
-    std::size_t m = settings.matrix_height, n = settings.matrix_width, k = settings.matrix_depth;
+    std::size_t m = test_run.settings.matrix_height, n = test_run.settings.matrix_width,
+                k = test_run.settings.matrix_depth;
     std::size_t a_stride = k * sizeof(raw_t);
     std::size_t b_stride = k * sizeof(raw_t);
     std::size_t c_stride = n * sizeof(typename result_t::raw_t);
@@ -81,9 +84,9 @@ error_stats_t test_dots_unpacked_conjugated(settings_t const &settings, kernel_t
     auto a_buf = make_vector<scalar_t>(m * k), b_buf = make_vector<scalar_t>(n * k);
     auto c = make_vector<result_t>(m * n);
     std::vector<reference_t> c_ref(m * n);
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
-        fill_random(settings, generator, a_buf);
-        fill_random(settings, generator, b_buf);
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
+        fill_random(generator, a_buf);
+        fill_random(generator, b_buf);
 
         nk::dots_unpacked_conjugated<scalar_t, reference_t>(a_buf.values_data(), b_buf.values_data(), c_ref.data(), m,
                                                             n, k, a_stride, b_stride, n * sizeof(reference_t));
@@ -269,27 +272,27 @@ void dots_i16_with_mkl(i16_t const *a, i16_t const *b, i32_t *c, nk_size_t m, nk
 /** Single dot product test for BLAS, each term adding up to @p term_error_bound in the precision
  *  the routine sums in. */
 template <typename scalar_type_>
-error_stats_t test_dot_blas(settings_t const &settings, typename scalar_type_::dot_kernel_t kernel,
-                            nk_f64_t term_error_bound) {
+error_stats_t test_dot_blas(typename scalar_type_::dot_kernel_t kernel, nk_f64_t term_error_bound) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::dot_result_t;
     using reference_t = bounded_reference_for<scalar_t, result_t>;
 
     error_stats_t stats(term_error_bound);
-    std::mt19937 generator(settings.seed.value);
-    auto a = make_vector<scalar_t>(settings.dense_dimensions), b = make_vector<scalar_t>(settings.dense_dimensions);
+    split_mix_generator_t generator(case_stream_key());
+    auto a = make_vector<scalar_t>(test_run.settings.dense_dimensions),
+         b = make_vector<scalar_t>(test_run.settings.dense_dimensions);
 
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
-        fill_random(settings, generator, a);
-        fill_random(settings, generator, b);
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
+        fill_random(generator, a);
+        fill_random(generator, b);
 
         result_t result;
-        stats.expect(
-            kernel(a.raw_values_data(), b.raw_values_data(), settings.dense_dimensions, &result.raw_, nullptr));
+        stats.expect_status(kernel(a.raw_values_data(), b.raw_values_data(), test_run.settings.dense_dimensions,
+                                   &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect(nk::dot<scalar_t, reference_t>(a.values_data(), b.values_data(), settings.dense_dimensions,
-                                                    &reference, no_tiers_k));
+        stats.expect_status(nk::dot<scalar_t, reference_t>(a.values_data(), b.values_data(),
+                                                           test_run.settings.dense_dimensions, &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }
@@ -298,73 +301,98 @@ error_stats_t test_dot_blas(settings_t const &settings, typename scalar_type_::d
 
 /** Conjugate dot product test for BLAS (vdot = conj(a) * b). */
 template <typename scalar_type_>
-error_stats_t test_vdot_blas(settings_t const &settings, typename scalar_type_::vdot_kernel_t kernel,
-                             nk_f64_t term_error_bound) {
+error_stats_t test_vdot_blas(typename scalar_type_::vdot_kernel_t kernel, nk_f64_t term_error_bound) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::vdot_result_t;
     using reference_t = bounded_reference_for<scalar_t, result_t>;
 
     error_stats_t stats(term_error_bound);
-    std::mt19937 generator(settings.seed.value);
-    auto a = make_vector<scalar_t>(settings.dense_dimensions), b = make_vector<scalar_t>(settings.dense_dimensions);
+    split_mix_generator_t generator(case_stream_key());
+    auto a = make_vector<scalar_t>(test_run.settings.dense_dimensions),
+         b = make_vector<scalar_t>(test_run.settings.dense_dimensions);
 
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
-        fill_random(settings, generator, a);
-        fill_random(settings, generator, b);
+    for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
+        fill_random(generator, a);
+        fill_random(generator, b);
 
         result_t result;
-        stats.expect(
-            kernel(a.raw_values_data(), b.raw_values_data(), settings.dense_dimensions, &result.raw_, nullptr));
+        stats.expect_status(kernel(a.raw_values_data(), b.raw_values_data(), test_run.settings.dense_dimensions,
+                                   &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect(nk::vdot<scalar_t, reference_t>(a.values_data(), b.values_data(), settings.dense_dimensions,
-                                                     &reference, no_tiers_k));
+        stats.expect_status(nk::vdot<scalar_t, reference_t>(
+            a.values_data(), b.values_data(), test_run.settings.dense_dimensions, &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }
     return stats;
 }
 
-void test_cross_blas(error_stats_section_t &check) {
+void run_cross_blas_cases() {
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
-    check.section("Cross External Baselines", nk_cap_serial_k);
 
     // Each routine is held to the precision it sums in, which for `dsdot` is F64 over F32 inputs
     nk_f64_t const in_f64 = nk_accumulation_error_bound(nk_f64_k), in_f32 = nk_accumulation_error_bound(nk_f32_k);
-    check("dot_with_blas_f64", test_dot_blas<f64_t>, dot_f64_with_blas, in_f64);
-    check("dot_with_blas_f32", test_dot_blas<f32_t>, dot_f32_with_blas, in_f64);
-    check("dot_with_blas_f32c", test_dot_blas<f32c_t>, dot_f32c_with_blas, in_f32);
-    check("vdot_with_blas_f32c", test_vdot_blas<f32c_t>, vdot_f32c_with_blas, in_f32);
-    check("dot_with_blas_f64c", test_dot_blas<f64c_t>, dot_f64c_with_blas, in_f64);
-    check("vdot_with_blas_f64c", test_vdot_blas<f64c_t>, vdot_f64c_with_blas, in_f64);
+    run_kernel_case("test_dot_blas<f64_t>(dot_f64_with_blas, in_f64)", test_dot_blas<f64_t>, nk_cap_serial_k,
+                    dot_f64_with_blas, in_f64);
+    run_kernel_case("test_dot_blas<f32_t>(dot_f32_with_blas, in_f64)", test_dot_blas<f32_t>, nk_cap_serial_k,
+                    dot_f32_with_blas, in_f64);
+    run_kernel_case("test_dot_blas<f32c_t>(dot_f32c_with_blas, in_f32)", test_dot_blas<f32c_t>, nk_cap_serial_k,
+                    dot_f32c_with_blas, in_f32);
+    run_kernel_case("test_vdot_blas<f32c_t>(vdot_f32c_with_blas, in_f32)", test_vdot_blas<f32c_t>, nk_cap_serial_k,
+                    vdot_f32c_with_blas, in_f32);
+    run_kernel_case("test_dot_blas<f64c_t>(dot_f64c_with_blas, in_f64)", test_dot_blas<f64c_t>, nk_cap_serial_k,
+                    dot_f64c_with_blas, in_f64);
+    run_kernel_case("test_vdot_blas<f64c_t>(vdot_f64c_with_blas, in_f64)", test_vdot_blas<f64c_t>, nk_cap_serial_k,
+                    vdot_f64c_with_blas, in_f64);
 
     // BLAS/MKL/Accelerate GEMM precision comparison
-    check("dots_with_blas_f64", test_dots_unpacked<f64_t, f64_t, decltype(&dots_f64_with_blas)>, dots_f64_with_blas,
-          in_f64);
-    check("dots_with_blas_f32", test_dots_unpacked<f32_t, f64_t, decltype(&dots_f32_with_blas)>, dots_f32_with_blas,
-          in_f32);
-    check("dots_with_blas_f32c", test_dots_unpacked_conjugated<f32c_t, f32c_t, decltype(&dots_f32c_with_blas)>,
-          dots_f32c_with_blas, in_f32);
-    check("dots_with_blas_f64c", test_dots_unpacked_conjugated<f64c_t, f64c_t, decltype(&dots_f64c_with_blas)>,
-          dots_f64c_with_blas, in_f64);
+    run_kernel_case("test_dots_unpacked<f64_t, f64_t, decltype(&dots_f64_with_blas)>(dots_f64_with_blas, in_f64)",
+                    test_dots_unpacked<f64_t, f64_t, decltype(&dots_f64_with_blas)>, nk_cap_serial_k,
+                    dots_f64_with_blas, in_f64);
+    run_kernel_case("test_dots_unpacked<f32_t, f64_t, decltype(&dots_f32_with_blas)>(dots_f32_with_blas, in_f32)",
+                    test_dots_unpacked<f32_t, f64_t, decltype(&dots_f32_with_blas)>, nk_cap_serial_k,
+                    dots_f32_with_blas, in_f32);
+    run_kernel_case(
+        "test_dots_unpacked_conjugated<f32c_t, f32c_t, decltype(&dots_f32c_with_blas)>(dots_f32c_with_blas, in_f32)",
+        test_dots_unpacked_conjugated<f32c_t, f32c_t, decltype(&dots_f32c_with_blas)>, nk_cap_serial_k,
+        dots_f32c_with_blas, in_f32);
+    run_kernel_case(
+        "test_dots_unpacked_conjugated<f64c_t, f64c_t, decltype(&dots_f64c_with_blas)>(dots_f64c_with_blas, in_f64)",
+        test_dots_unpacked_conjugated<f64c_t, f64c_t, decltype(&dots_f64c_with_blas)>, nk_cap_serial_k,
+        dots_f64c_with_blas, in_f64);
 
     // BLAS SYRK precision comparison (symmetric A x A^T)
-    check("dots_symmetric_with_blas_f64", [&](settings_t const &settings) {
-        return test_dots_symmetric<f64_t>(settings, dots_symmetric_with_blas<nk_f64_t>, in_f64);
-    });
-    check("dots_symmetric_with_blas_f32", [&](settings_t const &settings) {
-        return test_dots_symmetric<f32_t>(settings, dots_symmetric_with_blas<nk_f32_t>, in_f32);
-    });
+    run_kernel_case(
+        "test_dots_symmetric<f64_t>(dots_symmetric_with_blas<nk_f64_t>)",
+        [] {
+            return test_dots_symmetric<f64_t>(dots_symmetric_with_blas<nk_f64_t>,
+                                              nk_accumulation_error_bound(nk_f64_k));
+        },
+        nk_cap_serial_k);
+    run_kernel_case(
+        "test_dots_symmetric<f32_t>(dots_symmetric_with_blas<nk_f32_t>)",
+        [] {
+            return test_dots_symmetric<f32_t>(dots_symmetric_with_blas<nk_f32_t>,
+                                              nk_accumulation_error_bound(nk_f32_k));
+        },
+        nk_cap_serial_k);
 #endif
 
 #if NUMKONG_COMPARE_TO_MKL
     // MKL-specific GEMM with widening accumulation
-    check("dots_with_mkl_bf16", test_dots_unpacked<bf16_t, f32_t, decltype(&dots_bf16_with_mkl)>, dots_bf16_with_mkl,
-          nk_accumulation_error_bound(nk_f32_k));
-    check("dots_with_mkl_f16", test_dots_unpacked<f16_t, f32_t, decltype(&dots_f16_with_mkl)>, dots_f16_with_mkl,
-          nk_accumulation_error_bound(nk_f32_k));
-    check("dots_with_mkl_i16", test_dots_unpacked<i16_t, i32_t, decltype(&dots_i16_with_mkl)>, dots_i16_with_mkl,
-          nk_accumulation_error_bound(nk_i32_k));
+    run_kernel_case("test_dots_unpacked<bf16_t, f32_t, decltype(&dots_bf16_with_mkl)>(dots_bf16_with_mkl, " //
+                    "nk_accumulation_error_bound(nk_f32_k))",
+                    test_dots_unpacked<bf16_t, f32_t, decltype(&dots_bf16_with_mkl)>, nk_cap_serial_k,
+                    dots_bf16_with_mkl, nk_accumulation_error_bound(nk_f32_k));
+    run_kernel_case("test_dots_unpacked<f16_t, f32_t, decltype(&dots_f16_with_mkl)>(dots_f16_with_mkl, " //
+                    "nk_accumulation_error_bound(nk_f32_k))",
+                    test_dots_unpacked<f16_t, f32_t, decltype(&dots_f16_with_mkl)>, nk_cap_serial_k, dots_f16_with_mkl,
+                    nk_accumulation_error_bound(nk_f32_k));
+    run_kernel_case("test_dots_unpacked<i16_t, i32_t, decltype(&dots_i16_with_mkl)>(dots_i16_with_mkl, " //
+                    "nk_accumulation_error_bound(nk_i32_k))",
+                    test_dots_unpacked<i16_t, i32_t, decltype(&dots_i16_with_mkl)>, nk_cap_serial_k, dots_i16_with_mkl,
+                    nk_accumulation_error_bound(nk_i32_k));
 #endif
 }
 

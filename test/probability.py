@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Test probability divergences: nk.jensenshannon, nk.kullbackleibler.
 
-DTypes: float32, float16.
+Covers: float32, float16.
 Baselines: high-precision Decimal with ln(), SciPy jensenshannon / rel_entr.
 Matches C++ suite: test/probability.cpp.
+Run: python -m pytest test/probability.py
 
 File: test/probability.py
 Author: Ash Vardanian
@@ -14,48 +15,41 @@ from __future__ import annotations
 
 import random
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 import pytest
-
-
-if TYPE_CHECKING:
-    import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
-
-try:
-    import numpy as np
-
-    numpy_available = True
-except Exception:
-    numpy_available = False
-
 from base import (
+    ALGEBRAIC_NDIMS,
     NUMKONG_ATOL,
     NUMKONG_RTOL,
     SETTINGS,
     assert_allclose,
     collect_errors,
     make_positive_buffer,
+    numpy_available,
     precise_decimal,
+    scipy_available,
     timed_call,
 )
 
 import numkong as nk
 
 
-algebraic_ndims = [7, 97]
+if numpy_available:
+    import numpy as np
 
-try:
+if scipy_available:
     import scipy.spatial.distance as spd
     from scipy.special import rel_entr
 
     def baseline_jensenshannon(x, y, dtype=None):
+        """Jensen-Shannon distance through SciPy, the reference for `nk.jensenshannon`."""
         return spd.jensenshannon(x, y)
 
     def baseline_kullbackleibler(p, q, dtype=None):
+        """Kullback-Leibler divergence through SciPy, the reference for `nk.kullbackleibler`."""
         return float(np.sum(rel_entr(p, q)))
 
-except ImportError:
+else:
 
     def baseline_jensenshannon(p, q, dtype=None):
         """Jensen-Shannon distance (sqrt of JSD) — fallback when SciPy is unavailable."""
@@ -108,9 +102,9 @@ KERNELS_PROBABILITY: dict[str, tuple[Callable, Callable, Callable]] = {
 
 @pytest.mark.skip(reason="Problems inferring the tolerance bounds for numerical errors")
 @pytest.mark.repeat(SETTINGS.repetitions)
-@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
-def test_jensenshannon_random_accuracy(stats, capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
+def test_jensenshannon_matches_scipy(stats, capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Jensen-Shannon distance of random probability distributions against SciPy baseline."""
     a_distribution = np.abs(np_rng.standard_normal(ndim)).astype(dtype)
     b_distribution = np.abs(np_rng.standard_normal(ndim)).astype(dtype)
@@ -141,27 +135,27 @@ def test_jensenshannon_random_accuracy(stats, capabilities, ndim: int, dtype: st
     )
 
 
-@pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
-def test_kullbackleibler_self_zero(capabilities, ndim: int, dtype: str):
+@pytest.mark.parametrize("ndim", ALGEBRAIC_NDIMS)
+def test_kullbackleibler_of_a_distribution_with_itself_is_zero(capabilities, ndim: int, dtype: str):
     """KL divergence of a uniform distribution with itself should be ~0."""
     uniform_distribution = nk.full((ndim,), 1.0 / ndim, dtype=dtype)
     result = nk.kullbackleibler(uniform_distribution, uniform_distribution, capabilities=capabilities)
     assert abs(result) < NUMKONG_ATOL, f"KL(p,p) = {result}, expected ~0"
 
 
-@pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
-def test_jensenshannon_self_zero(capabilities, ndim: int, dtype: str):
+@pytest.mark.parametrize("ndim", ALGEBRAIC_NDIMS)
+def test_jensenshannon_of_a_distribution_with_itself_is_zero(capabilities, ndim: int, dtype: str):
     """Jensen-Shannon distance of a uniform distribution with itself should be ~0."""
     uniform_distribution = nk.full((ndim,), 1.0 / ndim, dtype=dtype)
     result = nk.jensenshannon(uniform_distribution, uniform_distribution, capabilities=capabilities)
     assert abs(result) < NUMKONG_ATOL, f"JS(p,p) = {result}, expected ~0"
 
 
-@pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
-def test_jensenshannon_symmetry_nonneg(capabilities, ndim: int, dtype: str, rng: random.Random):
+@pytest.mark.parametrize("ndim", ALGEBRAIC_NDIMS)
+def test_jensenshannon_is_symmetric_and_non_negative(capabilities, ndim: int, dtype: str, rng: random.Random):
     """Jensen-Shannon should be symmetric and non-negative."""
     p = make_positive_buffer(rng, ndim, dtype)
     q = make_positive_buffer(rng, ndim, dtype)

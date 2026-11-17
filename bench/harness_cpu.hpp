@@ -31,7 +31,7 @@ struct host_backend_t {
 
     /** Rows a token-row benchmark batches: one, as a row of the configured length already fills the
      *  caches. */
-    static std::size_t token_rows(environment_t const &) noexcept { return 1; }
+    static std::size_t token_rows(bench_settings_t const &) noexcept { return 1; }
 
     nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
         std::memcpy(destination, source, bytes);

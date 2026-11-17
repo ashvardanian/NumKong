@@ -20,7 +20,7 @@ using cast_kernel_t = nk_status_t (*)(void const *, nk_dtype_t, void *, nk_dtype
  *  @param[in] count The number of elements to cast.
  */
 template <nk_dtype_t input_dtype_, nk_dtype_t output_dtype_>
-void measure_cast(loop_t &loop, environment_t const &env, cast_kernel_t kernel, std::size_t count) {
+void measure_cast(loop_t &loop, bench_settings_t const &env, cast_kernel_t kernel, std::size_t count) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
     using output_t = typename nk::type_for<output_dtype_>::type;
@@ -29,7 +29,7 @@ void measure_cast(loop_t &loop, environment_t const &env, cast_kernel_t kernel, 
     auto output = make_vector<output_t>(count);
 
     // Initialize input with random values
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     nk::fill_uniform(generator, input.values_data(), input.size_values());
 
     // Benchmark loop
@@ -45,12 +45,12 @@ void measure_cast(loop_t &loop, environment_t const &env, cast_kernel_t kernel, 
 }
 
 template <nk_dtype_t input_dtype_, nk_dtype_t output_dtype_>
-void run_cast(environment_t const &env, std::string name, cast_kernel_t kernel) {
-    std::string bench_name = name + "<" + std::to_string(env.settings.batch_per_core) + ">";
-    run_benchmark(env, bench_name, measure_cast<input_dtype_, output_dtype_>, kernel, env.settings.batch_per_core);
+void run_cast(bench_settings_t const &env, std::string name, cast_kernel_t kernel) {
+    std::string bench_name = name + "<" + std::to_string(env.batch_per_core) + ">";
+    run_benchmark(env, bench_name, measure_cast<input_dtype_, output_dtype_>, kernel, env.batch_per_core);
 }
 
-void bench_cast(environment_t const &env) {
+void bench_cast(bench_settings_t const &env) {
 
 #if NUMKONG_TARGET_HASWELL
     if (section(env, "Type Casts Haswell", nk_cap_haswell_k)) {
@@ -158,56 +158,56 @@ void bench_cast(environment_t const &env) {
 
 #if NUMKONG_TARGET_NEON
     if (section(env, "Type Casts NEON", nk_cap_neon_k)) {
-        run_cast_rows<nk_f32_k, nk_i4_k>(env, "cast_f32_to_i4_neon", nk_cast_neon, 1, env.settings.batch_per_core,
+        run_cast_rows<nk_f32_k, nk_i4_k>(env, "cast_f32_to_i4_neon", nk_cast_neon, 1, env.batch_per_core,
                                          host_backend_t {});
-        run_cast_rows<nk_i4_k, nk_f32_k>(env, "cast_i4_to_f32_neon", nk_cast_neon, 1, env.settings.batch_per_core,
-                                         host_backend_t {});
-
-        run_cast_rows<nk_f32_k, nk_u4_k>(env, "cast_f32_to_u4_neon", nk_cast_neon, 1, env.settings.batch_per_core,
-                                         host_backend_t {});
-        run_cast_rows<nk_u4_k, nk_f32_k>(env, "cast_u4_to_f32_neon", nk_cast_neon, 1, env.settings.batch_per_core,
+        run_cast_rows<nk_i4_k, nk_f32_k>(env, "cast_i4_to_f32_neon", nk_cast_neon, 1, env.batch_per_core,
                                          host_backend_t {});
 
-        run_cast_rows<nk_f32_k, nk_e2m1_k>(env, "cast_f32_to_e2m1_neon", nk_cast_neon, 1, env.settings.batch_per_core,
+        run_cast_rows<nk_f32_k, nk_u4_k>(env, "cast_f32_to_u4_neon", nk_cast_neon, 1, env.batch_per_core,
+                                         host_backend_t {});
+        run_cast_rows<nk_u4_k, nk_f32_k>(env, "cast_u4_to_f32_neon", nk_cast_neon, 1, env.batch_per_core,
+                                         host_backend_t {});
+
+        run_cast_rows<nk_f32_k, nk_e2m1_k>(env, "cast_f32_to_e2m1_neon", nk_cast_neon, 1, env.batch_per_core,
                                            host_backend_t {});
-        run_cast_rows<nk_e2m1_k, nk_f32_k>(env, "cast_e2m1_to_f32_neon", nk_cast_neon, 1, env.settings.batch_per_core,
+        run_cast_rows<nk_e2m1_k, nk_f32_k>(env, "cast_e2m1_to_f32_neon", nk_cast_neon, 1, env.batch_per_core,
                                            host_backend_t {});
 
         run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_mxfp4_k>(
-            env, "cast_f32_to_mxfp4_neon", nk_cast_neon, 1, env.settings.batch_per_core, host_backend_t {});
+            env, "cast_f32_to_mxfp4_neon", nk_cast_neon, 1, env.batch_per_core, host_backend_t {});
 
         run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_mxfp4_k>(
-            env, "cast_mxfp4_to_f32_neon", nk_cast_neon, 1, env.settings.batch_per_core, host_backend_t {});
+            env, "cast_mxfp4_to_f32_neon", nk_cast_neon, 1, env.batch_per_core, host_backend_t {});
 
         run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_mxfp6e2m3_k>(
-            env, "cast_f32_to_mxfp6e2m3_neon", nk_cast_neon, 1, env.settings.batch_per_core, host_backend_t {});
+            env, "cast_f32_to_mxfp6e2m3_neon", nk_cast_neon, 1, env.batch_per_core, host_backend_t {});
 
         run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_mxfp6e2m3_k>(
-            env, "cast_mxfp6e2m3_to_f32_neon", nk_cast_neon, 1, env.settings.batch_per_core, host_backend_t {});
+            env, "cast_mxfp6e2m3_to_f32_neon", nk_cast_neon, 1, env.batch_per_core, host_backend_t {});
 
         run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_mxfp6e3m2_k>(
-            env, "cast_f32_to_mxfp6e3m2_neon", nk_cast_neon, 1, env.settings.batch_per_core, host_backend_t {});
+            env, "cast_f32_to_mxfp6e3m2_neon", nk_cast_neon, 1, env.batch_per_core, host_backend_t {});
 
         run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_mxfp6e3m2_k>(
-            env, "cast_mxfp6e3m2_to_f32_neon", nk_cast_neon, 1, env.settings.batch_per_core, host_backend_t {});
+            env, "cast_mxfp6e3m2_to_f32_neon", nk_cast_neon, 1, env.batch_per_core, host_backend_t {});
 
         run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_mxfp8e4m3_k>(
-            env, "cast_f32_to_mxfp8e4m3_neon", nk_cast_neon, 1, env.settings.batch_per_core, host_backend_t {});
+            env, "cast_f32_to_mxfp8e4m3_neon", nk_cast_neon, 1, env.batch_per_core, host_backend_t {});
 
         run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_mxfp8e4m3_k>(
-            env, "cast_mxfp8e4m3_to_f32_neon", nk_cast_neon, 1, env.settings.batch_per_core, host_backend_t {});
+            env, "cast_mxfp8e4m3_to_f32_neon", nk_cast_neon, 1, env.batch_per_core, host_backend_t {});
 
         run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_mxfp8e5m2_k>(
-            env, "cast_f32_to_mxfp8e5m2_neon", nk_cast_neon, 1, env.settings.batch_per_core, host_backend_t {});
+            env, "cast_f32_to_mxfp8e5m2_neon", nk_cast_neon, 1, env.batch_per_core, host_backend_t {});
 
         run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_mxfp8e5m2_k>(
-            env, "cast_mxfp8e5m2_to_f32_neon", nk_cast_neon, 1, env.settings.batch_per_core, host_backend_t {});
+            env, "cast_mxfp8e5m2_to_f32_neon", nk_cast_neon, 1, env.batch_per_core, host_backend_t {});
 
         run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_nvfp4_k>(
-            env, "cast_f32_to_nvfp4_neon", nk_cast_neon, 1, env.settings.batch_per_core, host_backend_t {});
+            env, "cast_f32_to_nvfp4_neon", nk_cast_neon, 1, env.batch_per_core, host_backend_t {});
 
         run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_nvfp4_k>(
-            env, "cast_nvfp4_to_f32_neon", nk_cast_neon, 1, env.settings.batch_per_core, host_backend_t {});
+            env, "cast_nvfp4_to_f32_neon", nk_cast_neon, 1, env.batch_per_core, host_backend_t {});
 
         // NEON — float ↔ half/brain/MX
         run_cast<nk_f32_k, nk_f16_k>(env, "cast_f32_to_f16_neon", nk_cast_neon);
@@ -288,42 +288,42 @@ void bench_cast(environment_t const &env) {
     // Serial — float ↔ half/brain/MX
     section(env, "Type Casts Serial", nk_cap_serial_k);
     run_cast<nk_f32_k, nk_f16_k>(env, "cast_f32_to_f16_serial", nk_cast_serial);
-    run_cast_rows<nk_f32_k, nk_i4_k>(env, "cast_f32_to_i4_serial", nk_cast_serial, 1, env.settings.batch_per_core,
+    run_cast_rows<nk_f32_k, nk_i4_k>(env, "cast_f32_to_i4_serial", nk_cast_serial, 1, env.batch_per_core,
                                      host_backend_t {});
-    run_cast_rows<nk_i4_k, nk_f32_k>(env, "cast_i4_to_f32_serial", nk_cast_serial, 1, env.settings.batch_per_core,
+    run_cast_rows<nk_i4_k, nk_f32_k>(env, "cast_i4_to_f32_serial", nk_cast_serial, 1, env.batch_per_core,
                                      host_backend_t {});
-    run_cast_rows<nk_f32_k, nk_u4_k>(env, "cast_f32_to_u4_serial", nk_cast_serial, 1, env.settings.batch_per_core,
+    run_cast_rows<nk_f32_k, nk_u4_k>(env, "cast_f32_to_u4_serial", nk_cast_serial, 1, env.batch_per_core,
                                      host_backend_t {});
-    run_cast_rows<nk_u4_k, nk_f32_k>(env, "cast_u4_to_f32_serial", nk_cast_serial, 1, env.settings.batch_per_core,
+    run_cast_rows<nk_u4_k, nk_f32_k>(env, "cast_u4_to_f32_serial", nk_cast_serial, 1, env.batch_per_core,
                                      host_backend_t {});
-    run_cast_rows<nk_f32_k, nk_e2m1_k>(env, "cast_f32_to_e2m1_serial", nk_cast_serial, 1, env.settings.batch_per_core,
+    run_cast_rows<nk_f32_k, nk_e2m1_k>(env, "cast_f32_to_e2m1_serial", nk_cast_serial, 1, env.batch_per_core,
                                        host_backend_t {});
-    run_cast_rows<nk_e2m1_k, nk_f32_k>(env, "cast_e2m1_to_f32_serial", nk_cast_serial, 1, env.settings.batch_per_core,
+    run_cast_rows<nk_e2m1_k, nk_f32_k>(env, "cast_e2m1_to_f32_serial", nk_cast_serial, 1, env.batch_per_core,
                                        host_backend_t {});
     run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_nvfp4_k>(
-        env, "cast_f32_to_nvfp4_serial", nk_cast_serial, 1, env.settings.batch_per_core, host_backend_t {});
+        env, "cast_f32_to_nvfp4_serial", nk_cast_serial, 1, env.batch_per_core, host_backend_t {});
     run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_nvfp4_k>(
-        env, "cast_nvfp4_to_f32_serial", nk_cast_serial, 1, env.settings.batch_per_core, host_backend_t {});
+        env, "cast_nvfp4_to_f32_serial", nk_cast_serial, 1, env.batch_per_core, host_backend_t {});
     run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_mxfp4_k>(
-        env, "cast_f32_to_mxfp4_serial", nk_cast_serial, 1, env.settings.batch_per_core, host_backend_t {});
+        env, "cast_f32_to_mxfp4_serial", nk_cast_serial, 1, env.batch_per_core, host_backend_t {});
     run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_mxfp4_k>(
-        env, "cast_mxfp4_to_f32_serial", nk_cast_serial, 1, env.settings.batch_per_core, host_backend_t {});
+        env, "cast_mxfp4_to_f32_serial", nk_cast_serial, 1, env.batch_per_core, host_backend_t {});
     run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_mxfp6e2m3_k>(
-        env, "cast_f32_to_mxfp6e2m3_serial", nk_cast_serial, 1, env.settings.batch_per_core, host_backend_t {});
+        env, "cast_f32_to_mxfp6e2m3_serial", nk_cast_serial, 1, env.batch_per_core, host_backend_t {});
     run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_mxfp6e2m3_k>(
-        env, "cast_mxfp6e2m3_to_f32_serial", nk_cast_serial, 1, env.settings.batch_per_core, host_backend_t {});
+        env, "cast_mxfp6e2m3_to_f32_serial", nk_cast_serial, 1, env.batch_per_core, host_backend_t {});
     run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_mxfp6e3m2_k>(
-        env, "cast_f32_to_mxfp6e3m2_serial", nk_cast_serial, 1, env.settings.batch_per_core, host_backend_t {});
+        env, "cast_f32_to_mxfp6e3m2_serial", nk_cast_serial, 1, env.batch_per_core, host_backend_t {});
     run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_mxfp6e3m2_k>(
-        env, "cast_mxfp6e3m2_to_f32_serial", nk_cast_serial, 1, env.settings.batch_per_core, host_backend_t {});
+        env, "cast_mxfp6e3m2_to_f32_serial", nk_cast_serial, 1, env.batch_per_core, host_backend_t {});
     run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_mxfp8e4m3_k>(
-        env, "cast_f32_to_mxfp8e4m3_serial", nk_cast_serial, 1, env.settings.batch_per_core, host_backend_t {});
+        env, "cast_f32_to_mxfp8e4m3_serial", nk_cast_serial, 1, env.batch_per_core, host_backend_t {});
     run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_mxfp8e4m3_k>(
-        env, "cast_mxfp8e4m3_to_f32_serial", nk_cast_serial, 1, env.settings.batch_per_core, host_backend_t {});
+        env, "cast_mxfp8e4m3_to_f32_serial", nk_cast_serial, 1, env.batch_per_core, host_backend_t {});
     run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_mxfp8e5m2_k>(
-        env, "cast_f32_to_mxfp8e5m2_serial", nk_cast_serial, 1, env.settings.batch_per_core, host_backend_t {});
+        env, "cast_f32_to_mxfp8e5m2_serial", nk_cast_serial, 1, env.batch_per_core, host_backend_t {});
     run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_mxfp8e5m2_k>(
-        env, "cast_mxfp8e5m2_to_f32_serial", nk_cast_serial, 1, env.settings.batch_per_core, host_backend_t {});
+        env, "cast_mxfp8e5m2_to_f32_serial", nk_cast_serial, 1, env.batch_per_core, host_backend_t {});
     run_cast<nk_f16_k, nk_f32_k>(env, "cast_f16_to_f32_serial", nk_cast_serial);
     run_cast<nk_f32_k, nk_bf16_k>(env, "cast_f32_to_bf16_serial", nk_cast_serial);
     run_cast<nk_bf16_k, nk_f32_k>(env, "cast_bf16_to_f32_serial", nk_cast_serial);

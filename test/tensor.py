@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Test tensor API: constructors, slicing, reductions, scalar types, NumPy interop.
 
-DTypes: float64, float32, int8, int32, bfloat16, float8_e4m3, float8_e5m2, float6_e2m3, float6_e3m2.
+Covers: float64, float32, int8, int32, bfloat16, float8_e4m3, float8_e5m2, float6_e2m3, float6_e3m2.
 Matches C++ suite: test/tensor.cpp.
+Run: python -m pytest test/tensor.py
 
 File: test/tensor.py
 Author: Ash Vardanian
@@ -16,26 +17,11 @@ from __future__ import annotations
 import concurrent.futures
 import multiprocessing
 import operator
-import sys
-import sysconfig
 import time
 import warnings
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 import pytest
-
-
-if TYPE_CHECKING:
-    import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
-
-try:
-    import numpy as np
-
-    numpy_available = True
-except Exception:
-    numpy_available = False
-
 from base import (
     NUMKONG_ATOL,
     NUMKONG_RTOL,
@@ -46,6 +32,8 @@ from base import (
     make_random,
     ml_dtypes_available,
     numpy_available,
+    requires_free_threading,
+    requires_numpy_dtype_registration,
     to_array,
     tolerances_for_dtype,
 )
@@ -53,10 +41,10 @@ from base import (
 import numkong as nk
 
 
-try:
+if numpy_available:
+    import numpy as np
+if ml_dtypes_available:
     import ml_dtypes
-except ImportError:
-    ml_dtypes = None  # type: ignore[assignment]
 
 
 KERNELS_TENSOR: dict[str, tuple[Callable, Callable]] = {
@@ -148,7 +136,7 @@ def test_astype_linearizes_strided_input():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_astype_float_to_integer_policy():
+def test_astype_rounds_saturates_and_zeroes_nan_into_integers():
     """Float-to-integer casts round ties to even, saturate, and map NaN to zero."""
     source = np.array([-np.inf, -127.5, -0.5, 0.5, 1.5, 126.5, np.inf, np.nan], dtype=np.float64)
 
@@ -170,7 +158,7 @@ def test_astype_round_trips_through_packed_dtype():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("dtype,packing", [("uint4", 2), ("int4", 2), ("e2m1", 2), ("uint1", 8)])
+@pytest.mark.parametrize(("dtype", "packing"), [("uint4", 2), ("int4", 2), ("e2m1", 2), ("uint1", 8)])
 def test_packed_dimensions_must_fill_whole_bytes(dtype, packing):
     """A logical dimension count that would leave the last byte partially filled is rejected."""
     with pytest.raises(ValueError, match="multiple"):
@@ -180,13 +168,15 @@ def test_packed_dimensions_must_fill_whole_bytes(dtype, packing):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("dtype,packing,values", [("uint4", 2, 16), ("int4", 2, 8), ("uint1", 8, 2)])
+@pytest.mark.parametrize(("dtype", "packing", "values"), [("uint4", 2, 16), ("int4", 2, 8), ("uint1", 8, 2)])
 def test_packed_shape_counts_logical_dimensions(dtype, packing, values):
     """A packed Tensor's shape counts logical dimensions; its buffer, interface, and storage count bytes."""
     source = (np.arange(4 * 16, dtype=np.uint8) % values).reshape(4, 16)
     packed = nk.astype(source, dtype)
-    assert packed.shape == (4, 16) and packed.size == 64
-    assert packed.nbytes == 64 // packing and packed.strides == (16 // packing, 1)
+    assert packed.shape == (4, 16)
+    assert packed.size == 64
+    assert packed.nbytes == 64 // packing
+    assert packed.strides == (16 // packing, 1)
     assert memoryview(packed).shape == (4, 16 // packing)
     assert packed.__array_interface__["shape"] == (4, 16 // packing)
 
@@ -196,14 +186,15 @@ def test_packed_shape_counts_logical_dimensions(dtype, packing, values):
     np.testing.assert_array_equal(np.asarray(nk.astype(reimported, "uint8")), source)
 
     # Indexing and iteration address logical positions.
-    assert packed[2, 5] == source[2, 5] and list(packed[1]) == list(source[1])
+    assert packed[2, 5] == source[2, 5]
+    assert list(packed[1]) == list(source[1])
     np.testing.assert_array_equal(
         np.asarray(nk.astype(packed[:, packing : 3 * packing], "uint8")), source[:, packing : 3 * packing]
     )
     np.testing.assert_array_equal(np.asarray(nk.astype(packed[::2], "uint8")), source[::2])
     with pytest.raises(IndexError):
         _ = packed[:, 1 : packing + 1]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="away from its last axis"):
         _ = packed.T
 
     # Reductions and factories see the same logical extent.
@@ -214,7 +205,7 @@ def test_packed_shape_counts_logical_dimensions(dtype, packing, values):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("dtype,metric", [("int4", "dot"), ("uint4", "dot"), ("uint1", "hamming")])
+@pytest.mark.parametrize(("dtype", "metric"), [("int4", "dot"), ("uint4", "dot"), ("uint1", "hamming")])
 def test_packed_tensor_matches_raw_bytes_in_kernels(dtype, metric, np_rng: np.random.Generator):
     """Kernels agree on a logical packed Tensor and the raw bytes it exports."""
     low, high = {"int4": (-8, 8), "uint4": (0, 16), "uint1": (0, 2)}[dtype]
@@ -256,7 +247,7 @@ def test_astype_rejects_overlapping_output():
         nk.astype(source, "float32", out=source)
 
 
-def test_pointers_availability():
+def test_pointers_are_exported_for_usearch():
     """Tests the availability of pre-compiled functions for compatibility with USearch."""
     assert nk.pointer_to_sqeuclidean("float64") != 0
     assert nk.pointer_to_angular("float64") != 0
@@ -281,7 +272,7 @@ def test_pointers_availability():
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize(
-    "function, expected_error, args, kwargs",
+    ("function", "expected_error", "args", "kwargs"),
     [
         (nk.sqeuclidean, TypeError, (), {}),
         (nk.sqeuclidean, TypeError, (to_array([1.0]),), {}),
@@ -298,9 +289,11 @@ def test_pointers_availability():
         (nk.angular, ValueError, (to_array([1.0]), to_array([1.0, 2.0])), {}),
         (nk.angular, TypeError, (to_array([1.0]), to_array([1], "int8")), {}),
         (nk.angular, TypeError, (to_array([1], "float32"), to_array([1], "float16")), {}),
-    ],
+    ]
+    if numpy_available
+    else [],
 )
-def test_invalid_argument_handling(function, expected_error, args, kwargs):
+def test_invalid_arguments_raise(function, expected_error, args, kwargs):
     """Test that functions raise appropriate errors with invalid arguments."""
     with pytest.raises(expected_error):
         function(*args, **kwargs)
@@ -310,7 +303,7 @@ def test_invalid_argument_handling(function, expected_error, args, kwargs):
 @pytest.mark.skipif(not ml_dtypes_available, reason="ml_dtypes is not installed")
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
-def test_bf16_conversion_vs_ml_dtypes(ndim: int, np_rng: np.random.Generator):
+def test_bfloat16_casts_match_ml_dtypes(ndim: int, np_rng: np.random.Generator):
     """Compare NumKong bfloat16 conversion with ml_dtypes reference implementation."""
     a_f32 = np_rng.standard_normal(ndim).astype(np.float32)
     _, a_nk_bf16 = f32_downcast_to_bf16(a_f32)
@@ -327,7 +320,7 @@ def test_bf16_conversion_vs_ml_dtypes(ndim: int, np_rng: np.random.Generator):
 @pytest.mark.skipif(not ml_dtypes_available, reason="ml_dtypes is not installed")
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
-def test_float8_e4m3_conversion_vs_ml_dtypes(ndim: int, np_rng: np.random.Generator):
+def test_e4m3_casts_match_ml_dtypes(ndim: int, np_rng: np.random.Generator):
     """Compare NumKong float8_e4m3 conversion with ml_dtypes reference implementation."""
     a_f32 = (np_rng.standard_normal(ndim) * 10).astype(np.float32)
     a_f32 = np.clip(a_f32, -448, 448)
@@ -341,7 +334,7 @@ def test_float8_e4m3_conversion_vs_ml_dtypes(ndim: int, np_rng: np.random.Genera
 @pytest.mark.skipif(not ml_dtypes_available, reason="ml_dtypes is not installed")
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
-def test_float8_e5m2_conversion_vs_ml_dtypes(ndim: int, np_rng: np.random.Generator):
+def test_e5m2_casts_match_ml_dtypes(ndim: int, np_rng: np.random.Generator):
     """Compare NumKong float8_e5m2 conversion with ml_dtypes reference implementation."""
     a_f32 = (np_rng.standard_normal(ndim) * 100).astype(np.float32)
     a_f32 = np.clip(a_f32, -57344, 57344)
@@ -351,7 +344,7 @@ def test_float8_e5m2_conversion_vs_ml_dtypes(ndim: int, np_rng: np.random.Genera
     assert a_nk.dtype == "e5m2"
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is required for special-value tests")
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
 def test_dense_cast_preserves_nan_inf(dtype):
     """f16/bf16 carry IEEE specials: NaN and ±Inf survive a round-trip through the dense cast, while
@@ -361,11 +354,11 @@ def test_dense_cast_preserves_nan_inf(dtype):
     assert np.isnan(back[0])
     assert back[1] == np.inf
     assert back[2] == -np.inf
-    np.testing.assert_allclose(back[3:], specials[3:], rtol=0.05, atol=0.05)
+    assert_allclose(back[3:], specials[3:], rtol=0.05, atol=0.05)
 
 
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
-def test_float6_e2m3_construction(ndim: int):
+def test_e2m3_tensors_keep_their_dtype(ndim: int):
     """Verify that e2m3 tensors can be constructed and have the correct dtype."""
     a_nk = nk.zeros((ndim,), dtype="e2m3")
     assert a_nk.dtype == "e2m3"
@@ -374,7 +367,7 @@ def test_float6_e2m3_construction(ndim: int):
 
 
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
-def test_float6_e3m2_construction(ndim: int):
+def test_e3m2_tensors_keep_their_dtype(ndim: int):
     """Verify that e3m2 tensors can be constructed and have the correct dtype."""
     a_nk = nk.zeros((ndim,), dtype="e3m2")
     assert a_nk.dtype == "e3m2"
@@ -382,7 +375,8 @@ def test_float6_e3m2_construction(ndim: int):
     assert a_nk.ndim == 1
 
 
-def test_distances_tensor_properties():
+def test_distance_matrices_report_their_layout():
+    """A distance matrix reports its shape, dtype, rank, size, byte count, strides and item size."""
     a = nk.iota((5, 128), 0, dtype="float64")
     b = nk.iota((7, 128), 1, dtype="float64")
     result = nk.cdist(a, b, metric="sqeuclidean")
@@ -405,7 +399,8 @@ def test_distances_tensor_properties():
     assert len(result.strides) == 2
 
 
-def test_distances_tensor_properties_1d():
+def test_distance_vectors_report_their_layout():
+    """A batch of distances is one-dimensional, one entry per pair."""
     a = nk.iota((10, 128), 0, dtype="float64")
     b = nk.iota((10, 128), 1, dtype="float64")
     result = nk.sqeuclidean(a, b)
@@ -416,7 +411,8 @@ def test_distances_tensor_properties_1d():
     assert len(result.strides) == 1
 
 
-def test_distances_tensor_len():
+def test_distance_tensors_count_their_rows():
+    """`len` of a distance tensor counts its rows, whether it is a matrix or a vector."""
     a = nk.iota((5, 128), 0, dtype="float64")
     b = nk.iota((7, 128), 1, dtype="float64")
     result_2d = nk.cdist(a, b, metric="sqeuclidean")
@@ -428,7 +424,8 @@ def test_distances_tensor_len():
     assert len(result_1d) == 10
 
 
-def test_tensor_resize_within_capacity():
+def test_resize_within_capacity_keeps_the_storage():
+    """Resizing within capacity reshapes the tensor in place: the capacity and the storage address stay."""
     t = nk.iota((8, 4), 1, dtype="float32")  # 32 elements -> capacity 32
     assert t.capacity == 32
     assert t.capacity >= t.size
@@ -443,14 +440,16 @@ def test_tensor_resize_within_capacity():
     assert t.data_ptr == ptr
 
 
-def test_tensor_resize_beyond_capacity_raises():
+def test_resize_beyond_capacity_raises():
+    """Resizing past the capacity raises and leaves the shape as it was."""
     t = nk.zeros((4, 4), dtype="float32")  # capacity 16
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="exceeds capacity"):
         t.resize(8, 8)  # 64 > 16
     assert t.shape == (4, 4)  # left unchanged
 
 
-def test_tensor_reserve_grows_and_preserves():
+def test_reserve_grows_capacity_and_keeps_contents():
+    """`reserve` grows the capacity without reshaping, keeps the contents, and admits a larger resize."""
     t = nk.iota((4,), 0, dtype="float32")
     view = memoryview(t)
     before = view.tolist()
@@ -463,7 +462,8 @@ def test_tensor_reserve_grows_and_preserves():
     assert t.size == 64
 
 
-def test_tensor_clear_keeps_capacity():
+def test_clear_keeps_capacity():
+    """`clear` empties the tensor but keeps the capacity a later resize refills."""
     t = nk.zeros((6,), dtype="float32")
     cap = t.capacity
     t.clear()
@@ -473,7 +473,8 @@ def test_tensor_clear_keeps_capacity():
     assert t.size == cap
 
 
-def test_tensor_resize_blocked_while_exported():
+def test_resize_waits_for_exported_buffers():
+    """A tensor whose buffer is exported refuses to resize or reserve until the export is released."""
     t = nk.zeros((4,), dtype="float32")
     view = memoryview(t)
     try:
@@ -487,29 +488,32 @@ def test_tensor_resize_blocked_while_exported():
     assert t.size == 2
 
 
-def test_tensor_resize_rejects_view():
+def test_resize_refuses_views():
+    """A view does not own its storage, so it refuses to resize."""
     base = nk.zeros((6,), dtype="float32")
     v = base.reshape(2, 3)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="cannot resize a view"):
         v.resize(3, 2)
 
 
-def test_scaled_tensor_resize():
+def test_scaled_tensors_resize_blocks_and_scales_together():
+    """A block-scaled tensor resizes its elements and scales together, within capacity and whole blocks only."""
     dense = nk.iota((2, 32), 1, dtype="float32")
     s = dense.astype("nvfp4")
     assert s.shape == (2, 32)
     assert s.capacity >= 32
     s.resize(2, 16)  # elements and per-block scales resize in lockstep
     assert s.shape == (2, 16)
-    with pytest.raises(ValueError):  # beyond capacity, fails atomically
+    with pytest.raises(ValueError, match="exceeds element or scale capacity"):  # beyond capacity, fails atomically
         s.resize(4, 32)
     assert s.shape == (2, 16)
-    with pytest.raises(ValueError):  # last axis must be a multiple of block_size
+    with pytest.raises(ValueError, match="must be a multiple of block_size"):
         s.resize(2, 20)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_distances_tensor_indexing(np_rng: np.random.Generator):
+def test_distance_tensors_index_rows_and_elements(np_rng: np.random.Generator):
+    """Integer indices pick rows and elements of a distance matrix, negative ones from the end."""
     a, _ = make_random((5, 128), "float64", np_rng)
     b, _ = make_random((7, 128), "float64", np_rng)
     result = nk.cdist(a, b, metric="sqeuclidean")
@@ -538,9 +542,10 @@ def test_distances_tensor_indexing(np_rng: np.random.Generator):
         _ = result[0, 100]
 
 
-@pytest.mark.repeat(SETTINGS.repetitions)  # repeated runs churn the view-header free-list (park/revive)
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_distances_tensor_iteration(np_rng: np.random.Generator):
+@pytest.mark.repeat(SETTINGS.repetitions)  # repeated runs churn the view-header free-list (park/revive)
+def test_distance_tensors_iterate_rows(np_rng: np.random.Generator):
+    """Iterating a distance tensor yields its rows in order, or its scalars when it is a vector."""
     a, _ = make_random((5, 128), "float64", np_rng)
     b, _ = make_random((7, 128), "float64", np_rng)
     result = nk.cdist(a, b, metric="sqeuclidean")
@@ -566,7 +571,8 @@ def test_distances_tensor_iteration(np_rng: np.random.Generator):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_distances_tensor_numpy_interop(np_rng: np.random.Generator):
+def test_distance_tensors_export_to_numpy_and_memoryview(np_rng: np.random.Generator):
+    """A distance matrix exports to NumPy and to `memoryview` with its shape and dtype."""
     a, _ = make_random((5, 128), "float64", np_rng)
     b, _ = make_random((7, 128), "float64", np_rng)
     result = nk.cdist(a, b, metric="sqeuclidean")
@@ -585,7 +591,8 @@ def test_distances_tensor_numpy_interop(np_rng: np.random.Generator):
     np.testing.assert_array_equal(arr, arr_from_mv)
 
 
-def test_distances_tensor_scalar_conversion():
+def test_only_scalar_distances_convert_to_float():
+    """A single distance is a Python float, and a matrix refuses `float`."""
     a = nk.iota((1, 128), 0, dtype="float64").flatten()
     b = nk.iota((1, 128), 1, dtype="float64").flatten()
     result = nk.sqeuclidean(a, b)
@@ -599,15 +606,17 @@ def test_distances_tensor_scalar_conversion():
         float(result2)
 
 
-@pytest.mark.parametrize("input_dtype", ["float32", "float64"])
-def test_distances_tensor_dtype_consistency(input_dtype):
-    a = nk.iota((5, 128), 0, dtype=input_dtype)
-    b = nk.iota((7, 128), 1, dtype=input_dtype)
+@pytest.mark.parametrize("dtype", ["float32", "float64"])
+def test_distance_tensors_are_float64(dtype):
+    """Distances between float32 or float64 inputs are float64."""
+    a = nk.iota((5, 128), 0, dtype=dtype)
+    b = nk.iota((7, 128), 1, dtype=dtype)
     result = nk.cdist(a, b, metric="sqeuclidean")
     assert result.dtype == "float64"
 
 
-def test_distances_tensor_strides():
+def test_distance_tensors_report_row_major_strides():
+    """A distance matrix reports row-major byte strides."""
     a = nk.iota((5, 128), 0, dtype="float64")
     b = nk.iota((7, 128), 1, dtype="float64")
     result = nk.cdist(a, b, metric="sqeuclidean")
@@ -618,7 +627,8 @@ def test_distances_tensor_strides():
     assert strides == (7 * 8, 8)
 
 
-def test_distances_tensor_array_interface():
+def test_distance_tensors_expose_the_array_interface():
+    """A distance matrix exposes version 3 of NumPy's `__array_interface__` with its shape and type."""
     a = nk.iota((5, 128), 0, dtype="float64")
     b = nk.iota((7, 128), 1, dtype="float64")
     result = nk.cdist(a, b, metric="sqeuclidean")
@@ -638,7 +648,8 @@ def test_distances_tensor_array_interface():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_distances_tensor_transpose(np_rng: np.random.Generator):
+def test_distance_tensors_transpose(np_rng: np.random.Generator):
+    """`.T` swaps the axes of a distance matrix and leaves a vector as it is."""
     a, _ = make_random((5, 128), "float64", np_rng)
     b, _ = make_random((7, 128), "float64", np_rng)
     result = nk.cdist(a, b, metric="sqeuclidean")
@@ -656,7 +667,8 @@ def test_distances_tensor_transpose(np_rng: np.random.Generator):
     assert t1d.shape == result1d.shape
 
 
-def test_distances_tensor_str():
+def test_distance_tensors_print_their_values():
+    """`str` of a distance matrix prints its values."""
     a = nk.iota((3, 128), 0, dtype="float64")
     b = nk.iota((4, 128), 1, dtype="float64")
     result = nk.cdist(a, b, metric="sqeuclidean")
@@ -666,7 +678,8 @@ def test_distances_tensor_str():
     assert any(c.isdigit() for c in s)
 
 
-def test_distances_tensor_equality():
+def test_distance_tensors_compare_by_value():
+    """Distance tensors compare equal by value, and unequal by value or shape."""
     a = nk.iota((5, 4), 0, dtype="float32")
     b = nk.iota((7, 4), 20, dtype="float32")
     result = nk.cdist(a, b, metric="sqeuclidean")
@@ -686,7 +699,7 @@ def test_distances_tensor_equality():
     assert result != result3
 
 
-def test_distances_tensor_inf_nan_propagation():
+def test_cdist_propagates_inf_and_nan():
     """Verify that inf/nan inputs propagate through cdist without crashing."""
     normal = nk.iota((3, 4), 0, dtype="float64")
 
@@ -713,7 +726,8 @@ def test_distances_tensor_inf_nan_propagation():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_distances_tensor_copy(np_rng: np.random.Generator):
+def test_distance_tensors_copy_into_new_and_given_buffers(np_rng: np.random.Generator):
+    """`copy` returns an equal tensor, or fills a given `out` and refuses one of another dtype or shape."""
     a, _ = make_random((5, 128), "float64", np_rng)
     b, _ = make_random((7, 128), "float64", np_rng)
     result = nk.cdist(a, b, metric="sqeuclidean")
@@ -733,11 +747,12 @@ def test_distances_tensor_copy(np_rng: np.random.Generator):
     np.testing.assert_array_equal(np.asarray(out), result_arr)
     with pytest.raises(TypeError):
         result.copy(out=nk.zeros(result.shape, dtype="float32"))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="out shape does not match"):
         result.copy(out=nk.zeros((3, 3), dtype="float64"))
 
 
-def test_distances_tensor_reshape():
+def test_distance_tensors_reshape():
+    """A distance matrix reshapes to any shape of the same size, and refuses any other."""
     a = nk.iota((5, 128), 0, dtype="float64")
     b = nk.iota((7, 128), 1, dtype="float64")
     result = nk.cdist(a, b, metric="sqeuclidean")
@@ -752,7 +767,7 @@ def test_distances_tensor_reshape():
     reshaped = result.reshape((7, 5))
     assert reshaped.shape == (7, 5)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="cannot reshape tensor"):
         result.reshape(10, 10)
 
     # flatten(out=) materializes into a preallocated 1-D buffer, including from a strided source.
@@ -765,7 +780,8 @@ def test_distances_tensor_reshape():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_distances_tensor_slicing(np_rng: np.random.Generator):
+def test_distance_tensors_slice_like_numpy(np_rng: np.random.Generator):
+    """Ranges, steps and reversals slice a distance matrix as they slice its NumPy copy."""
     a, _ = make_random((10, 128), "float64", np_rng)
     b, _ = make_random((8, 128), "float64", np_rng)
     result = nk.cdist(a, b, metric="sqeuclidean")
@@ -789,7 +805,8 @@ def test_distances_tensor_slicing(np_rng: np.random.Generator):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_distances_tensor_zero_copy_views(np_rng: np.random.Generator):
+def test_distance_tensor_slices_share_memory(np_rng: np.random.Generator):
+    """Slices of a distance matrix are views over its memory, never copies."""
     a, _ = make_random((5, 64), "float64", np_rng)
     b, _ = make_random((4, 64), "float64", np_rng)
     result = nk.cdist(a, b, metric="sqeuclidean")
@@ -856,7 +873,8 @@ def test_distances_tensor_zero_copy_views(np_rng: np.random.Generator):
     "shape",
     [pytest.param((10,), id="1d-10"), pytest.param((5, 4), id="2d-5x4"), pytest.param((2, 3, 4), id="3d-2x3x4")],
 )
-def test_ndarray_zeros(dtype: str, shape):
+def test_zeros_fill_with_zero(dtype: str, shape):
+    """`nk.zeros` makes a tensor of the shape and dtype asked, every element zero."""
     arr = nk.zeros(shape, dtype=dtype)
     assert arr.shape == shape
     assert arr.dtype == dtype
@@ -878,7 +896,8 @@ def test_ndarray_zeros(dtype: str, shape):
     "shape",
     [pytest.param((10,), id="1d-10"), pytest.param((5, 4), id="2d-5x4"), pytest.param((2, 3, 4), id="3d-2x3x4")],
 )
-def test_ndarray_ones(dtype: str, shape):
+def test_ones_fill_with_one(dtype: str, shape):
+    """`nk.ones` makes a tensor of the shape and dtype asked, every element one."""
     arr = nk.ones(shape, dtype=dtype)
     assert arr.shape == shape
     assert arr.dtype == dtype
@@ -888,7 +907,7 @@ def test_ndarray_ones(dtype: str, shape):
 
 
 @pytest.mark.parametrize(
-    "dtype,fill_value",
+    ("dtype", "fill_value"),
     [
         pytest.param("float64", 3.14, id="f64-pi"),
         pytest.param("float32", -2.5, id="f32-neg"),
@@ -897,7 +916,8 @@ def test_ndarray_ones(dtype: str, shape):
     ],
 )
 @pytest.mark.parametrize("shape", [pytest.param((10,), id="1d-10"), pytest.param((5, 4), id="2d-5x4")])
-def test_ndarray_full(dtype: str, fill_value, shape):
+def test_full_fills_with_the_value(dtype: str, fill_value, shape):
+    """`nk.full` makes a tensor of the shape and dtype asked, every element the fill value."""
     arr = nk.full(shape, fill_value, dtype=dtype)
     assert arr.shape == shape
     assert arr.dtype == dtype
@@ -912,7 +932,8 @@ def test_ndarray_full(dtype: str, fill_value, shape):
 
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
 @pytest.mark.parametrize("shape", [pytest.param((10,), id="1d-10"), pytest.param((5, 4), id="2d-5x4")])
-def test_ndarray_empty(dtype: str, shape):
+def test_empty_allocates_the_shape(dtype: str, shape):
+    """`nk.empty` makes a tensor of the shape and dtype asked."""
     arr = nk.empty(shape, dtype=dtype)
     assert arr.shape == shape
     assert arr.dtype == dtype
@@ -928,7 +949,8 @@ def test_ndarray_empty(dtype: str, shape):
     ],
 )
 @pytest.mark.parametrize("shape", [pytest.param((10,), id="1d-10"), pytest.param((3, 4), id="2d-3x4")])
-def test_ndarray_iota(dtype: str, shape):
+def test_iota_counts_up_from_its_start(dtype: str, shape):
+    """`nk.iota` counts up by one from its start value."""
     seed = 5
     arr = nk.iota(shape, seed, dtype=dtype)
     assert arr.shape == shape
@@ -948,15 +970,16 @@ def test_ndarray_iota(dtype: str, shape):
         pytest.param("int32", id="i32"),
     ],
 )
-@pytest.mark.parametrize("n", [pytest.param(4, id="4x4"), pytest.param(8, id="8x8")])
-def test_ndarray_diagonal(dtype: str, n):
+@pytest.mark.parametrize("ndim", [pytest.param(4, id="4x4"), pytest.param(8, id="8x8")])
+def test_diagonal_places_the_value_on_the_diagonal(dtype: str, ndim):
+    """`nk.diagonal` makes a square matrix with the value on its diagonal and zeros beside it."""
     seed = 3
-    arr = nk.diagonal(n, seed, dtype=dtype)
-    assert arr.shape == (n, n)
+    arr = nk.diagonal(ndim, seed, dtype=dtype)
+    assert arr.shape == (ndim, ndim)
     assert arr.dtype == dtype
-    for i in range(n):
+    for i in range(ndim):
         assert float(arr[i, i]) == seed
-        if i + 1 < n:
+        if i + 1 < ndim:
             assert float(arr[i, i + 1]) == 0
 
 
@@ -970,7 +993,8 @@ def test_ndarray_diagonal(dtype: str, n):
     ],
 )
 @pytest.mark.parametrize("shape", [pytest.param((10,), id="1d-10"), pytest.param((3, 4), id="2d-3x4")])
-def test_ndarray_hash(dtype: str, shape):
+def test_hash_fills_deterministically_by_seed(dtype: str, shape):
+    """`nk.hash` fills the same values for the same seed and different ones for another."""
     a = nk.hash(shape, seed=42, dtype=dtype)
     b = nk.hash(shape, seed=42, dtype=dtype)
     assert a.shape == shape
@@ -995,7 +1019,8 @@ def test_ndarray_hash(dtype: str, shape):
 @pytest.mark.parametrize(
     "shape", [pytest.param((100,), id="1d"), pytest.param((10, 10), id="2d"), pytest.param((4, 5, 5), id="3d")]
 )
-def test_ndarray_sum(capabilities, dtype: str, shape, np_rng: np.random.Generator):
+def test_tensor_sum_matches_numpy(capabilities, dtype: str, shape, np_rng: np.random.Generator):
+    """`Tensor.sum` matches NumPy's sum, with integers summed in 64 bits."""
     np_arr = random_ndarray(np_rng, dtype, shape)
     nk_arr = make_nk(np_arr, dtype)
     # NumKong sums integers in 64 bits, while NumPy's default integer accumulator is 32-bit under Emscripten.
@@ -1006,7 +1031,8 @@ def test_ndarray_sum(capabilities, dtype: str, shape, np_rng: np.random.Generato
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", _REDUCE_DTYPES)
 @pytest.mark.parametrize("shape", [pytest.param((100,), id="1d"), pytest.param((10, 10), id="2d")])
-def test_ndarray_min_max(capabilities, dtype: str, shape, np_rng: np.random.Generator):
+def test_tensor_min_max_match_numpy(capabilities, dtype: str, shape, np_rng: np.random.Generator):
+    """`Tensor.min` and `Tensor.max` match NumPy's."""
     np_arr = random_ndarray(np_rng, dtype, shape)
     nk_arr = make_nk(np_arr, dtype)
     assert_op_matches(nk_arr.min(capabilities=capabilities), np.min(np_arr), dtype)
@@ -1017,7 +1043,8 @@ def test_ndarray_min_max(capabilities, dtype: str, shape, np_rng: np.random.Gene
 @pytest.mark.parametrize("dtype", _ARITH_DTYPES)
 @pytest.mark.parametrize("shape", [pytest.param((100,), id="1d"), pytest.param((10, 10), id="2d")])
 @pytest.mark.parametrize("op", ["argmin", "argmax"])
-def test_ndarray_argmin_argmax_methods(capabilities, dtype: str, shape, op: str, np_rng: np.random.Generator):
+def test_tensor_argmin_argmax_match_numpy(capabilities, dtype: str, shape, op: str, np_rng: np.random.Generator):
+    """`Tensor.argmin` and `Tensor.argmax` match NumPy's."""
     np_arr = random_ndarray(np_rng, dtype, shape)
     nk_arr = make_nk(np_arr, dtype)
     baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
@@ -1026,16 +1053,17 @@ def test_ndarray_argmin_argmax_methods(capabilities, dtype: str, shape, op: str,
 
 # Per-op integer ranges keep products inside the dtype; multiply needs the tighter bound.
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype", _ARITH_DTYPES)
 @pytest.mark.parametrize(
-    "op, int_hi",
+    ("op", "int_hi"),
     [
         pytest.param(operator.add, 50, id="add"),
         pytest.param(operator.sub, 50, id="subtract"),
         pytest.param(operator.mul, 10, id="multiply"),
     ],
 )
-@pytest.mark.parametrize("dtype", _ARITH_DTYPES)
-def test_ndarray_binary(op, int_hi: int, dtype: str, np_rng: np.random.Generator):
+def test_tensor_arithmetic_matches_numpy(op, int_hi: int, dtype: str, np_rng: np.random.Generator):
+    """Adding, subtracting and multiplying tensors matches NumPy."""
     np_a = random_ndarray(np_rng, dtype, (20,), -int_hi, int_hi)
     np_b = random_ndarray(np_rng, dtype, (20,), -int_hi, int_hi)
     nk_a, nk_b = make_nk(np_a, dtype), make_nk(np_b, dtype)
@@ -1044,7 +1072,8 @@ def test_ndarray_binary(op, int_hi: int, dtype: str, np_rng: np.random.Generator
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", _ARITH_DTYPES)
-def test_ndarray_unary(dtype: str, np_rng: np.random.Generator):
+def test_tensor_negation_matches_numpy(dtype: str, np_rng: np.random.Generator):
+    """Negating a tensor matches NumPy, and unary plus returns the same values."""
     np_a = random_ndarray(np_rng, dtype, (20,))
     nk_a = make_nk(np_a, dtype)
     assert_op_matches(-nk_a, -np_a, dtype)
@@ -1054,7 +1083,8 @@ def test_ndarray_unary(dtype: str, np_rng: np.random.Generator):
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
 @pytest.mark.parametrize("op", ["sum", "min", "max"])
-def test_reduction_on_strided_array(capabilities, dtype: str, op: str, np_rng: np.random.Generator):
+def test_tensor_reductions_follow_strides(capabilities, dtype: str, op: str, np_rng: np.random.Generator):
+    """Reductions of a strided view match NumPy's over the same view."""
     np_arr, _ = make_random((10, 10), dtype, np_rng)
     nk_arr = make_nk(np_arr, dtype)
 
@@ -1069,7 +1099,8 @@ def test_reduction_on_strided_array(capabilities, dtype: str, op: str, np_rng: n
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
 @pytest.mark.parametrize("op", ["sum", "min", "max"])
-def test_reduction_on_transposed_array(capabilities, dtype: str, op: str, np_rng: np.random.Generator):
+def test_tensor_reductions_follow_transposes(capabilities, dtype: str, op: str, np_rng: np.random.Generator):
+    """Reductions of a transposed view match NumPy's over the same view."""
     np_arr, _ = make_random((5, 8), dtype, np_rng)
     nk_arr = make_nk(np_arr, dtype)
 
@@ -1084,7 +1115,8 @@ def test_reduction_on_transposed_array(capabilities, dtype: str, op: str, np_rng
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
 @pytest.mark.parametrize("op", ["sum", "min", "max"])
-def test_reduction_on_subview(capabilities, dtype: str, op: str, np_rng: np.random.Generator):
+def test_tensor_reductions_follow_subviews(capabilities, dtype: str, op: str, np_rng: np.random.Generator):
+    """Reductions of a two-dimensional subview match NumPy's over the same subview."""
     np_arr, _ = make_random((20, 20), dtype, np_rng)
     nk_arr = make_nk(np_arr, dtype)
 
@@ -1099,7 +1131,8 @@ def test_reduction_on_subview(capabilities, dtype: str, op: str, np_rng: np.rand
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
 @pytest.mark.parametrize("op", ["argmin", "argmax"])
-def test_argreduction_on_subview(capabilities, dtype: str, op: str, np_rng: np.random.Generator):
+def test_tensor_argreductions_follow_subviews(capabilities, dtype: str, op: str, np_rng: np.random.Generator):
+    """`argmin` and `argmax` of a two-dimensional subview match NumPy's over the same subview."""
     np_arr, _ = make_random((20, 20), dtype, np_rng)
     nk_arr = make_nk(np_arr, dtype)
 
@@ -1110,9 +1143,9 @@ def test_argreduction_on_subview(capabilities, dtype: str, op: str, np_rng: np.r
     assert simd_kernel(nk_sub, capabilities) == baseline_kernel(np_sub)
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is required for edge-shape tests")
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("shape", [(0,), (0, 4), (3, 0)], ids=["empty-1d", "empty-rows", "empty-columns"])
-def test_reduction_on_empty(shape):
+def test_empty_tensors_reduce(shape):
     """Zero-element tensors survive construction and reduction: the shape is preserved and an empty
     sum returns the additive identity (0) rather than crashing."""
     nk_arr = nk.zeros(shape, dtype="float32")
@@ -1121,8 +1154,8 @@ def test_reduction_on_empty(shape):
     assert np.asarray(nk_arr.astype("float32")).shape == shape
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is required for edge-shape tests")
-def test_scalar_zero_dim_tensor():
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_zero_dimensional_tensors_round_trip_their_value():
     """A 0-D (scalar) tensor round-trips its single value and every reduction returns that value. The
     rank-0 reduction path must feed the SIMD kernel a real element stride — a zero stride once spun
     the strided moments kernel forever."""
@@ -1134,7 +1167,8 @@ def test_scalar_zero_dim_tensor():
     assert t.max() == pytest.approx(3.5)
 
 
-def test_bfloat16_scalar_creation():
+def test_bfloat16_scalars_round_to_the_nearest_value():
+    """A bfloat16 scalar holds the nearest bfloat16 to its value, and converts to float and int."""
     bf = nk.bfloat16(3.14159)
     assert isinstance(bf, nk.bfloat16)
     assert_allclose(float(bf), 3.14159, atol=0.01)
@@ -1142,7 +1176,8 @@ def test_bfloat16_scalar_creation():
     assert repr(bf)  # smoke-test repr doesn't crash
 
 
-def test_bfloat16_scalar_arithmetic():
+def test_bfloat16_scalar_arithmetic_stays_bfloat16():
+    """Arithmetic on bfloat16 scalars returns bfloat16 scalars, exact for representable results."""
     a = nk.bfloat16(1.5)
     b = nk.bfloat16(2.5)
 
@@ -1163,7 +1198,8 @@ def test_bfloat16_scalar_arithmetic():
     assert_allclose(float(result), 1.6666, atol=0.01)
 
 
-def test_bfloat16_scalar_unary():
+def test_bfloat16_scalars_negate_and_convert_to_bool():
+    """Negation, unary plus and `abs` of a bfloat16 scalar are exact, and only zero is false."""
     a = nk.bfloat16(1.5)
     assert float(-a) == -1.5
     assert float(+a) == 1.5
@@ -1172,7 +1208,8 @@ def test_bfloat16_scalar_unary():
     assert not bool(nk.bfloat16(0.0))
 
 
-def test_bfloat16_scalar_comparison():
+def test_bfloat16_scalars_compare_with_each_other_and_floats():
+    """bfloat16 scalars order and compare among themselves and against Python floats."""
     a = nk.bfloat16(1.5)
     b = nk.bfloat16(2.5)
 
@@ -1189,7 +1226,8 @@ def test_bfloat16_scalar_comparison():
     assert a > 1.0
 
 
-def test_bfloat16_scalar_hash():
+def test_equal_bfloat16_scalars_hash_alike():
+    """Equal bfloat16 scalars hash alike, so they collapse in sets and find each other in dicts."""
     a = nk.bfloat16(1.5)
     b = nk.bfloat16(1.5)
     s = {a, b}
@@ -1198,7 +1236,8 @@ def test_bfloat16_scalar_hash():
     assert d[b] == "value"
 
 
-def test_float8_e4m3_scalar():
+def test_e4m3_scalars_convert_and_negate():
+    """An e4m3 scalar converts to float and int, negates, and is false only at zero."""
     f8 = nk.float8_e4m3(1.5)
     assert isinstance(f8, nk.float8_e4m3)
     assert float(f8) == 1.5
@@ -1209,7 +1248,8 @@ def test_float8_e4m3_scalar():
     assert not bool(nk.float8_e4m3(0.0))
 
 
-def test_float8_e4m3_scalar_arithmetic():
+def test_e4m3_scalar_arithmetic_stays_e4m3():
+    """Arithmetic on e4m3 scalars returns e4m3 scalars within the format's rounding."""
     a = nk.float8_e4m3(1.5)
     b = nk.float8_e4m3(2.0)
 
@@ -1233,7 +1273,8 @@ def test_float8_e4m3_scalar_arithmetic():
     assert float(abs(nk.float8_e4m3(-1.5))) == 1.5
 
 
-def test_float8_e5m2_scalar():
+def test_e5m2_scalars_convert_and_negate():
+    """An e5m2 scalar converts to float and int, negates, and is false only at zero."""
     f8 = nk.float8_e5m2(1.5)
     assert isinstance(f8, nk.float8_e5m2)
     assert float(f8) == 1.5
@@ -1244,7 +1285,8 @@ def test_float8_e5m2_scalar():
     assert not bool(nk.float8_e5m2(0.0))
 
 
-def test_float8_e5m2_scalar_arithmetic():
+def test_e5m2_scalar_arithmetic_stays_e5m2():
+    """Arithmetic on e5m2 scalars returns e5m2 scalars within the format's rounding."""
     a = nk.float8_e5m2(1.5)
     b = nk.float8_e5m2(2.0)
 
@@ -1269,7 +1311,8 @@ def test_float8_e5m2_scalar_arithmetic():
 
 
 @pytest.mark.skipif(not ml_dtypes_available, reason="ml_dtypes not installed")
-def test_bfloat16_vs_ml_dtypes():
+def test_bfloat16_scalars_match_ml_dtypes():
+    """bfloat16 scalars round as `ml_dtypes.bfloat16` does."""
     test_values = [0.0, 1.0, -1.0, 3.14159, 100.0, 0.001, -65504.0]
     for val in test_values:
         nk_bf16 = nk.bfloat16(val)
@@ -1278,7 +1321,8 @@ def test_bfloat16_vs_ml_dtypes():
 
 
 @pytest.mark.skipif(not ml_dtypes_available, reason="ml_dtypes not installed")
-def test_float8_e4m3_vs_ml_dtypes():
+def test_e4m3_scalars_match_ml_dtypes():
+    """e4m3 scalars round as `ml_dtypes.float8_e4m3fn` does."""
     test_values = [0.0, 1.0, -1.0, 1.5, 2.0, 0.5]
     for val in test_values:
         nk_f8 = nk.float8_e4m3(val)
@@ -1287,7 +1331,8 @@ def test_float8_e4m3_vs_ml_dtypes():
 
 
 @pytest.mark.skipif(not ml_dtypes_available, reason="ml_dtypes not installed")
-def test_float8_e5m2_vs_ml_dtypes():
+def test_e5m2_scalars_match_ml_dtypes():
+    """e5m2 scalars round as `ml_dtypes.float8_e5m2` does."""
     test_values = [0.0, 1.0, -1.0, 1.5, 2.0, 0.5]
     for val in test_values:
         nk_f8 = nk.float8_e5m2(val)
@@ -1298,7 +1343,7 @@ def test_float8_e5m2_vs_ml_dtypes():
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not ml_dtypes_available, reason="ml_dtypes not installed")
 @pytest.mark.parametrize(
-    "ml_dtype,nk_name",
+    ("ml_dtype", "nk_name"),
     [
         ("bfloat16", "bfloat16"),
         ("float8_e4m3fn", "e4m3"),
@@ -1307,7 +1352,7 @@ def test_float8_e5m2_vs_ml_dtypes():
         ("float6_e3m2fn", "e3m2"),
     ],
 )
-def test_ml_dtypes_array_to_tensor(ml_dtype, nk_name, np_rng: np.random.Generator):
+def test_ml_dtypes_arrays_become_tensors(ml_dtype, nk_name, np_rng: np.random.Generator):
     """Verify that ml_dtypes arrays can be consumed as nk.Tensor via __array_interface__."""
     dt = getattr(ml_dtypes, ml_dtype)
     a_f32 = np_rng.standard_normal(16).astype(np.float32).clip(-1, 1)
@@ -1324,29 +1369,32 @@ def test_ml_dtypes_array_to_tensor(ml_dtype, nk_name, np_rng: np.random.Generato
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.skipif(not ml_dtypes_available, reason="ml_dtypes not installed")
 @pytest.mark.parametrize(
     "ml_dtype",
-    ["float8_e4m3fnuz", "float8_e5m2fnuz", "float8_e4m3b11fnuz"],
+    [
+        pytest.param(
+            name,
+            marks=pytest.mark.skipif(
+                not ml_dtypes_available or not hasattr(ml_dtypes, name), reason=f"needs ml_dtypes.{name}"
+            ),
+        )
+        for name in ("float8_e4m3fnuz", "float8_e5m2fnuz", "float8_e4m3b11fnuz")
+    ],
 )
-def test_ml_dtypes_incompatible_rejected(ml_dtype):
+def test_ml_dtypes_of_other_conventions_are_refused(ml_dtype):
     """Verify that fnuz/b11fnuz types (different bias/NaN conventions) are rejected, not misinterpreted."""
-    dt = getattr(ml_dtypes, ml_dtype, None)
-    if dt is None:
-        pytest.skip(f"ml_dtypes.{ml_dtype} not available in this version")
-    a = np.array([0.5], dtype=dt)
+    a = np.array([0.5], dtype=getattr(ml_dtypes, ml_dtype))
     with pytest.raises((TypeError, ValueError)):
         nk.Tensor(a)
 
 
-@pytest.mark.skipif(not ml_dtypes_available, reason="ml_dtypes is not installed")
-def test_ml_dtypes_e8m0_supported():
+@pytest.mark.skipif(
+    not ml_dtypes_available or not hasattr(ml_dtypes, "float8_e8m0fnu"), reason="needs ml_dtypes.float8_e8m0fnu"
+)
+def test_ml_dtypes_e8m0_arrays_are_read():
     """ml_dtypes float8_e8m0fnu is the OCP UE8M0 scale format, now a first-class NumKong dtype
     (added with block scaling) — it imports as float8_e8m0 and round-trips its power-of-two values."""
-    dt = getattr(ml_dtypes, "float8_e8m0fnu", None)
-    if dt is None:
-        pytest.skip("ml_dtypes.float8_e8m0fnu not available in this version")
-    a = np.array([1.0, 2.0, 4.0, 0.5], dtype=dt)
+    a = np.array([1.0, 2.0, 4.0, 0.5], dtype=ml_dtypes.float8_e8m0fnu)
     t = nk.Tensor(a)
     assert t.dtype == "float8_e8m0"
     back = np.asarray(t.astype("float32")).reshape(-1)
@@ -1354,28 +1402,26 @@ def test_ml_dtypes_e8m0_supported():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@requires_numpy_dtype_registration
 @pytest.mark.parametrize(
-    "scalar_type,name",
+    ("scalar_type", "name"),
     [
         (nk.bfloat16, "bfloat16"),
         (nk.float8_e4m3, "float8_e4m3"),
         (nk.float8_e5m2, "float8_e5m2"),
     ],
 )
-def test_numpy_array_with_nk_dtype(scalar_type, name):
+def test_numkong_scalar_types_are_numpy_dtypes(scalar_type, name):
     """Verify that nk scalar types can be used as NumPy dtype specifiers."""
-    if not hasattr(scalar_type, "dtype"):
-        pytest.skip("NumPy dtype registration not available")
     arr = np.array([1.0, 2.0, 3.0], dtype=scalar_type)
     assert_allclose(float(arr[0]), 1.0, atol=0.1)
     assert_allclose(float(arr[1]), 2.0, atol=0.1)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_nk_dtype_numpy_roundtrip():
+@requires_numpy_dtype_registration
+def test_numkong_dtypes_round_trip_through_numpy():
     """Verify roundtrip: np.array(dtype=nk.bfloat16) → float32 → bfloat16 preserves values."""
-    if not hasattr(nk.bfloat16, "dtype"):
-        pytest.skip("NumPy dtype registration not available")
     vals = [0.0, 1.0, -1.0, 0.5, 3.14]
     arr = np.array(vals, dtype=nk.bfloat16)
     # Cast to float32 and back to verify the registered cast functions work.
@@ -1386,7 +1432,7 @@ def test_nk_dtype_numpy_roundtrip():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_dots_packed_row_range(capabilities, np_rng: np.random.Generator):
+def test_dots_packed_row_ranges_tile_the_result(capabilities, np_rng: np.random.Generator):
     """Test dots_packed with rows_begin/rows_end splits produce the same result."""
     rows, depth, columns = 100, 64, 50
     left_matrix, _ = make_random((rows, depth), "float32", np_rng)
@@ -1403,7 +1449,7 @@ def test_dots_packed_row_range(capabilities, np_rng: np.random.Generator):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_dots_symmetric_row_range(capabilities, np_rng: np.random.Generator):
+def test_dots_symmetric_row_ranges_tile_the_result(capabilities, np_rng: np.random.Generator):
     """Test dots_symmetric with rows_begin/rows_end.
 
     Only the upper triangle of the output is guaranteed to be initialized,
@@ -1422,33 +1468,33 @@ def test_dots_symmetric_row_range(capabilities, np_rng: np.random.Generator):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("count", [63, 64, 129])
 @pytest.mark.parametrize("threads", [0, 1, 4])
-@pytest.mark.parametrize("rows", [63, 64, 129])
-def test_dots_packed_threads(capabilities, threads, rows, np_rng: np.random.Generator):
+def test_dots_packed_threads_match_serial(capabilities, threads, count, np_rng: np.random.Generator):
     """Verify dots_pack, dots_packed and @ match the serial path across tile boundaries and thread counts.
 
     The packed row and column tiles are 64, so heights straddling one and two tiles exercise both the
     whole-tile and tail-chunk branches of the parallel loops. threads=0 (all cores) must match threads=1
     regardless of any prior explicit count, as the num_threads() clause fixes, not the poisoned global ICV.
     """
-    depth, columns = 64, rows
-    left_matrix, _ = make_random((rows, depth), "float32", np_rng)
+    depth, columns = 64, count
+    left_matrix, _ = make_random((count, depth), "float32", np_rng)
     right_matrix = np.ascontiguousarray(make_random((columns, depth), "float32", np_rng)[0])
     right_packed = nk.dots_pack(right_matrix, dtype="float32", capabilities=capabilities)
     right_packed_parallel = nk.dots_pack(right_matrix, dtype="float32", threads=threads, capabilities=capabilities)
 
     serial = np.array(nk.dots_packed(left_matrix, right_packed, threads=1))
     parallel = np.array(nk.dots_packed(left_matrix, right_packed_parallel, threads=threads))
-    assert_allclose(parallel, serial, err_msg=f"threads={threads} diverges from threads=1 at rows={rows}")
+    assert_allclose(parallel, serial, err_msg=f"threads={threads} diverges from threads=1 at count={count}")
     # the @ operator auto-threads and must match the serial result too
     at_result = np.array(make_nk(left_matrix, "float32") @ right_packed)
-    assert_allclose(at_result, serial, err_msg=f"@ diverges from threads=1 at rows={rows}")
+    assert_allclose(at_result, serial, err_msg=f"@ diverges from threads=1 at count={count}")
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("threads", [0, 1, 4])
 @pytest.mark.parametrize("count", [31, 32, 65])
-def test_dots_symmetric_threads(capabilities, threads, count, np_rng: np.random.Generator):
+@pytest.mark.parametrize("threads", [0, 1, 4])
+def test_dots_symmetric_threads_match_serial(capabilities, threads, count, np_rng: np.random.Generator):
     """Verify dots_symmetric matches the serial path across tile boundaries and thread counts.
 
     The symmetric row tile is 32; only the upper triangle is guaranteed written. threads=0 (all cores)
@@ -1463,23 +1509,10 @@ def test_dots_symmetric_threads(capabilities, threads, count, np_rng: np.random.
     assert_allclose(parallel[mask], serial[mask], err_msg=f"threads={threads} diverges from threads=1 at count={count}")
 
 
-def _skip_unless_free_threaded():
-    version = sys.version_info
-    if version.major == 3 and version.minor >= 13:
-        is_free_threaded = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
-        if not is_free_threaded:
-            pytest.skip("Uses non-free-threaded Python, skipping GIL-related tests")
-        if sys._is_gil_enabled():
-            pytest.skip("GIL is enabled, skipping GIL-related tests")
-    else:
-        pytest.skip("Python < 3.13t, skipping GIL-related tests")
-
-
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_gil_free_threading(np_rng: np.random.Generator):
+@requires_free_threading
+def test_gil_free_kernels_run_concurrently(np_rng: np.random.Generator):
     """Test NumKong in Python 3.13t free-threaded mode if available."""
-    _skip_unless_free_threaded()
-
     num_threads = multiprocessing.cpu_count()
     vectors_a = np_rng.random((32 * 1024 * num_threads, 1024)).astype(np.float32)
     vectors_b = np_rng.random((32 * 1024 * num_threads, 1024)).astype(np.float32)
@@ -1527,10 +1560,9 @@ def test_gil_free_threading(np_rng: np.random.Generator):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_gil_free_dots_packed_threading(np_rng: np.random.Generator):
+@requires_free_threading
+def test_gil_free_dots_packed_row_ranges_run_concurrently(np_rng: np.random.Generator):
     """Test multi-threaded dots_packed with rows_begin/rows_end."""
-    _skip_unless_free_threaded()
-
     rows, depth, columns = 200, 64, 50
     num_threads = min(multiprocessing.cpu_count(), 4)
     left_matrix, _ = make_random((rows, depth), "float32", np_rng)
@@ -1558,14 +1590,13 @@ def test_gil_free_dots_packed_threading(np_rng: np.random.Generator):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_gil_free_dots_symmetric_threading(np_rng: np.random.Generator):
+@requires_free_threading
+def test_gil_free_dots_symmetric_row_ranges_run_concurrently(np_rng: np.random.Generator):
     """Test multi-threaded dots_symmetric with rows_begin/rows_end.
 
     The symmetric kernel only fills the upper triangle of each row's output.
     Each thread computes a disjoint row range into the same shared output tensor.
     """
-    _skip_unless_free_threaded()
-
     count, depth = 100, 64
     num_threads = min(multiprocessing.cpu_count(), 4)
     vectors, _ = make_random((count, depth), "float32", np_rng)
@@ -1609,9 +1640,9 @@ _SCALED_FORMATS = [
 """(dtype name, block size, per-element relative resolution = 2**-mantissa_bits)."""
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is required for block-scaled tests")
-@pytest.mark.parametrize("dtype_name, block_size, relative_bound", _SCALED_FORMATS)
-def test_scaled_tensor_roundtrip(dtype_name, block_size, relative_bound):
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(("dtype_name", "block_size", "relative_bound"), _SCALED_FORMATS)
+def test_scaled_tensors_round_trip_within_their_bound(dtype_name, block_size, relative_bound):
     """`astype` quantize/dequantize: powers of two are near-exact and a narrow range stays within
     the element resolution (the OCP MX scale never clips a block whose amax mantissa fits the
     element format). Also checks the read-only attribute surface."""
@@ -1643,9 +1674,9 @@ def test_scaled_tensor_roundtrip(dtype_name, block_size, relative_bound):
         assert quantized.tensor_scale is None
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is required for block-scaled tests")
-@pytest.mark.parametrize("dtype_name, block_size, relative_bound", _SCALED_FORMATS)
-def test_scaled_tensor_slicing(dtype_name, block_size, relative_bound):
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(("dtype_name", "block_size", "relative_bound"), _SCALED_FORMATS)
+def test_scaled_tensor_slices_decode_like_the_whole(dtype_name, block_size, relative_bound):
     """Row and block-aligned column slices materialize to the same values as the full decode;
     a sub-block (misaligned) column range is rejected rather than silently truncated."""
     rows, columns = 4, 4 * block_size
@@ -1669,9 +1700,9 @@ def test_scaled_tensor_slicing(dtype_name, block_size, relative_bound):
         quantized[:, 1 : block_size + 1]
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is required for block-scaled tests")
-@pytest.mark.parametrize("dtype_name, block_size, relative_bound", _SCALED_FORMATS)
-def test_scaled_tensor_degenerate_blocks(dtype_name, block_size, relative_bound):
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(("dtype_name", "block_size", "relative_bound"), _SCALED_FORMATS)
+def test_scaled_tensors_contain_degenerate_blocks(dtype_name, block_size, relative_bound):
     """Degenerate inputs stay contained: an all-zero block decodes to exact zero (no divide-by-zero),
     and a NaN poisons only its own block — a clean block in another row is left untouched."""
     # All-zero block → zero scale → exact zero decode.
@@ -1687,8 +1718,8 @@ def test_scaled_tensor_degenerate_blocks(dtype_name, block_size, relative_bound)
     )
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is required for block-scaled tests")
-def test_scaled_tensor_dlpack_components(np_rng: np.random.Generator):
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_scaled_tensor_components_export_without_a_copy(np_rng: np.random.Generator):
     """The struct-of-arrays components export zero-copy (the GPU-interop contract): both
     `block_scales` and the packed `elements` round-trip through DLPack preserving shape. (NumPy
     can't reinterpret the custom 'ue4m3'/'ue8m0'/'e2m1' buffer formats, so the contract is asserted
@@ -1703,9 +1734,9 @@ def test_scaled_tensor_dlpack_components(np_rng: np.random.Generator):
 # endregion Block-Scaled — ScaledTensor
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is required for buffer-ingestion tests")
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("order", ["C", "F", "transpose", "strided"])
-def test_tensor_construct_non_contiguous(order):
+def test_tensors_construct_from_non_contiguous_buffers(order):
     """`Tensor(buffer)` must ingest non-C-contiguous inputs (Fortran-order, transposed, strided)
     correctly — each axis' stride is honored rather than assuming packed inner dimensions."""
     base = np.arange(24, dtype=np.float32).reshape(4, 6)
@@ -1723,9 +1754,9 @@ def test_tensor_construct_non_contiguous(order):
     assert np.array_equal(restored, np.ascontiguousarray(arr)), f"{order} ingestion corrupted data"
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is required for block-scaled tests")
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize(
-    "src_dtype, dst_dtype",
+    ("src_dtype", "dst_dtype"),
     [
         ("nvfp4", "mxfp8e4m3"),
         ("mxfp8e4m3", "nvfp4"),
@@ -1733,7 +1764,7 @@ def test_tensor_construct_non_contiguous(order):
         ("mxfp8e5m2", "mxint8"),
     ],
 )
-def test_scaled_tensor_transcode(src_dtype, dst_dtype):
+def test_scaled_tensors_transcode_like_decode_then_encode(src_dtype, dst_dtype):
     """`ScaledTensor.astype("<block-scaled>")` transcodes between block-scaled formats and must equal
     decoding the source to dense and re-encoding to the destination (the kernel does exactly that)."""
     dense = np.asarray([[1.0 + 0.5 * (((r + c) % 7) / 7.0) for c in range(64)] for r in range(3)], dtype=np.float32)

@@ -655,7 +655,7 @@ mod tests {
     }
 
     #[test]
-    fn from_packed_bytes_roundtrips() {
+    fn from_packed_bytes_round_trips() {
         crate::capabilities::configure_cpu_thread().unwrap();
         let data = Tensor::<f32>::full(&[6, 24], 0.7f32).unwrap();
         let packed = MaxSimPackedMatrix::new(&data).unwrap();

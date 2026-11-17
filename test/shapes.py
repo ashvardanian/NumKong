@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Test the many-to-many shape distances: nk.shapes_pack and the nk.*_packed kinds.
 
-DTypes: float64, float32, float16.
+Covers: float64, float32, float16.
 Baselines: SciPy nearest-partner, assignment and linear-program references, RDKit best RMS, POT.
 Matches C++ suite: test/shapes.cpp.
+Run: python -m pytest test/shapes.py
 
 File: test/shapes.py
 Author: Ash Vardanian
@@ -16,53 +17,37 @@ import gc
 import math
 import warnings
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 import pytest
-
-
-if TYPE_CHECKING:
-    import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
-
-try:
-    import numpy as np
-except Exception:
-    pass
-
-from base import SETTINGS, assert_allclose, collect_errors, numpy_available, timed_call
+from base import (
+    SETTINGS,
+    assert_allclose,
+    collect_errors,
+    numpy_available,
+    pot_available,
+    rdkit_available,
+    requires_metal,
+    scipy_available,
+    timed_call,
+)
 
 import numkong as nk
 
 
-try:
+if numpy_available:
+    import numpy as np
+if scipy_available:
     from scipy.optimize import linear_sum_assignment, linprog
     from scipy.spatial.distance import cdist, directed_hausdorff
     from scipy.spatial.transform import Rotation
-
-    scipy_available = True
-except ImportError:
-    scipy_available = False
-
-try:
+if rdkit_available:
     from rdkit import Chem
     from rdkit.Chem import AllChem, rdMolAlign
     from rdkit.Geometry import Point3D
-
-    rdkit_available = True
-except ImportError:
-    rdkit_available = False
-
-try:
+if pot_available:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", SyntaxWarning)  # POT's docstrings hold invalid escapes
         import ot
-
-    pot_available = True
-except ImportError:
-    pot_available = False
-
-requires_numpy = pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-requires_scipy = pytest.mark.skipif(not (numpy_available and scipy_available), reason="NumPy or SciPy is not installed")
 
 KINDS: dict[str, Callable] = {
     "hausdorffs": nk.hausdorffs_packed,
@@ -231,10 +216,11 @@ def check_against_reference(stats, capabilities, kind: str, dtype: str, a_packed
     )
 
 
-@requires_scipy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
-def test_chamfers_and_hausdorffs(stats, capabilities, dtype: str, np_rng: np.random.Generator):
+def test_chamfers_and_hausdorffs_match_brute_force(stats, capabilities, dtype: str, np_rng: np.random.Generator):
     """Chamfer and Hausdorff against brute-force `cdist` and `directed_hausdorff` over the 8 flips."""
     sizes = [SETTINGS.shape_points, SETTINGS.shape_points // 3 + 1, 17]
     a_packed = nk.shapes_pack([random_cloud(np_rng, size) for size in sizes], dtype=dtype)
@@ -243,10 +229,13 @@ def test_chamfers_and_hausdorffs(stats, capabilities, dtype: str, np_rng: np.ran
     check_against_reference(stats, capabilities, "hausdorffs", dtype, a_packed, b_packed, reference_hausdorff)
 
 
-@requires_scipy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
-def test_wassersteinprocrustes_equal_sizes(stats, capabilities, dtype: str, np_rng: np.random.Generator):
+def test_wassersteinprocrustes_matches_assignments_on_equal_sizes(
+    stats, capabilities, dtype: str, np_rng: np.random.Generator
+):
     """Wasserstein-Procrustes against assignments alternated with Kabsch from the same 8 flip starts."""
     a_packed = nk.shapes_pack([random_cloud(np_rng, 16) for _ in range(2)], dtype=dtype)
     b_packed = nk.shapes_pack([random_cloud(np_rng, 16) for _ in range(3)], dtype=dtype)
@@ -261,10 +250,13 @@ def test_wassersteinprocrustes_equal_sizes(stats, capabilities, dtype: str, np_r
     )
 
 
-@requires_scipy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
-def test_wassersteinprocrustes_unequal_sizes(stats, capabilities, dtype: str, np_rng: np.random.Generator):
+def test_wassersteinprocrustes_matches_transport_on_unequal_sizes(
+    stats, capabilities, dtype: str, np_rng: np.random.Generator
+):
     """Wasserstein-Procrustes against `linprog` transport alternated with Kabsch from the 8 flip starts."""
     a_packed = nk.shapes_pack([random_cloud(np_rng, points) for points in (7, 12)], dtype=dtype)
     b_packed = nk.shapes_pack([random_cloud(np_rng, points) for points in (11, 5)], dtype=dtype)
@@ -279,10 +271,11 @@ def test_wassersteinprocrustes_unequal_sizes(stats, capabilities, dtype: str, np
     )
 
 
-@requires_scipy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
-def test_gromovwassersteins(stats, capabilities, dtype: str, np_rng: np.random.Generator):
+def test_gromovwassersteins_match_frank_wolfe(stats, capabilities, dtype: str, np_rng: np.random.Generator):
     """Gromov-Wasserstein against Frank-Wolfe with `linprog` linear steps from the same three starts."""
     a_packed = nk.shapes_pack([random_cloud(np_rng, points) for points in (6, 9)], dtype=dtype)
     b_packed = nk.shapes_pack([random_cloud(np_rng, points) for points in (8, 6)], dtype=dtype)
@@ -291,7 +284,8 @@ def test_gromovwassersteins(stats, capabilities, dtype: str, np_rng: np.random.G
     )
 
 
-@requires_scipy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
 def test_wassersteinprocrustes_equals_kabsch(capabilities, np_rng: np.random.Generator):
     """When the known correspondence is the optimal plan, Wasserstein-Procrustes is the Kabsch RMSD and
     returns its rotation."""
@@ -306,9 +300,9 @@ def test_wassersteinprocrustes_equals_kabsch(capabilities, np_rng: np.random.Gen
     assert_allclose(rotations[0, 0], rotation.as_matrix(), atol=1e-6, rtol=0)
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not rdkit_available, reason="RDKit is not installed")
-def test_wassersteinprocrustes_below_rdkit_best_rms(capabilities, np_rng: np.random.Generator):
+def test_wassersteinprocrustes_stays_below_rdkit_best_rms(capabilities, np_rng: np.random.Generator):
     """No atom mapping RDKit's symmetry-aware best RMS tries beats the optimal transport plan."""
     molecule = Chem.AddHs(Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1"))
     assert AllChem.EmbedMolecule(molecule, randomSeed=42) == 0
@@ -327,9 +321,10 @@ def test_wassersteinprocrustes_below_rdkit_best_rms(capabilities, np_rng: np.ran
     assert float(np.asarray(distances)[0, 0]) <= best_rms + 1e-6
 
 
-@requires_scipy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
 @pytest.mark.skipif(not pot_available, reason="POT is not installed")
-def test_gromovwassersteins_against_pot(capabilities, np_rng: np.random.Generator):
+def test_gromovwassersteins_end_no_worse_than_pot(capabilities, np_rng: np.random.Generator):
     """On shuffled noisy copies, the Wasserstein-Procrustes starts end no worse than POT's product start."""
     a = random_cloud(np_rng, 12)
     b = (a + np_rng.normal(scale=0.02, size=a.shape))[np_rng.permutation(12)] @ random_rotation(np_rng)
@@ -341,9 +336,9 @@ def test_gromovwassersteins_against_pot(capabilities, np_rng: np.random.Generato
     assert float(np.asarray(distances)[0, 0]) <= 0.5 * math.sqrt(max(loss, 0.0)) + 1e-6
 
 
-@requires_numpy
-@pytest.mark.parametrize("kind", list(KINDS))
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
+@pytest.mark.parametrize("kind", list(KINDS))
 def test_swapped_sides_transpose(capabilities, kind: str, dtype: str, np_rng: np.random.Generator):
     """Swapping the sides transposes the distances bit for bit and the rotations with them."""
     a_packed = nk.shapes_pack([random_cloud(np_rng, points) for points in (5, 9, 0)], dtype=dtype)
@@ -355,10 +350,10 @@ def test_swapped_sides_transpose(capabilities, kind: str, dtype: str, np_rng: np
     np.testing.assert_array_equal(forward_rotations, backward_rotations.transpose(1, 0, 3, 2))
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("kind", list(KINDS))
 @pytest.mark.parametrize("threads", [0, 4])
-def test_threads_match_serial(capabilities, kind: str, threads: int, np_rng: np.random.Generator):
+def test_shapes_threads_match_serial(capabilities, kind: str, threads: int, np_rng: np.random.Generator):
     """Packing and scoring on several threads returns the serial poses, distances and rotations bit for bit."""
     a_clouds = [random_cloud(np_rng, points) for points in (5, 9, 0, 7, 3)]
     b_clouds = [random_cloud(np_rng, points) for points in (8, 0, 6)]
@@ -374,10 +369,10 @@ def test_threads_match_serial(capabilities, kind: str, threads: int, np_rng: np.
     np.testing.assert_array_equal(parallel_rotations, serial_rotations)
 
 
-@requires_numpy
-@pytest.mark.parametrize("kind", list(KINDS))
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
-def test_rigid_motions_preserve_distances(capabilities, kind: str, dtype: str, np_rng: np.random.Generator):
+@pytest.mark.parametrize("kind", list(KINDS))
+def test_rigid_motions_preserve_distances(kind: str, dtype: str, np_rng: np.random.Generator):
     """Rotating, mirroring and moving either cloud before packing leaves every distance unchanged."""
     clouds = [random_cloud(np_rng, points) for points in (10, 7)]
     mirror = np.diag([1.0, -1.0, 1.0])
@@ -387,9 +382,9 @@ def test_rigid_motions_preserve_distances(capabilities, kind: str, dtype: str, n
     assert_allclose(np.asarray(rigid), np.asarray(original), atol=INPUT_TOLERANCES[dtype], rtol=0)
 
 
-@requires_numpy
-@pytest.mark.parametrize("kind", list(KINDS))
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
+@pytest.mark.parametrize("kind", list(KINDS))
 def test_rotations_superpose_rigid_copies(capabilities, kind: str, dtype: str, np_rng: np.random.Generator):
     """Between a cloud and its shuffled rigid motion, every kind vanishes and its rotation maps b onto a."""
     a = random_cloud(np_rng, 11)
@@ -404,7 +399,7 @@ def test_rotations_superpose_rigid_copies(capabilities, kind: str, dtype: str, n
     assert_allclose(superposed, a[order], atol=INPUT_TOLERANCES[dtype], rtol=0)
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 def test_normalized_packs_ignore_size(capabilities, dtype: str, np_rng: np.random.Generator):
     """Normalized packs keep each RMS radius as the scale, and every kind scores a cloud about zero against
@@ -423,22 +418,24 @@ def test_normalized_packs_ignore_size(capabilities, dtype: str, np_rng: np.rando
         assert float(np.asarray(kernel(*plain, capabilities=capabilities))[0, 0]) > tolerance * scales[1], kind
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("kind", list(KINDS))
-def test_empty_clouds(capabilities, kind: str, np_rng: np.random.Generator):
+def test_empty_clouds_are_zero_or_infinitely_apart(capabilities, kind: str, np_rng: np.random.Generator):
     """Two empty clouds are 0 apart, an empty and a non-empty one infinitely, with identity rotations."""
     packed = nk.shapes_pack([np.zeros((0, 3)), random_cloud(np_rng, 4)])
     rotations = rotations_buffer(packed, packed)
     distances = np.asarray(KINDS[kind](packed, packed, rotations=rotations, capabilities=capabilities))
     assert distances[0, 0] == 0.0
-    assert math.isinf(distances[0, 1]) and math.isinf(distances[1, 0])
+    assert math.isinf(distances[0, 1])
+    assert math.isinf(distances[1, 0])
     for row, column in ((0, 0), (0, 1), (1, 0)):
         np.testing.assert_array_equal(rotations[row, column], np.eye(3, dtype=np.float32))
 
 
-@requires_scipy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
-def test_packed_poses(dtype: str, np_rng: np.random.Generator):
+def test_packed_poses_are_the_input_moments(dtype: str, np_rng: np.random.Generator):
     """The centroids are the input means, the frames unit quaternions, and the spreads and radii the moments
     and norms of the packed points, the spreads also within a relative tolerance as squared lengths."""
     clouds = [random_cloud(np_rng, points) + np_rng.normal(scale=4.0, size=3) for points in (13, 1, 40)]
@@ -462,7 +459,7 @@ def test_packed_poses(dtype: str, np_rng: np.random.Generator):
         assert_allclose(max_radius, np.linalg.norm(coordinates, axis=1).max(), atol=tolerance, rtol=0)
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 def test_unpack_round_trips(dtype: str, np_rng: np.random.Generator):
     """Unpacking returns every input point in the pack dtype within storage rounding, and normalized packs
@@ -479,8 +476,8 @@ def test_unpack_round_trips(dtype: str, np_rng: np.random.Generator):
             packed.unpack(3)
 
 
-@requires_numpy
-def test_pack_dtypes(np_rng: np.random.Generator):
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_shapes_pack_picks_its_dtype(np_rng: np.random.Generator):
     """float16 input packs as float16, anything else as float32, unless `dtype` says otherwise."""
     cloud = random_cloud(np_rng, 6)
     assert nk.shapes_pack(cloud).dtype == "float32"
@@ -493,11 +490,12 @@ def test_pack_dtypes(np_rng: np.random.Generator):
     for dtype, distance_dtype in DISTANCE_DTYPES.items():
         packed = nk.shapes_pack(cloud, dtype=dtype)
         distances = np.asarray(nk.chamfers_packed(packed, packed))
-        assert distances.dtype == distance_dtype and distances.shape == (1, 1)
+        assert distances.dtype == distance_dtype
+        assert distances.shape == (1, 1)
 
 
-@requires_numpy
-def test_packed_views(np_rng: np.random.Generator):
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_packed_views_outlive_their_set(np_rng: np.random.Generator):
     """Indexing and slicing make views over the same packs that outlive the packed set."""
     clouds = [random_cloud(np_rng, points) for points in (3, 5, 8, 13, 21)]
     packed = nk.shapes_pack(clouds)
@@ -518,9 +516,9 @@ def test_packed_views(np_rng: np.random.Generator):
         every_other[-4]
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("kind", list(KINDS))
-def test_copy_keeps_the_distances(capabilities, kind: str, np_rng: np.random.Generator):
+def test_copy_keeps_the_distances(kind: str, np_rng: np.random.Generator):
     """`copy` gathers a slice in steps into one unified block that outlives its source and scores as it did."""
     packed = nk.shapes_pack([random_cloud(np_rng, points) for points in (3, 5, 8, 13, 21)])
     every_other = packed[::2]
@@ -532,7 +530,7 @@ def test_copy_keeps_the_distances(capabilities, kind: str, np_rng: np.random.Gen
     np.testing.assert_array_equal(np.asarray(KINDS[kind](copied[1:], copied)), expected[1:])
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_copy_refuses_what_it_cannot_place(np_rng: np.random.Generator):
     """`copy` names one group of capabilities, and a group without a device has no unified memory."""
     packed = nk.shapes_pack(random_cloud(np_rng, 4))
@@ -549,7 +547,7 @@ def test_copy_refuses_what_it_cannot_place(np_rng: np.random.Generator):
         packed.copy(capabilities="gpu")
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_unified_tensors_stay_fixed():
     """`copy(capabilities=)` keeps the values, its views keep the block alive, and its storage never moves."""
     source = nk.zeros((2, 3), dtype="float32")
@@ -571,9 +569,6 @@ def test_unified_tensors_stay_fixed():
         unified.copy(capabilities=1 << 59)
     assert unified.copy().reserve(64) is None
 
-
-METAL_DEVICES = nk.count_devices_metal()
-requires_metal = pytest.mark.skipif(not (numpy_available and METAL_DEVICES), reason="No Metal device in this build")
 
 METAL_TOLERANCES = {
     "rmsds": 5e-3,
@@ -610,6 +605,7 @@ def metal_call_arguments(kind: str, packs: nk.ShapesPackedMatrix, gpu, stream: i
 METAL_KINDS = {"rmsds": nk.rmsds_packed, **KINDS}
 
 
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @requires_metal
 @pytest.mark.parametrize("kind", list(METAL_KINDS))
 def test_metal_matches_serial(kind: str, np_rng: np.random.Generator):
@@ -619,9 +615,10 @@ def test_metal_matches_serial(kind: str, np_rng: np.random.Generator):
     result = METAL_KINDS[kind](packs, packs, out=out, **metal_call_arguments(kind, packs, gpu))
     assert result is out
     nk.synchronize(gpu)
-    np.testing.assert_allclose(np.asarray(out), expected, atol=METAL_TOLERANCES[kind])
+    assert_allclose(np.asarray(out), expected, atol=METAL_TOLERANCES[kind])
 
 
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @requires_metal
 @pytest.mark.parametrize("kind", ["hausdorffs", "chamfers"])
 def test_metal_keeps_distances_within_the_limit(kind: str, np_rng: np.random.Generator):
@@ -633,11 +630,12 @@ def test_metal_keeps_distances_within_the_limit(kind: str, np_rng: np.random.Gen
     nk.synchronize(gpu)
     found = np.asarray(out)
     within = exact <= limit
-    np.testing.assert_allclose(found[within], exact[within], atol=METAL_TOLERANCES[kind])
+    assert_allclose(found[within], exact[within], atol=METAL_TOLERANCES[kind])
     assert np.all(found[~within] > limit - METAL_TOLERANCES[kind])
     assert np.all(found[~within] <= exact[~within] + METAL_TOLERANCES[kind])
 
 
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @requires_metal
 @pytest.mark.parametrize("kind", list(KINDS))
 def test_metal_rotations_superpose(kind: str, np_rng: np.random.Generator):
@@ -655,9 +653,10 @@ def test_metal_rotations_superpose(kind: str, np_rng: np.random.Generator):
     centered_cloud, centered_moved = (
         points.astype(np.float64) - points.astype(np.float64).mean(0) for points in (cloud, moved)
     )
-    np.testing.assert_allclose(centered_moved @ rotation_found.T, centered_cloud, atol=2e-2)
+    assert_allclose(centered_moved @ rotation_found.T, centered_cloud, atol=2e-2)
 
 
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @requires_metal
 def test_metal_stream_joins_and_keeps_borrows(np_rng: np.random.Generator):
     """`nk.synchronize` waits for a stream of its own, whose packs and outputs may die before it does."""
@@ -668,7 +667,7 @@ def test_metal_stream_joins_and_keeps_borrows(np_rng: np.random.Generator):
     np.asarray(out)[:] = -1.0
     nk.chamfers_packed(packs, packs, out=out, stream=stream)
     nk.synchronize(gpu, stream=stream)
-    np.testing.assert_allclose(np.asarray(out), expected, atol=METAL_TOLERANCES["chamfers"])
+    assert_allclose(np.asarray(out), expected, atol=METAL_TOLERANCES["chamfers"])
 
     # Metal retains what a command uses, so nothing here dangles before the join
     np.asarray(out)[:] = -1.0
@@ -676,10 +675,11 @@ def test_metal_stream_joins_and_keeps_borrows(np_rng: np.random.Generator):
     del packs
     gc.collect()
     nk.synchronize(gpu, stream=stream)
-    np.testing.assert_allclose(np.asarray(out), expected, atol=METAL_TOLERANCES["chamfers"])
+    assert_allclose(np.asarray(out), expected, atol=METAL_TOLERANCES["chamfers"])
     nk.stream_free_metal(stream)
 
 
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @requires_metal
 def test_metal_refuses_what_it_cannot_reach(np_rng: np.random.Generator):
     """Plain NumPy outputs and heap packs raise before a kernel runs, and every GPU call needs its outputs."""
@@ -688,24 +688,24 @@ def test_metal_refuses_what_it_cannot_reach(np_rng: np.random.Generator):
         nk.chamfers_packed(packs, packs, out=np.zeros((3, 3), dtype=np.float32))
     with pytest.raises(BufferError):
         KINDS["hausdorffs"](packs, packs, out=out, rotations=np.zeros((3, 3, 3, 3), dtype=np.float32))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="on a GPU needs out="):
         nk.chamfers_packed(packs, packs)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="copied to one GPU"):
         nk.chamfers_packed(packs, heap, out=out)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="on a GPU needs out="):
         nk.wassersteinprocrustes_packed(packs, packs, out=out)
     with pytest.raises(BufferError):
         nk.chamfers_packed(packs[::2], packs[::2], out=nk.zeros((2, 2), dtype="float32").copy(capabilities=gpu))
     nk.synchronize(gpu)
 
 
-@requires_numpy
-def test_shapes_errors(np_rng: np.random.Generator):
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_shapes_refuse_malformed_inputs(np_rng: np.random.Generator):
     """Malformed clouds, dtypes, operands and rotation buffers raise before any kernel runs."""
     cloud = random_cloud(np_rng, 4)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="matrix or a list of them"):
         nk.shapes_pack(cloud[:, :2])
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Unsupported shapes dtype"):
         nk.shapes_pack(cloud, dtype="int32")
     with pytest.raises(TypeError):
         nk.shapes_pack([cloud, "points"])
@@ -716,11 +716,11 @@ def test_shapes_errors(np_rng: np.random.Generator):
         nk.hausdorffs_packed(single, cloud)
     with pytest.raises(TypeError):
         nk.wassersteinprocrustes_packed(single, single, True)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="rotations must be a writable"):
         nk.chamfers_packed(single, single, rotations=np.zeros((1, 1, 3, 3)))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="rotations must be a writable"):
         nk.chamfers_packed(single, single, rotations=np.zeros((1, 2, 3, 3), dtype=np.float32))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="rotations must be a writable"):
         nk.chamfers_packed(single, single, rotations=np.zeros((1, 1, 3, 6), dtype=np.float32)[..., ::2])
     read_only = np.zeros((1, 1, 3, 3), dtype=np.float32)
     read_only.flags.writeable = False
@@ -728,9 +728,9 @@ def test_shapes_errors(np_rng: np.random.Generator):
         nk.chamfers_packed(single, single, rotations=read_only)
 
 
-@requires_numpy
-@pytest.mark.parametrize("kind", ["hausdorffs", "chamfers"])
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
+@pytest.mark.parametrize("kind", ["hausdorffs", "chamfers"])
 def test_limit_keeps_distances_within_it(capabilities, kind: str, dtype: str, np_rng: np.random.Generator):
     """A pair within `limit` stays exact, and one past it reports a lower bound still past it."""
     a = nk.shapes_pack([random_cloud(np_rng, size) for size in (9, 33, 64)], dtype=dtype)
@@ -746,7 +746,7 @@ def test_limit_keeps_distances_within_it(capabilities, kind: str, dtype: str, np
         assert np.all(bounded[~within] <= exact[~within] + tolerance)
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("kind", ["chamfers", "wassersteinprocrustes", "gromovwassersteins"])
 @pytest.mark.parametrize("threads", [1, 3])
 def test_workspace_matches_the_allocated_one(capabilities, kind: str, threads: int, np_rng: np.random.Generator):
@@ -760,11 +760,11 @@ def test_workspace_matches_the_allocated_one(capabilities, kind: str, threads: i
     distances = np.asarray(packed(a, b, workspace=workspace, threads=threads, capabilities=capabilities))
     np.testing.assert_array_equal(distances, expected)
     if size:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="workspace must be a writable"):
             packed(a, b, workspace=workspace[: size - 1], threads=threads, capabilities=capabilities)
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_out_receives_the_distances(capabilities, np_rng: np.random.Generator):
     """`out` is filled and returned, and one of the wrong dtype or shape raises."""
     a = nk.shapes_pack([random_cloud(np_rng, 12), random_cloud(np_rng, 12)], dtype="float32")
@@ -773,13 +773,14 @@ def test_out_receives_the_distances(capabilities, np_rng: np.random.Generator):
     returned = nk.hausdorffs_packed(a, b, out=out, capabilities=capabilities)
     assert returned is out
     np.testing.assert_array_equal(out, np.asarray(nk.hausdorffs_packed(a, b, capabilities=capabilities)))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="out must be a writable"):
         nk.hausdorffs_packed(a, b, out=np.zeros((2, 1), dtype=np.float32))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="out must be a writable"):
         nk.hausdorffs_packed(a, b, out=np.zeros((1, 2), dtype=np.float64))
 
 
-@requires_scipy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 def test_rmsds_match_kabsch(capabilities, dtype: str, np_rng: np.random.Generator):
     """`rmsds_packed` matches the Kabsch RMSD of the point-by-point correspondence."""
@@ -793,7 +794,7 @@ def test_rmsds_match_kabsch(capabilities, dtype: str, np_rng: np.random.Generato
     assert_allclose(float(np.asarray(distances)[0, 0]), expected, atol=INPUT_TOLERANCES[dtype], rtol=0)
 
 
-@requires_numpy
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_each_kind_takes_only_its_own_keywords(np_rng: np.random.Generator):
     """The same `limit` and `workspace` a kind lacks in C++ and Rust is refused here."""
     packed = nk.shapes_pack(random_cloud(np_rng, 8), dtype="float32")

@@ -4,31 +4,17 @@
  *  @date December 28, 2025
  *  @brief Test suite entry point and configuration.
  */
+#undef NDEBUG // ! A test's oracle must stay live in every build
+
 #if defined(_MSC_VER)
 #define _CRT_SECURE_NO_WARNINGS
-#include <io.h> // `_write`
 #endif
-
-#if __has_include(<unistd.h>)
-#include <unistd.h> // `isatty`, `write`
-#endif
-
-#include <string_view> // `std::string_view`
 
 #include "numkong/capabilities.h" // `nk_capabilities_detected_cpu`, `nk_configure_thread_cpu`
-
-#if !NUMKONG_ARCH_WASM_
-#include <csignal> // `std::signal`, `SIGILL`
-#define NUMKONG_HAS_SIGNAL_ 1
-#else
-#define NUMKONG_HAS_SIGNAL_ 0
-#endif
 
 #include "harness.hpp"
 
 using namespace ashvardanian::numkong::test;
-
-char const *volatile nk::test::nk_test_current_kernel_ = nullptr;
 
 /*  Explicit instantiations verify that `random.hpp` compiles for every code path: f64_t for the
  *  scalar float path, i16_t for the scalar signed integer path, bf16c_t for the complex path, and
@@ -36,7 +22,7 @@ char const *volatile nk::test::nk_test_current_kernel_ = nullptr;
 
 /** Compiles the bounded @c fill_uniform overload for f64, i16, bf16c and i4x2 through implicit
  *  instantiation. */
-inline void compile_bounded_fill_uniform_paths(std::mt19937 &generator) noexcept {
+inline void compile_bounded_fill_uniform_paths(split_mix_generator_t &generator) noexcept {
     nk::fill_uniform(generator, static_cast<nk::f64_t *>(nullptr), 0, nk::f64_t::component_t {},
                      nk::f64_t::component_t {});
     nk::fill_uniform(generator, static_cast<nk::i16_t *>(nullptr), 0, nk::i16_t::component_t {},
@@ -52,46 +38,18 @@ template class nk::vector<nk::u1x8_t>;
 template class nk::vector<nk::i4x2_t>;
 template class nk::vector<nk::f64c_t>;
 template class nk::vector<std::complex<float>>;
-template void nk::fill_uniform(std::mt19937 &, nk::f64_t *, std::size_t);
-template void nk::fill_uniform(std::mt19937 &, nk::i16_t *, std::size_t);
-template void nk::fill_uniform(std::mt19937 &, nk::bf16c_t *, std::size_t);
-template void nk::fill_uniform(std::mt19937 &, nk::i4x2_t *, std::size_t);
-template void nk::fill_lognormal(std::mt19937 &, nk::f64_t *, std::size_t, double, double);
-template void nk::fill_lognormal(std::mt19937 &, nk::i16_t *, std::size_t, double, double);
-template void nk::fill_lognormal(std::mt19937 &, nk::bf16c_t *, std::size_t, double, double);
-template void nk::fill_lognormal(std::mt19937 &, nk::i4x2_t *, std::size_t, double, double);
-template void nk::fill_cauchy(std::mt19937 &, nk::f64_t *, std::size_t, double, double);
-template void nk::fill_cauchy(std::mt19937 &, nk::i16_t *, std::size_t, double, double);
-template void nk::fill_cauchy(std::mt19937 &, nk::bf16c_t *, std::size_t, double, double);
-template void nk::fill_cauchy(std::mt19937 &, nk::i4x2_t *, std::size_t, double, double);
-
-#if NUMKONG_HAS_SIGNAL_
-
-/** Fatal signal handler that names the signal and the faulting kernel before exiting. */
-static void crash_handler(int sig) {
-    // Only async-signal-safe calls allowed: write(2) and _exit(2).
-    std::string_view sig_name = "unknown signal";
-    switch (sig) {
-    case SIGILL: sig_name = "SIGILL (illegal instruction)"; break;
-    case SIGSEGV: sig_name = "SIGSEGV (segmentation fault)"; break;
-#if defined(SIGBUS)
-    case SIGBUS: sig_name = "SIGBUS (bus error)"; break;
-#endif
-    case SIGFPE: sig_name = "SIGFPE (arithmetic exception)"; break;
-    case SIGABRT: sig_name = "SIGABRT (abort)"; break;
-    }
-    auto const emit = [](std::string_view text) noexcept {
-#if NUMKONG_OS_WINDOWS_
-        _write(2, text.data(), static_cast<unsigned>(text.size()));
-#else
-        [[maybe_unused]] auto const written = write(2, text.data(), text.size());
-#endif
-    };
-    char const *const kernel = nk_test_current_kernel_;
-    emit(sig_name), emit(" in kernel '"), emit(kernel ? kernel : "(unknown)"), emit("'\n");
-    _exit(128 + sig);
-}
-#endif // NUMKONG_HAS_SIGNAL_
+template void nk::fill_uniform(split_mix_generator_t &, nk::f64_t *, std::size_t);
+template void nk::fill_uniform(split_mix_generator_t &, nk::i16_t *, std::size_t);
+template void nk::fill_uniform(split_mix_generator_t &, nk::bf16c_t *, std::size_t);
+template void nk::fill_uniform(split_mix_generator_t &, nk::i4x2_t *, std::size_t);
+template void nk::fill_lognormal(split_mix_generator_t &, nk::f64_t *, std::size_t, double, double);
+template void nk::fill_lognormal(split_mix_generator_t &, nk::i16_t *, std::size_t, double, double);
+template void nk::fill_lognormal(split_mix_generator_t &, nk::bf16c_t *, std::size_t, double, double);
+template void nk::fill_lognormal(split_mix_generator_t &, nk::i4x2_t *, std::size_t, double, double);
+template void nk::fill_cauchy(split_mix_generator_t &, nk::f64_t *, std::size_t, double, double);
+template void nk::fill_cauchy(split_mix_generator_t &, nk::i16_t *, std::size_t, double, double);
+template void nk::fill_cauchy(split_mix_generator_t &, nk::bf16c_t *, std::size_t, double, double);
+template void nk::fill_cauchy(split_mix_generator_t &, nk::i4x2_t *, std::size_t, double, double);
 
 #pragma region Dispatch Points
 
@@ -111,7 +69,7 @@ static nk_capability_t runnable_capabilities() noexcept {
 
 /** @c nk_dot_f32_best over each runnable capability alone runs that capability's kernel, and a GPU
  *  mask finds no kernel at all. */
-static error_stats_t test_best_dot_f32(settings_t const &settings) {
+static error_stats_t test_best_dot_f32() {
     capability_kernel<f32_t::dot_kernel_t> const capabilities[] = {
         {nk_cap_serial_k, nk_dot_f32_serial},
 #if NUMKONG_TARGET_NEON
@@ -140,27 +98,28 @@ static error_stats_t test_best_dot_f32(settings_t const &settings) {
 #endif // NUMKONG_TARGET_LOONGSONASX
     };
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(settings.seed.value);
-    std::size_t const n = settings.dense_dimensions;
+    split_mix_generator_t generator(case_stream_key());
+    std::size_t const n = test_run.settings.dense_dimensions;
     auto a = make_vector<f32_t>(n), b = make_vector<f32_t>(n);
-    fill_random(settings, generator, a), fill_random(settings, generator, b);
+    fill_random(generator, a), fill_random(generator, b);
     for (auto const &[capability, kernel] : capabilities) {
         if (!(capability & runnable_capabilities())) continue;
         nk_f64_t expected = 0, dispatched = 0;
-        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), n, &expected, nullptr));
-        stats.expect(nk_dot_f32_best(a.raw_values_data(), b.raw_values_data(), n, &dispatched, capability, nullptr));
-        stats.expect(dispatched == expected, "the dispatch point ran another capability's kernel");
+        stats.expect_status(kernel(a.raw_values_data(), b.raw_values_data(), n, &expected, nullptr));
+        stats.expect_status(
+            nk_dot_f32_best(a.raw_values_data(), b.raw_values_data(), n, &dispatched, capability, nullptr));
+        stats.expect_true(dispatched == expected, "the dispatch point ran another capability's kernel");
     }
     nk_f64_t unused = 0;
-    stats.expect(nk_dot_f32_best(a.raw_values_data(), b.raw_values_data(), n, &unused, nk_cap_cuda_k, nullptr) ==
-                     nk_missing_kernel_k,
-                 "a GPU mask found a kernel");
+    stats.expect_true(nk_dot_f32_best(a.raw_values_data(), b.raw_values_data(), n, &unused, nk_cap_cuda_k, nullptr) ==
+                          nk_missing_kernel_k,
+                      "a GPU mask found a kernel");
     return stats;
 }
 
 /** @c nk_dots_pack_bf16_best and @c nk_dots_packed_bf16_best over each runnable capability alone
  *  pack and multiply as its own kernels do, and a GPU mask finds none in a binary without one. */
-static error_stats_t test_best_dots_packed_bf16(settings_t const &settings) {
+static error_stats_t test_best_dots_packed_bf16() {
     struct capability_kernels_t {
         nk_capability_t capability;
         bf16_t::dots_pack_size_kernel_t pack_size;
@@ -214,45 +173,46 @@ static error_stats_t test_best_dots_packed_bf16(settings_t const &settings) {
 #endif // NUMKONG_TARGET_POWERMMA
     };
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(settings.seed.value);
+    split_mix_generator_t generator(case_stream_key());
     std::size_t const rows = 17, columns = 33, depth = 70, row_bytes = depth * sizeof(bf16_t);
     std::size_t const c_stride = columns * sizeof(nk_f32_t);
     auto a = make_vector<bf16_t>(rows * depth), b = make_vector<bf16_t>(columns * depth);
     auto expected = make_vector<f32_t>(rows * columns), dispatched = make_vector<f32_t>(rows * columns);
-    fill_random(settings, generator, a), fill_random(settings, generator, b);
+    fill_random(generator, a), fill_random(generator, b);
     for (auto const &[capability, pack_size, pack, packed] : capabilities) {
         if (!(capability & runnable_capabilities())) continue;
         nk_size_t expected_bytes = 0, dispatched_bytes = 0;
-        stats.expect(pack_size(columns, depth, &expected_bytes));
-        stats.expect(nk_dots_pack_size_bf16_best(columns, depth, capability, &dispatched_bytes));
-        stats.expect(dispatched_bytes == expected_bytes, "the dispatch point sized another capability's pack");
+        stats.expect_status(pack_size(columns, depth, &expected_bytes));
+        stats.expect_status(nk_dots_pack_size_bf16_best(columns, depth, capability, &dispatched_bytes));
+        stats.expect_true(dispatched_bytes == expected_bytes, "the dispatch point sized another capability's pack");
         auto expected_pack = make_vector<std::byte>(expected_bytes),
              dispatched_pack = make_vector<std::byte>(expected_bytes);
-        stats.expect(
+        stats.expect_status(
             pack(b.raw_values_data(), columns, depth, row_bytes, expected_pack.raw_values_data(), 0, columns, nullptr));
-        stats.expect(nk_dots_pack_bf16_best(b.raw_values_data(), columns, depth, row_bytes,
-                                            dispatched_pack.raw_values_data(), 0, columns, capability, nullptr));
-        stats.expect(packed(a.raw_values_data(), expected_pack.raw_values_data(), expected.raw_values_data(), rows,
-                            columns, depth, row_bytes, c_stride, nullptr, 0, nullptr));
-        stats.expect(nk_dots_packed_bf16_best(a.raw_values_data(), dispatched_pack.raw_values_data(),
-                                              dispatched.raw_values_data(), rows, columns, depth, row_bytes, c_stride,
-                                              nullptr, 0, capability, nullptr));
-        stats.expect(std::memcmp(expected.raw_values_data(), dispatched.raw_values_data(), expected.size_bytes()) == 0,
-                     "the dispatch point ran another capability's kernel");
+        stats.expect_status(nk_dots_pack_bf16_best(b.raw_values_data(), columns, depth, row_bytes,
+                                                   dispatched_pack.raw_values_data(), 0, columns, capability, nullptr));
+        stats.expect_status(packed(a.raw_values_data(), expected_pack.raw_values_data(), expected.raw_values_data(),
+                                   rows, columns, depth, row_bytes, c_stride, nullptr, 0, nullptr));
+        stats.expect_status(nk_dots_packed_bf16_best(a.raw_values_data(), dispatched_pack.raw_values_data(),
+                                                     dispatched.raw_values_data(), rows, columns, depth, row_bytes,
+                                                     c_stride, nullptr, 0, capability, nullptr));
+        stats.expect_true(
+            std::memcmp(expected.raw_values_data(), dispatched.raw_values_data(), expected.size_bytes()) == 0,
+            "the dispatch point ran another capability's kernel");
     }
     nk_kernel_punned_t cuda_kernel = nullptr;
     nk_capability_t cuda_capability = 0;
     if (nk_find_kernel_punned(nk_kernel_dots_packed_k, nk_bf16_k, nk_cap_cuda_k, &cuda_kernel, &cuda_capability) !=
         nk_success_k)
-        stats.expect(nk_dots_packed_bf16_best(a.raw_values_data(), b.raw_values_data(), expected.raw_values_data(),
-                                              rows, columns, depth, row_bytes, c_stride, nullptr, 0, nk_cap_cuda_k,
-                                              nullptr) == nk_missing_kernel_k,
-                     "a GPU mask found a kernel in a binary without one");
+        stats.expect_true(nk_dots_packed_bf16_best(a.raw_values_data(), b.raw_values_data(), expected.raw_values_data(),
+                                                   rows, columns, depth, row_bytes, c_stride, nullptr, 0, nk_cap_cuda_k,
+                                                   nullptr) == nk_missing_kernel_k,
+                          "a GPU mask found a kernel in a binary without one");
     return stats;
 }
 
 /** @c nk_reduce_moments_f32_best over each runnable capability alone runs its own kernel. */
-static error_stats_t test_best_reduce_moments_f32(settings_t const &settings) {
+static error_stats_t test_best_reduce_moments_f32() {
     capability_kernel<f32_t::reduce_moments_kernel_t> const capabilities[] = {
         {nk_cap_serial_k, nk_reduce_moments_f32_serial},
 #if NUMKONG_TARGET_NEON
@@ -272,24 +232,24 @@ static error_stats_t test_best_reduce_moments_f32(settings_t const &settings) {
 #endif // NUMKONG_TARGET_V128RELAXED
     };
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(settings.seed.value);
-    std::size_t const n = settings.dense_dimensions;
+    split_mix_generator_t generator(case_stream_key());
+    std::size_t const n = test_run.settings.dense_dimensions;
     auto data = make_vector<f32_t>(n);
-    fill_random(settings, generator, data);
+    fill_random(generator, data);
     for (auto const &[capability, kernel] : capabilities) {
         if (!(capability & runnable_capabilities())) continue;
         nk_f64_t expected[2] = {0, 0}, dispatched[2] = {0, 0};
-        stats.expect(kernel(data.raw_values_data(), n, sizeof(nk_f32_t), &expected[0], &expected[1], nullptr));
-        stats.expect(nk_reduce_moments_f32_best(data.raw_values_data(), n, sizeof(nk_f32_t), &dispatched[0],
-                                                &dispatched[1], capability, nullptr));
-        stats.expect(dispatched[0] == expected[0] && dispatched[1] == expected[1],
-                     "the dispatch point ran another capability's kernel");
+        stats.expect_status(kernel(data.raw_values_data(), n, sizeof(nk_f32_t), &expected[0], &expected[1], nullptr));
+        stats.expect_status(nk_reduce_moments_f32_best(data.raw_values_data(), n, sizeof(nk_f32_t), &dispatched[0],
+                                                       &dispatched[1], capability, nullptr));
+        stats.expect_true(dispatched[0] == expected[0] && dispatched[1] == expected[1],
+                          "the dispatch point ran another capability's kernel");
     }
     return stats;
 }
 
 /** @c nk_cast_best over each runnable capability alone runs that capability's kernel. */
-static error_stats_t test_best_cast(settings_t const &settings) {
+static error_stats_t test_best_cast() {
     using cast_kernel_t = nk_status_t (*)(void const *, nk_dtype_t, void *, nk_dtype_t, nk_size_t, nk_stream_t);
     capability_kernel<cast_kernel_t> const capabilities[] = {
         {nk_cap_serial_k, nk_cast_serial},
@@ -319,18 +279,20 @@ static error_stats_t test_best_cast(settings_t const &settings) {
 #endif // NUMKONG_TARGET_POWERVSX
     };
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(settings.seed.value);
-    std::size_t const n = settings.dense_dimensions;
+    split_mix_generator_t generator(case_stream_key());
+    std::size_t const n = test_run.settings.dense_dimensions;
     auto source = make_vector<f32_t>(n);
     auto expected = make_vector<f16_t>(n), dispatched = make_vector<f16_t>(n);
-    fill_random(settings, generator, source);
+    fill_random(generator, source);
     for (auto const &[capability, kernel] : capabilities) {
         if (!(capability & runnable_capabilities())) continue;
-        stats.expect(kernel(source.raw_values_data(), nk_f32_k, expected.raw_values_data(), nk_f16_k, n, nullptr));
-        stats.expect(nk_cast_best(source.raw_values_data(), nk_f32_k, dispatched.raw_values_data(), nk_f16_k, n,
-                                  capability, nullptr));
-        stats.expect(std::memcmp(expected.raw_values_data(), dispatched.raw_values_data(), expected.size_bytes()) == 0,
-                     "the dispatch point ran another capability's kernel");
+        stats.expect_status(
+            kernel(source.raw_values_data(), nk_f32_k, expected.raw_values_data(), nk_f16_k, n, nullptr));
+        stats.expect_status(nk_cast_best(source.raw_values_data(), nk_f32_k, dispatched.raw_values_data(), nk_f16_k, n,
+                                         capability, nullptr));
+        stats.expect_true(
+            std::memcmp(expected.raw_values_data(), dispatched.raw_values_data(), expected.size_bytes()) == 0,
+            "the dispatch point ran another capability's kernel");
     }
     return stats;
 }
@@ -339,7 +301,7 @@ static error_stats_t test_best_cast(settings_t const &settings) {
 
 /** Checks square roots and reciprocals on each runnable backend and their dispatch points. */
 template <typename scalar_type_>
-static error_stats_t test_best_sqrt(settings_t const &) {
+static error_stats_t test_best_sqrt() {
     auto select = [](auto f32, auto f64) {
         if constexpr (std::is_same_v<scalar_type_, nk_f32_t>) return f32;
         else return f64;
@@ -388,20 +350,22 @@ static error_stats_t test_best_sqrt(settings_t const &) {
         auto const rsqrt_dispatch = NUMKONG_HEADER_ONLY ? rsqrt_serial : rsqrt;
         for (scalar_type_ input : inputs) {
             scalar_type_ const expected = std::sqrt(input), root = sqrt(input);
-            stats.expect(root == expected || std::abs(root / expected - 1) <= tolerance,
-                         "square root differs from the reference");
-            stats.expect(sqrt_best(input, capability) == sqrt_dispatch(input),
-                         "square-root dispatch ran another capability's function");
+            stats.expect_true(root == expected || std::abs(root / expected - 1) <= tolerance,
+                              "square root differs from the reference");
+            stats.expect_true(sqrt_best(input, capability) == sqrt_dispatch(input),
+                              "square-root dispatch ran another capability's function");
             if (input == 0) continue;
             scalar_type_ const inverse_expected = 1 / expected, inverse_root = rsqrt(input);
-            stats.expect(inverse_root == inverse_expected || std::abs(inverse_root / inverse_expected - 1) <= tolerance,
-                         "reciprocal square root differs from the reference");
-            stats.expect(rsqrt_best(input, capability) == rsqrt_dispatch(input),
-                         "reciprocal-square-root dispatch ran another capability's function");
+            stats.expect_true(
+                inverse_root == inverse_expected || std::abs(inverse_root / inverse_expected - 1) <= tolerance,
+                "reciprocal square root differs from the reference");
+            stats.expect_true(rsqrt_best(input, capability) == rsqrt_dispatch(input),
+                              "reciprocal-square-root dispatch ran another capability's function");
         }
     }
-    stats.expect(sqrt_best(2, nk_cap_cuda_k) == sqrt_serial(2), "a GPU mask lost the serial square root");
-    stats.expect(rsqrt_best(2, nk_cap_cuda_k) == rsqrt_serial(2), "a GPU mask lost the serial reciprocal square root");
+    stats.expect_true(sqrt_best(2, nk_cap_cuda_k) == sqrt_serial(2), "a GPU mask lost the serial square root");
+    stats.expect_true(rsqrt_best(2, nk_cap_cuda_k) == rsqrt_serial(2),
+                      "a GPU mask lost the serial reciprocal square root");
     return stats;
 }
 
@@ -409,7 +373,7 @@ static error_stats_t test_best_sqrt(settings_t const &) {
 
 /** For every kind and dtype, a mask of the runnable capabilities up to each one finds a kernel of
  *  that capability or a lower one, or reports none with null outputs. */
-static error_stats_t test_find_kernel(settings_t const &) {
+static error_stats_t test_find_kernel() {
     nk_kernel_kind_t const kinds[] = {
         nk_kernel_dot_k,
         nk_kernel_vdot_k,
@@ -512,10 +476,10 @@ static error_stats_t test_find_kernel(settings_t const &) {
                 nk_capability_t capability = nk_cap_any_k;
                 nk_status_t const status = nk_find_kernel_punned(kind, dtype, mask, &kernel, &capability);
                 if (status != nk_success_k)
-                    stats.expect(status == nk_missing_kernel_k && !kernel && !capability,
-                                 "a missing kernel came back with outputs");
+                    stats.expect_true(status == nk_missing_kernel_k && !kernel && !capability,
+                                      "a missing kernel came back with outputs");
                 else
-                    stats.expect(
+                    stats.expect_true(
                         kernel && std::has_single_bit(capability) && (capability & mask) && capability <= highest,
                         "a found kernel reported a capability outside its mask");
             }
@@ -525,12 +489,13 @@ static error_stats_t test_find_kernel(settings_t const &) {
 #else
 
 /** The header-only finder is a stub, reporting the missing library with null outputs. */
-static error_stats_t test_find_kernel(settings_t const &) {
+static error_stats_t test_find_kernel() {
     error_stats_t stats(comparison_family_t::exact_k);
     nk_kernel_punned_t kernel = nullptr;
     nk_capability_t capability = nk_cap_any_k;
     nk_status_t const status = nk_find_kernel_punned(nk_kernel_dot_k, nk_f32_k, nk_cap_any_k, &kernel, &capability);
-    stats.expect(status == nk_missing_library_k && !kernel && !capability, "the header-only finder found a kernel");
+    stats.expect_true(status == nk_missing_library_k && !kernel && !capability,
+                      "the header-only finder found a kernel");
     return stats;
 }
 
@@ -538,34 +503,35 @@ static error_stats_t test_find_kernel(settings_t const &) {
 
 /** The CPU device answers as the C queries do, with one ordinal, and every kind refuses the ordinal
  *  past its last device. */
-static error_stats_t test_device_capabilities(settings_t const &) {
+static error_stats_t test_device_capabilities() {
     error_stats_t stats(comparison_family_t::exact_k);
     nk::device_t const cpu = nk::device_t::cpu();
     auto const detected = cpu.capabilities_detected();
     auto const enabled = cpu.capabilities_enabled();
-    stats.expect(detected && detected.value == capabilities_detected_cpu(), "the CPU detected another mask");
-    stats.expect(cpu.capabilities_compiled() == capabilities_compiled_cpu(), "the CPU compiled another mask");
-    stats.expect(enabled && enabled.value == (detected.value & cpu.capabilities_compiled()),
-                 "the CPU enabled more than it detected and compiled");
-    stats.expect(nk::default_capabilities() == (NUMKONG_HEADER_ONLY ? 0 : enabled.value),
-                 "the wrappers' default mask is not the CPU's enabled one");
-    stats.expect(nk::succeeded(cpu.configure_thread(enabled.value)), "the CPU refused its own mask");
+    stats.expect_true(detected && detected.value == capabilities_detected_cpu(), "the CPU detected another mask");
+    stats.expect_true(cpu.capabilities_compiled() == capabilities_compiled_cpu(), "the CPU compiled another mask");
+    stats.expect_true(enabled && enabled.value == (detected.value & cpu.capabilities_compiled()),
+                      "the CPU enabled more than it detected and compiled");
+    stats.expect_true(nk::default_capabilities() == (NUMKONG_HEADER_ONLY ? 0 : enabled.value),
+                      "the wrappers' default mask is not the CPU's enabled one");
+    stats.expect_true(nk::succeeded(cpu.configure_thread(enabled.value)), "the CPU refused its own mask");
     for (nk::device_kind_t kind :
          {nk::device_kind_t::cpu_k, nk::device_kind_t::cuda_k, nk::device_kind_t::rocm_k, nk::device_kind_t::metal_k}) {
         auto const devices = nk::device_t::count(kind);
-        stats.expect(kind != nk::device_kind_t::cpu_k || (devices && devices.value == 1), "the CPU is not one");
+        stats.expect_true(kind != nk::device_kind_t::cpu_k || (devices && devices.value == 1), "the CPU is not one");
         auto const past = nk::device_t::make(kind, devices.value);
-        stats.expect(past.status == nk::status_t::missing_gpu_k, "a device past the last one was made");
+        stats.expect_true(past.status == nk::status_t::missing_gpu_k, "a device past the last one was made");
         if (kind == nk::device_kind_t::cpu_k || !devices) continue;
         auto const gpu = nk::device_t::make(kind, 0);
-        stats.expect(gpu && !(gpu.value.capabilities_compiled() & nk_cap_cpus_k), "a GPU compiled a CPU capability");
-        stats.expect(gpu.value.configure_thread(nk_cap_any_k) == nk::status_t::missing_kernel_k,
-                     "a GPU configured a CPU thread");
+        stats.expect_true(gpu && !(gpu.value.capabilities_compiled() & nk_cap_cpus_k),
+                          "a GPU compiled a CPU capability");
+        stats.expect_true(gpu.value.configure_thread(nk_cap_any_k) == nk::status_t::missing_kernel_k,
+                          "a GPU configured a CPU thread");
     }
     return stats;
 }
 
-static error_stats_t test_gpu_capabilities(settings_t const &, nk::device_t device) {
+static error_stats_t test_gpu_capabilities(nk::device_t device) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto const detected = device.capabilities_detected();
     auto const enabled = device.capabilities_enabled();
@@ -573,46 +539,52 @@ static error_stats_t test_gpu_capabilities(settings_t const &, nk::device_t devi
     nk_capability_t const baseline = device.kind() == nk::device_kind_t::cuda_k   ? nk_cap_cuda_k
                                      : device.kind() == nk::device_kind_t::rocm_k ? nk_cap_rocm_k
                                                                                   : nk_cap_metal_k;
-    stats.expect(detected && (detected.value & baseline), "the device baseline is missing");
-    stats.expect(!(compiled & nk_cap_cpus_k), "a GPU compiled a CPU capability");
-    stats.expect(enabled && enabled.value == (detected.value & compiled),
-                 "the device enabled more than it detected and compiled");
-    stats.expect(!(detected.value & nk_cap_apple10_k) || (detected.value & nk_cap_apple9_k),
-                 "Apple10 is reported without Apple9");
+    stats.expect_true(detected && (detected.value & baseline), "the device baseline is missing");
+    stats.expect_true(!(compiled & nk_cap_cpus_k), "a GPU compiled a CPU capability");
+    stats.expect_true(enabled && enabled.value == (detected.value & compiled),
+                      "the device enabled more than it detected and compiled");
+    stats.expect_true(!(detected.value & nk_cap_apple10_k) || (detected.value & nk_cap_apple9_k),
+                      "Apple10 is reported without Apple9");
     return stats;
 }
 
-static void test_dispatch_points(error_stats_section_t &check) {
-    check.section("Dispatch Points", nk_cap_serial_k);
+static void run_dispatch_cases() {
 #if NUMKONG_HEADER_ONLY
-    check("best_dot_f32", [](settings_t const &settings) {
-        return test_missing_library<nk_dot_f32_best>(settings, nullptr, nullptr, 0, nullptr, nullptr);
-    });
-    check("best_dots_packed_bf16", [](settings_t const &settings) {
-        return test_missing_library<nk_dots_packed_bf16_best>(settings, nullptr, nullptr, nullptr, 0, 0, 0, 0, 0,
-                                                              nullptr, 0, nullptr);
-    });
-    check("best_reduce_moments_f32", [](settings_t const &settings) {
-        return test_missing_library<nk_reduce_moments_f32_best>(settings, nullptr, 0, 0, nullptr, nullptr, nullptr);
-    });
-    check("best_cast", [](settings_t const &settings) {
-        return test_missing_library<nk_cast_best>(settings, nullptr, nk_f32_k, nullptr, nk_f16_k, 0, nullptr);
-    });
+    run_kernel_case(
+        "test_missing_library<nk_dot_f32_best>",
+        [] { return test_missing_library<nk_dot_f32_best>(nullptr, nullptr, 0, nullptr, nullptr); }, nk_cap_serial_k);
+    run_kernel_case(
+        "test_missing_library<nk_dots_packed_bf16_best>",
+        [] {
+            return test_missing_library<nk_dots_packed_bf16_best>(nullptr, nullptr, nullptr, 0, 0, 0, 0, 0, nullptr, 0,
+                                                                  nullptr);
+        },
+        nk_cap_serial_k);
+    run_kernel_case(
+        "test_missing_library<nk_reduce_moments_f32_best>",
+        [] { return test_missing_library<nk_reduce_moments_f32_best>(nullptr, 0, 0, nullptr, nullptr, nullptr); },
+        nk_cap_serial_k);
+    run_kernel_case(
+        "test_missing_library<nk_cast_best>",
+        [] { return test_missing_library<nk_cast_best>(nullptr, nk_f32_k, nullptr, nk_f16_k, 0, nullptr); },
+        nk_cap_serial_k);
 #else  // !NUMKONG_HEADER_ONLY
-    check("best_dot_f32", test_best_dot_f32);
-    check("best_dots_packed_bf16", test_best_dots_packed_bf16);
-    check("best_reduce_moments_f32", test_best_reduce_moments_f32);
-    check("best_cast", test_best_cast);
+    run_kernel_case("test_best_dot_f32", test_best_dot_f32, nk_cap_serial_k);
+    run_kernel_case("test_best_dots_packed_bf16", test_best_dots_packed_bf16, nk_cap_serial_k);
+    run_kernel_case("test_best_reduce_moments_f32", test_best_reduce_moments_f32, nk_cap_serial_k);
+    run_kernel_case("test_best_cast", test_best_cast, nk_cap_serial_k);
 #endif // NUMKONG_HEADER_ONLY
-    check("best_f32_sqrt", test_best_sqrt<nk_f32_t>);
-    check("best_f64_sqrt", test_best_sqrt<nk_f64_t>);
-    check("find_kernel", test_find_kernel);
-    check("device_capabilities", test_device_capabilities);
+    run_kernel_case("test_best_sqrt<nk_f32_t>", test_best_sqrt<nk_f32_t>, nk_cap_serial_k);
+    run_kernel_case("test_best_sqrt<nk_f64_t>", test_best_sqrt<nk_f64_t>, nk_cap_serial_k);
+    run_kernel_case("test_find_kernel", test_find_kernel, nk_cap_serial_k);
+    run_kernel_case("test_device_capabilities", test_device_capabilities, nk_cap_serial_k);
 }
 
 #pragma endregion Dispatch Points
 
-static std::vector<nk::device_t> select_devices(std::optional<std::vector<device_selection_t>> const &requested) {
+/** The devices @c NUMKONG_DEVICES names, or the first of each kind found when it is unset. */
+static std::vector<nk::device_t> selected_devices() {
+    std::optional<std::vector<device_selection_t>> const &requested = test_run.settings.devices;
     std::vector<nk::device_t> devices;
     if constexpr (NUMKONG_HEADER_ONLY) {
         if (requested) {
@@ -640,7 +612,8 @@ static std::vector<nk::device_t> select_devices(std::optional<std::vector<device
     return devices;
 }
 
-static nk::status_t test_device(error_stats_section_t &check, nk::device_t device) {
+/** Runs every case of @p device , over the capabilities it enables. */
+static nk::status_t run_device_cases(nk::device_t device) {
     if constexpr (NUMKONG_HEADER_ONLY) return nk::status_t::missing_library_k;
     else {
         auto const capabilities = device.capabilities_enabled();
@@ -648,30 +621,30 @@ static nk::status_t test_device(error_stats_section_t &check, nk::device_t devic
         char names[NUMKONG_CAPABILITIES_NAME_CAPACITY];
         nk_capabilities_name(capabilities.value, names, sizeof(names));
         fmt::println("- {}:{}: {}", device_name(device.kind()), device.ordinal(), names);
-        check.settings.device = device;
-        check.available = capabilities.value;
-        check.section("GPU capabilities", nk_cap_cuda_k | nk_cap_rocm_k | nk_cap_metal_k);
-        check("gpu_capabilities", test_gpu_capabilities, device);
+        test_run.settings.device = device;
+        test_run.settings.capabilities = capabilities.value;
+        run_kernel_case("test_gpu_capabilities(device)", test_gpu_capabilities,
+                        nk_cap_cuda_k | nk_cap_rocm_k | nk_cap_metal_k, device);
         switch (device.kind()) {
         case nk::device_kind_t::cuda_k:
-            test_tensor_cuda(check);
-            test_cast_cuda(check);
-            test_each_cuda(check);
-            test_reduce_cuda(check);
-            test_shapes_cuda(check);
-            test_cross_cuda(check);
+            run_tensor_cuda_cases();
+            run_cast_cuda_cases();
+            run_each_cuda_cases();
+            run_reduce_cuda_cases();
+            run_shapes_cuda_cases();
+            run_cross_cuda_cases();
             break;
         case nk::device_kind_t::rocm_k:
-            test_cast_rocm(check);
-            test_each_rocm(check);
-            test_shapes_rocm(check);
-            test_cross_rocm(check);
+            run_cast_rocm_cases();
+            run_each_rocm_cases();
+            run_shapes_rocm_cases();
+            run_cross_rocm_cases();
             break;
         case nk::device_kind_t::metal_k:
-            test_cast_metal(check);
-            test_each_metal(check);
-            test_shapes_metal(check);
-            test_cross_metal(check);
+            run_cast_metal_cases();
+            run_each_metal_cases();
+            run_shapes_metal_cases();
+            run_cross_metal_cases();
             break;
         default: return nk::status_t::missing_gpu_k;
         }
@@ -679,75 +652,53 @@ static nk::status_t test_device(error_stats_section_t &check, nk::device_t devic
     }
 }
 
-int main(int, char **argv) {
-    environment_t const env {read_settings(argv[0]), probe_machine()};
-    auto const devices = select_devices(env.settings.devices);
-
-#if NUMKONG_HAS_SIGNAL_
-    std::signal(SIGILL, crash_handler);
-    std::signal(SIGSEGV, crash_handler);
-#if defined(SIGBUS)
-    std::signal(SIGBUS, crash_handler);
-#endif
-    std::signal(SIGFPE, crash_handler);
-    std::signal(SIGABRT, crash_handler);
-#endif // NUMKONG_HAS_SIGNAL_
-
-    // Breadcrumb for crash_handler: if SIGILL fires here, the log shows which call faulted.
-    nk_test_current_kernel_ = "nk_configure_thread_cpu()";
-    [[maybe_unused]] nk_status_t const configured = nk_configure_thread_cpu(env.machine.detected); // Also enables AMX
-    nk_test_current_kernel_ = nullptr;
-
-    print(env.machine);
-    print(env.settings);
+int main(int argc, char **argv) {
+    start_test_run(argc, argv);
+    machine_t const machine = probe_machine();
+    print(test_run.settings);
     // ctest hides passing output; the blank line keeps the next binary's header out of this list
     if (char const *summary_path = std::getenv("GITHUB_STEP_SUMMARY"))
         if (std::FILE *summary = std::fopen(summary_path, "a"))
-            std::fputc('\n', summary), print(env.machine, summary), std::fclose(summary);
+            std::fputc('\n', summary), print(machine, summary), std::fclose(summary);
+    auto const devices = selected_devices();
+    [[maybe_unused]] nk_status_t const configured = nk_configure_thread_cpu(machine.detected); // Also enables AMX
 
-    error_stats_section_t check(env.settings, env.machine.detected);
-    test_vector_types(check);
-    test_tensor_ops(check);
-    test_dispatch_points(check);
+    run_vector_cases();
+    run_tensor_cases();
+    run_dispatch_cases();
 
-    test_casts(check);
+    run_cast_cases();
 
     // Core operation tests
-    test_dot(check);
-    test_spatial(check);
-    test_curved(check);
-    test_probability(check);
-    test_set(check);
-    test_each(check);
-    test_trigonometry(check);
-    test_reduce(check);
-    test_geospatial(check);
-    test_shapes(check);
-    test_sparse(check);
-    test_maxsim(check);
+    run_dot_cases();
+    run_spatial_cases();
+    run_curved_cases();
+    run_probability_cases();
+    run_set_cases();
+    run_each_cases();
+    run_trigonometry_cases();
+    run_reduce_cases();
+    run_geospatial_cases();
+    run_shapes_cases();
+    run_sparse_cases();
+    run_maxsim_cases();
 
-    // Cross/batch tests (ISA-family files for parallel compilation); each prints its own section
-    test_cross_serial(check);
-    test_cross_runtime(check);
-    test_cross_x8664(check);
-    test_cross_x8664amx(check);
-    test_cross_arm64(check);
-    test_cross_blas(check);
-    test_cross_riscv64(check);
-    test_cross_ppc64(check);
-    test_cross_loongarch64(check);
-    test_cross_wasm(check);
+    // Cross/batch tests, from ISA-family files for parallel compilation
+    run_cross_serial_cases();
+    run_cross_runtime_cases();
+    run_cross_x8664_cases();
+    run_cross_x8664amx_cases();
+    run_cross_arm64_cases();
+    run_cross_blas_cases();
+    run_cross_riscv64_cases();
+    run_cross_ppc64_cases();
+    run_cross_loongarch64_cases();
+    run_cross_wasm_cases();
 
     for (nk::device_t device : devices)
-        if (auto const status = test_device(check, device); nk::failed(status)) {
+        if (auto const status = run_device_cases(device); nk::failed(status)) {
             fmt::println(stderr, "{}:{}: {}", device_name(device.kind()), device.ordinal(), nk::status_name(status));
             return 1;
         }
-
-    if (check.failure_count > 0) {
-        fmt::println("\n{} kernel(s) failed accuracy checks.", check.failure_count);
-        return env.settings.on_failure == on_failure_t::exit_k ? 1 : 0;
-    }
-    fmt::println("\nAll tests passed.");
-    return 0;
+    return finish_test_run();
 }

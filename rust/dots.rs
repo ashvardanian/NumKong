@@ -3210,7 +3210,8 @@ mod tests {
     use super::*;
     use crate::{
         tensor::DEFAULT_ALIGNMENT,
-        types::{DIMS, FloatLike, NumberLike, TestableType, align_depth, assert_upper_triangle_eq, init_thread},
+        testing::{DIMS, TestableType, align_depth, assert_upper_triangle_eq, init_thread},
+        types::{FloatLike, NumberLike},
     };
 
     fn check_dots_packed<Scalar: TestableType + Dots>()
@@ -3366,7 +3367,7 @@ mod tests {
     }
 
     #[test]
-    fn dots_packed() {
+    fn dots_packed_of_ones_equal_the_depth_across_types() {
         check_dots_packed::<f32>();
         check_dots_packed::<f64>();
         check_dots_packed::<f16>();
@@ -3383,7 +3384,7 @@ mod tests {
     }
 
     #[test]
-    fn dots_packed_transposed() {
+    fn dots_packed_from_a_transposed_pack_equal_twice_the_depth() {
         check_dots_packed_transposed::<f32>();
         check_dots_packed_transposed::<f64>();
         check_dots_packed_transposed::<f16>();
@@ -3466,7 +3467,7 @@ mod tests {
     #[test]
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
-    fn dots_packed_parallel() {
+    fn dots_packed_parallel_matches_serial() {
         check_dots_packed_parallel::<f32>();
         check_dots_packed_parallel::<bf16>();
     }
@@ -3474,12 +3475,12 @@ mod tests {
     #[test]
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
-    fn dots_symmetric_parallel() {
+    fn dots_symmetric_parallel_matches_serial() {
         check_dots_symmetric_parallel::<f32>();
     }
 
     #[test]
-    fn dots_symmetric() {
+    fn dots_symmetric_of_ones_equal_the_depth_across_types() {
         check_dots_symmetric::<f32>();
         check_dots_symmetric::<f64>();
         check_dots_symmetric::<f16>();
@@ -3506,7 +3507,7 @@ mod tests {
     }
 
     #[test]
-    fn packed_size_matches_and_from_bytes_roundtrips() {
+    fn packed_size_matches_and_from_bytes_round_trips() {
         init_thread();
         let (columns, depth) = (4usize, 5usize);
         let b_data: Vec<f32> = (0..columns * depth).map(|i| i as f32 * 0.25 + 0.3).collect();

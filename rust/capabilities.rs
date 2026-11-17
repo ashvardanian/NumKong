@@ -885,8 +885,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn names_match_the_c_table() {
-        let names: [&str; CAPABILITIES.len()] = [
+    fn capability_names_match_the_c_table() {
+        let names = [
             "serial",
             "neon",
             "neonhalf",
@@ -938,8 +938,9 @@ mod tests {
             "apple9",
             "apple10",
         ];
+        assert_eq!(Capabilities::ANY.iter().count(), names.len());
         let mut previous = 0;
-        for (capability, name) in CAPABILITIES.into_iter().zip(names) {
+        for (capability, name) in Capabilities::ANY.iter().zip(names) {
             assert!(capability as u64 > previous && (capability as u64).is_power_of_two());
             assert_eq!(capability.to_string(), name);
             previous = capability as u64;

@@ -13,7 +13,7 @@
 
 namespace ashvardanian::numkong::bench {
 
-void bench_cross_rocm(environment_t const &env, rocm_backend_t const &backend, nk_capability_t enabled) {
+void bench_cross_rocm(bench_settings_t const &env, rocm_backend_t const &backend, nk_capability_t enabled) {
     if (!(enabled & nk_cap_rocm_k)) return;
     run_dots_packed<nk_f64_k>(env, "dots_packed_f64_rocm", nk_dots_pack_size_f64_rocm, nk_dots_pack_f64_rocm,
                               nk_dots_packed_f64_rocm, backend);
@@ -73,7 +73,7 @@ void bench_cross_rocm(environment_t const &env, rocm_backend_t const &backend, n
         with_workspace(nk_gromovwassersteins_packed_f32_rocm, nk_gromovwassersteins_workspace_size_f32_rocm));
 }
 
-void bench_cross_cdna3([[maybe_unused]] environment_t const &env, [[maybe_unused]] rocm_backend_t const &backend,
+void bench_cross_cdna3([[maybe_unused]] bench_settings_t const &env, [[maybe_unused]] rocm_backend_t const &backend,
                        [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_CDNA3
     if (!(enabled & nk_cap_cdna3_k)) return;
@@ -193,7 +193,7 @@ void bench_cross_cdna3([[maybe_unused]] environment_t const &env, [[maybe_unused
 #endif // NUMKONG_TARGET_CDNA3
 }
 
-void bench_cross_cdna4([[maybe_unused]] environment_t const &env, [[maybe_unused]] rocm_backend_t const &backend,
+void bench_cross_cdna4([[maybe_unused]] bench_settings_t const &env, [[maybe_unused]] rocm_backend_t const &backend,
                        [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_CDNA4
     if (!(enabled & nk_cap_cdna4_k)) return;
@@ -314,7 +314,7 @@ void bench_cross_cdna4([[maybe_unused]] environment_t const &env, [[maybe_unused
                                        nk_attention_packed_gradients_bf16_cdna4, backend);
 #endif // NUMKONG_TARGET_CDNA4
 }
-void bench_cross_cdna5([[maybe_unused]] environment_t const &env, [[maybe_unused]] rocm_backend_t const &backend,
+void bench_cross_cdna5([[maybe_unused]] bench_settings_t const &env, [[maybe_unused]] rocm_backend_t const &backend,
                        [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_CDNA5
     if (!(enabled & nk_cap_cdna5_k)) return;
@@ -439,7 +439,7 @@ void bench_cross_cdna5([[maybe_unused]] environment_t const &env, [[maybe_unused
 #endif // NUMKONG_ARCH_ROCM_
 
 namespace ashvardanian::numkong::bench {
-nk::status_t bench_cross_rocm([[maybe_unused]] environment_t const &env,
+nk::status_t bench_cross_rocm([[maybe_unused]] bench_settings_t const &env,
                               [[maybe_unused]] device_backend_t const &runtime) {
 #if NUMKONG_ARCH_ROCM_
     device_scope<hipGetDevice, hipSetDevice> const selected(static_cast<int>(runtime.device.ordinal()));

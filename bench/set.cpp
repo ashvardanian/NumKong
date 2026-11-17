@@ -11,7 +11,7 @@
 
 namespace ashvardanian::numkong::bench {
 
-void bench_set(environment_t const &env) {
+void bench_set(bench_settings_t const &env) {
     constexpr nk_dtype_t u1_k = nk_u1_k;
     constexpr nk_dtype_t u8_k = nk_u8_k;
     constexpr nk_dtype_t u16_k = nk_u16_k;

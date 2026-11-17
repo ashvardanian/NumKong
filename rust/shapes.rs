@@ -2128,7 +2128,8 @@ mod tests {
     use super::*;
     use crate::{
         capabilities::{Capability, Status, Stream, UnifiedAllocator},
-        types::{FloatLike, NumberLike, assert_close},
+        testing::assert_close,
+        types::{FloatLike, NumberLike},
     };
 
     /// An irregular cloud, so its principal axes and their order are unambiguous.
@@ -2502,7 +2503,7 @@ mod tests {
 
     /// Without a device, a GPU's stream, memory and kernels all report it, and the verbs compile.
     #[test]
-    fn shapes_verbs_without_a_gpu() {
+    fn shapes_verbs_report_a_missing_gpu() {
         for (count_devices, vendor) in [
             (Capabilities::count_devices_cuda as fn() -> Result<usize, Error>, Capability::Cuda),
             (Capabilities::count_devices_rocm, Capability::Rocm),

@@ -36,59 +36,20 @@ ctest --test-dir build_cuda -R '^numkong_cpu(_shared)?_test$' --output-on-failur
 ### Running
 
 ```sh
-NUMKONG_FILTER=dot build_release/numkong_cpu_test             # run only tests matching "dot"
+NUMKONG_FILTER=dot build_release/numkong_cpu_test             # run only the cases whose labels match "dot"
 NUMKONG_FILTER="dot|spatial" build_release/numkong_cpu_test   # regex filter
 NUMKONG_ASSERT=0 build_release/numkong_cpu_test               # exit 0 even when a kernel fails its accuracy check
-NUMKONG_TIME_LIMIT=5s build_release/numkong_cpu_test          # 5 seconds per kernel
+build_release/numkong_cpu_test --time-limit 5s                # 5 seconds per case, as a flag
 ```
 
-The binary takes no arguments; the environment configures it.
+Each variable has a `--name` flag of the same name, which overrides it.
 The linked runner uses device zero of each available compiled GPU backend by default.
 An explicit device list selects all listed devices and rejects unavailable backends or ordinals.
 
 ### Environment Variables
 
-| Variable                      |     Default | Description                                                               |
-| :---------------------------- | ----------: | :------------------------------------------------------------------------ |
-| `NUMKONG_DEVICES`             |        auto | Comma-separated vendor-local devices, for example `cuda:0,rocm:1`         |
-| `NUMKONG_FILTER`              |       unset | ECMAScript regex searched in kernel names; an invalid one is a substring  |
-| `NUMKONG_SEED`                |        `42` | RNG seed, or `random` to draw one; the `- Seed:` line prints it           |
-| `NUMKONG_TIME_LIMIT`          |        `1s` | Time limit per kernel, `<int>ms` or `<int>s`; zero or a bare number exits |
-| `NUMKONG_DIMS`                |      `1536` | Vector dimension for dot/spatial tests                                    |
-| `NUMKONG_CURVED_DIMS`         |        `64` | Vector dimension for curved tests                                         |
-| `NUMKONG_SPARSE_DIMS`         |       `256` | Vector dimension for sparse tests                                         |
-| `NUMKONG_SHAPE_POINTS`        |        `32` | Points per cloud for shape tests                                          |
-| `NUMKONG_DIMS_HEIGHT`         |      `1024` | GEMM M dimension                                                          |
-| `NUMKONG_DIMS_WIDTH`          |       `128` | GEMM N dimension                                                          |
-| `NUMKONG_DIMS_DEPTH`          |      `1536` | GEMM K dimension                                                          |
-| `NUMKONG_MAX_COORD_ANGLE`     |       `180` | Maximum angle in degrees for geospatial tests                             |
-| `NUMKONG_IN_QEMU`             |         `0` | Shrink shapes for emulation: `0`, `1`, `true` or `false`                  |
-| `NUMKONG_ASSERT`              |         `1` | Exit 1 when any kernel fails its check; `0` only reports it               |
-| `NUMKONG_ULP_THRESHOLD_F32`   |         `4` | Max allowed ULP distance for f32                                          |
-| `NUMKONG_ULP_THRESHOLD_F16`   |        `32` | Max allowed ULP distance for f16                                          |
-| `NUMKONG_ULP_THRESHOLD_BF16`  |       `256` | Max allowed ULP distance for bf16                                         |
-| `NUMKONG_SCALE_THRESHOLD`     |      `0.02` | Max error over the largest reference, for attention                       |
-| `NUMKONG_RANDOM_DISTRIBUTION` | `lognormal` | Distribution: `uniform`, `lognormal`, `cauchy`                            |
-
-The dimension and GEMM variables also take the comma-separated lists the Python suite reads, and the C++ suite runs the first entry.
-A first entry that is not a positive count exits 1, naming the variable, as does any value that does not parse.
-A filter that matches no kernel runs nothing and passes.
-
-Every kernel's row lands in the table whether it passes or not, and the summary counts the failures.
-The run exits 1 on a failure unless `NUMKONG_ASSERT=0`.
-A failing row is followed by a line that replays that kernel alone, with the seed of this run:
-
-```
-rerun: NUMKONG_SEED=42 NUMKONG_FILTER='^dot_f32_serial$'
-```
-
-A kernel that crashes prints the signal it died of and its name to stderr, and the run stops.
-Put that name into the template the run opens with:
-
-```
-- Seed: 42
-- Rerun one test: NUMKONG_SEED=42 NUMKONG_FILTER='^<name>$' build_release/numkong_cpu_test
-```
+[CONTRIBUTING.md](../CONTRIBUTING.md#environment) lists every variable the suites read, with its flag, default and meaning.
+[Running](../CONTRIBUTING.md#running) there shows the verdict, `rerun:` and summary lines a run prints, its exit codes, and what a crash prints.
 
 ### Precision Families
 
@@ -214,7 +175,7 @@ For up-to-date engine support, see [WebAssembly Roadmap](https://webassembly.org
 ### Cross-Compilation
 
 Tests run under QEMU through `CMAKE_CROSSCOMPILING_EMULATOR`, so `ctest --test-dir <build>` runs a cross build like a native one.
-Set `NUMKONG_IN_QEMU=1` to shrink test shapes under emulation, and repetitions too in Python.
+Set `NUMKONG_IN_QEMU=1` to shrink test shapes under emulation, and in Python the default `NUMKONG_SCALE` too.
 [CONTRIBUTING.md](../CONTRIBUTING.md#cross-compilation) lists the toolchain files, their emulators and prerequisites, and a recipe per target, Android's device run included.
 
 ## Rust
@@ -253,24 +214,25 @@ python -m pytest -k "dot or spatial"              # pytest's own filter still ap
 
 | Variable                  |       Default | Description                                                        |
 | :------------------------ | ------------: | :----------------------------------------------------------------- |
+| `NUMKONG_SEED`            |          `42` | Any unsigned 64-bit seed, or `random` to draw one                  |
+| `NUMKONG_SCALE`           |           `1` | Randomized tests repeat `round(10·scale)` times, `0.3` under QEMU  |
+| `NUMKONG_FILTER`          |         unset | Regex searched in test node ids; an invalid one is a substring     |
 | `NUMKONG_DIMS`            | `1,2,...,128` | Comma-separated vector dimensions, 19 sizes around powers of two   |
 | `NUMKONG_CURVED_DIMS`     |     5 sampled | Dimensions for curved-space tests, drawn from the dense ones       |
 | `NUMKONG_DIMS_HEIGHT`     |     6 sampled | GEMM M dimensions, drawn from the dense ones                       |
 | `NUMKONG_DIMS_WIDTH`      |     6 sampled | GEMM N dimensions, drawn from the dense ones                       |
 | `NUMKONG_DIMS_DEPTH`      |     6 sampled | GEMM K dimensions, drawn from the dense ones                       |
-| `NUMKONG_SEED`            |          `42` | Seed for `np.random`, or `random` to draw one                      |
-| `NUMKONG_FILTER`          |         unset | Regex searched in test node ids; an invalid one is a substring     |
-| `NUMKONG_REPETITIONS`     |          `10` | Randomized test repeat count, `3` under `NUMKONG_IN_QEMU`          |
-| `NUMKONG_IN_QEMU`         |           `0` | Shrink dimensions and repetitions: `0`, `1`, `true` or `false`     |
+| `NUMKONG_IN_QEMU`         |           `0` | Shrink dimensions and the default scale; unset or `0` is off       |
 | `NUMKONG_SPARSE_DIMS`     |         `256` | Universe size for sparse tests                                     |
 | `NUMKONG_SHAPE_POINTS`    |          `32` | Point count for shape distance tests                               |
 | `NUMKONG_MAX_COORD_ANGLE` |         `180` | Maximum angle in degrees for geospatial                            |
 | `NUMKONG_EXPECT_SIMD`     |           `1` | `0` skips the check that a SIMD-capable machine dispatches to SIMD |
 
-The pytest header prints every setting as `- Name: value`, so a `random` seed draw replays.
+The pytest header prints the seed, scale and filter as the C++ runner does, then every other setting as `- Name: value`, so a `random` seed draw replays.
 A value that does not parse stops the session with `NUMKONG_SEED="x" does not parse, expected an unsigned integer or random`.
 
-The `pytest-repeat` plugin re-runs each test `NUMKONG_REPETITIONS` times with auto-seeding — each iteration gets a unique seed derived from the base `NUMKONG_SEED`, ensuring broader input coverage without sacrificing reproducibility.
+The `pytest-repeat` plugin re-runs each randomized test `round(10·NUMKONG_SCALE)` times, and the costlier matrix and shape sweeps `round(2·NUMKONG_SCALE)` times, never fewer than once.
+Each step draws from `stream_key(NUMKONG_SEED, name, step)`, where `name` is the test and its parameters but the CPU capability, so repeats cover more inputs while every capability sees the same ones and a run stays reproducible.
 
 ### Reference Baselines
 

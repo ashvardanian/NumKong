@@ -24,9 +24,9 @@ using clearances_packed_kernel_t = nk_status_t (*)(nk_f32_t const *, void const 
 
 /** Measures 3D squares between @p rows and @p columns Earth-fixed points. */
 template <typename scalar_type_, typename result_type_, typename kernel_type_>
-void measure_sqeuclideans3d(loop_t &loop, environment_t const &env, kernel_type_ kernel, std::size_t rows,
+void measure_sqeuclideans3d(loop_t &loop, bench_settings_t const &env, kernel_type_ kernel, std::size_t rows,
                             std::size_t columns) {
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     std::uniform_real_distribution<double> coordinate(-6.4e8, 6.4e8);
     std::vector<scalar_type_> a(rows * 3), b(columns * 3);
     for (scalar_type_ &value : a) value = scalar_type_(coordinate(generator));
@@ -44,10 +44,10 @@ void measure_sqeuclideans3d(loop_t &loop, environment_t const &env, kernel_type_
 
 /** Measures a many-to-many geodesic kernel over packs of @p rows and @p columns points drawn
  *  anywhere on Earth. */
-void measure_geodesics(loop_t &loop, environment_t const &env, geodesics_pack_size_kernel_t pack_size,
+void measure_geodesics(loop_t &loop, bench_settings_t const &env, geodesics_pack_size_kernel_t pack_size,
                        geodesics_pack_kernel_t pack, geodesics_packed_kernel_t kernel, std::size_t rows,
                        std::size_t columns) {
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     std::vector<nk_f64_t> a_latitudes(rows), a_longitudes(rows), b_latitudes(columns), b_longitudes(columns);
     nk::fill_coordinates(generator, a_latitudes.data(), a_longitudes.data(), rows);
     nk::fill_coordinates(generator, b_latitudes.data(), b_longitudes.data(), columns);
@@ -70,9 +70,9 @@ void measure_geodesics(loop_t &loop, environment_t const &env, geodesics_pack_si
 
 /** Measures clearances of @p rows viewpoints to @p columns targets across a random-walk terrain of
  *  @p cells × @p cells, 30 m apart, 2 m above its ground. */
-void measure_clearances(loop_t &loop, environment_t const &env, clearances_packed_kernel_t kernel, std::size_t rows,
+void measure_clearances(loop_t &loop, bench_settings_t const &env, clearances_packed_kernel_t kernel, std::size_t rows,
                         std::size_t columns, std::size_t cells) {
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     std::normal_distribution<float> step(0.0f, 4.0f);
     std::uniform_real_distribution<float> unit(0.0f, 1.0f);
     std::vector<nk_f32_t> heights(cells * cells);
@@ -112,10 +112,10 @@ void measure_clearances(loop_t &loop, environment_t const &env, clearances_packe
 }
 
 /** Runs the three point families of one capability on the configured matrix shape. */
-void run_geospatial(environment_t const &env, std::string const &suffix, sqeuclideans3d_i32_kernel_t i32_kernel,
+void run_geospatial(bench_settings_t const &env, std::string const &suffix, sqeuclideans3d_i32_kernel_t i32_kernel,
                     sqeuclideans3d_f64_kernel_t f64_kernel, geodesics_packed_kernel_t haversines,
                     geodesics_packed_kernel_t vincentys) {
-    std::size_t const rows = env.settings.matrix_height, columns = env.settings.matrix_width;
+    std::size_t const rows = env.matrix_height, columns = env.matrix_width;
     std::string const shape = "<" + std::to_string(rows) + "x" + std::to_string(columns) + ">";
     run_benchmark(env, "sqeuclideans3d_i32_" + suffix + shape,
                   measure_sqeuclideans3d<nk_i32_t, nk_u64_t, sqeuclideans3d_i32_kernel_t>, i32_kernel, rows, columns);
@@ -127,7 +127,7 @@ void run_geospatial(environment_t const &env, std::string const &suffix, sqeucli
                   nk_vincentys_pack_f64_serial, vincentys, rows, columns);
 }
 
-void bench_geospatial(environment_t const &env) {
+void bench_geospatial(bench_settings_t const &env) {
 #if NUMKONG_TARGET_NEON
     if (section(env, "Geospatial Functions NEON", nk_cap_neon_k))
         run_geospatial(env, "neon", nk_sqeuclideans3d_i32_neon, nk_sqeuclideans3d_f64_neon,

@@ -1243,7 +1243,8 @@ impl<Scalar: Clone + ReduceMinMax, const R: usize, C: TensorRef<Scalar, R>> MinM
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{FloatLike, NumberLike, TestableType, assert_close, bf16, e2m3, e3m2, e4m3, e5m2, f16};
+    use crate::testing::{TestableType, assert_close};
+    use crate::types::{FloatLike, NumberLike, bf16, e2m3, e3m2, e4m3, e5m2, f16};
 
     // region: ReduceMoments
 
@@ -1276,7 +1277,7 @@ mod tests {
     }
 
     #[test]
-    fn moments_reduction() {
+    fn moments_sum_values_and_squares_across_types() {
         // Float types — SumOutput/SumSqOutput are FloatLike, either f32 or f64
         let input_values = &[1.0, 2.0, 3.0, 4.0, 5.0];
         check_reduce_moments::<f64>(input_values);
@@ -1351,7 +1352,7 @@ mod tests {
     }
 
     #[test]
-    fn minmax_reduction() {
+    fn minmax_finds_extremes_and_their_indices_across_types() {
         // All FloatLike types — Output is also FloatLike
         let input_values = &[3.0, 1.0, 4.0, 1.5, 5.0, 2.0];
         check_reduce_minmax::<f64>(input_values);
@@ -1375,7 +1376,7 @@ mod tests {
     }
 
     #[test]
-    fn minmax_reduction_all_nan() {
+    fn minmax_of_all_nan_inputs_is_none() {
         let nan_f64: Vec<f64> = vec![f64::NAN; 16];
         assert_eq!(f64::reduce_minmax(&nan_f64, core::mem::size_of::<f64>()), Ok(None));
 
@@ -1396,7 +1397,7 @@ mod tests {
     }
 
     #[test]
-    fn minmax_reduction_mixed_nan() {
+    fn minmax_skips_nan_between_numbers() {
         let data = vec![f64::NAN, 3.0, f64::NAN, 1.0, f64::NAN, 5.0];
         let MinMaxResult { min_value, min_index, max_value, max_index } =
             f64::reduce_minmax(&data, core::mem::size_of::<f64>()).unwrap().unwrap();
@@ -1419,7 +1420,7 @@ mod tests {
     // region: BitwiseReductionsOps across containers
 
     #[test]
-    fn bitwise_popcount_across_tensor_shapes() {
+    fn bitwise_popcount_counts_set_bits_across_tensor_shapes() {
         use crate::tensor::Tensor;
 
         // 16 bytes × 8 bits = 128 bits total. Alternating fully-set/zero bytes → popcount = 64.
@@ -1462,7 +1463,7 @@ mod tests {
     }
 
     #[test]
-    fn bitwise_reductions_on_vector_containers() {
+    fn bitwise_reductions_agree_on_vector_containers() {
         use crate::vector::{Vector, VectorSpan, VectorView};
 
         // Three set bytes — 24 bits — one zero byte → popcount = 24.
@@ -1493,7 +1494,7 @@ mod tests {
     // region: tensor-shaped MomentsOps / MinMaxOps wrappers
 
     #[test]
-    fn reductions_axis_and_strided_views() {
+    fn reductions_hold_along_axes_and_strided_views() {
         use crate::tensor::{MinMaxResult, SliceRange, Tensor};
 
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();

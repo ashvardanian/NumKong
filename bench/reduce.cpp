@@ -13,7 +13,7 @@ namespace ashvardanian::numkong::bench {
 
 /** Measures the performance of a reduce_moments kernel, sum plus sumsq. */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void measure_reduce_moments(loop_t &loop, environment_t const &env, kernel_type_ kernel, std::size_t dimensions) {
+void measure_reduce_moments(loop_t &loop, bench_settings_t const &env, kernel_type_ kernel, std::size_t dimensions) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     using output_t = typename input_t::reduce_moments_sum_t;
     using sumsq_t = typename input_t::reduce_moments_sumsq_t;
@@ -21,7 +21,7 @@ void measure_reduce_moments(loop_t &loop, environment_t const &env, kernel_type_
     std::size_t const vector_count = input_sets_count(dtype_bytes(input_dtype_, dimensions));
     auto [vectors, vectors_status] = nk::tensor<input_t>::zeros({vector_count, dimensions});
     if (nk::failed(vectors_status)) return loop.skip("vector allocation failed");
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     std::span<input_t> const values = vectors.span().values().value;
     nk::fill_uniform(generator, values.data(), values.size());
 
@@ -40,22 +40,21 @@ void measure_reduce_moments(loop_t &loop, environment_t const &env, kernel_type_
 }
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void run_reduce_moments(environment_t const &env, std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(env.settings.batch_per_core) + ">";
-    run_benchmark(env, bench_name, measure_reduce_moments<input_dtype_, kernel_type_ *>, kernel,
-                  env.settings.batch_per_core);
+void run_reduce_moments(bench_settings_t const &env, std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(env.batch_per_core) + ">";
+    run_benchmark(env, bench_name, measure_reduce_moments<input_dtype_, kernel_type_ *>, kernel, env.batch_per_core);
 }
 
 /** Measures the performance of a reduce_minmax kernel, min and max with indices. */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void measure_reduce_minmax(loop_t &loop, environment_t const &env, kernel_type_ kernel, std::size_t dimensions) {
+void measure_reduce_minmax(loop_t &loop, bench_settings_t const &env, kernel_type_ kernel, std::size_t dimensions) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     using output_t = typename input_t::reduce_minmax_value_t;
 
     std::size_t const vector_count = input_sets_count(dtype_bytes(input_dtype_, dimensions));
     auto [vectors, vectors_status] = nk::tensor<input_t>::zeros({vector_count, dimensions});
     if (nk::failed(vectors_status)) return loop.skip("vector allocation failed");
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     std::span<input_t> const values = vectors.span().values().value;
     nk::fill_uniform(generator, values.data(), values.size());
 
@@ -74,13 +73,12 @@ void measure_reduce_minmax(loop_t &loop, environment_t const &env, kernel_type_ 
 }
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void run_reduce_minmax(environment_t const &env, std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(env.settings.batch_per_core) + ">";
-    run_benchmark(env, bench_name, measure_reduce_minmax<input_dtype_, kernel_type_ *>, kernel,
-                  env.settings.batch_per_core);
+void run_reduce_minmax(bench_settings_t const &env, std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(env.batch_per_core) + ">";
+    run_benchmark(env, bench_name, measure_reduce_minmax<input_dtype_, kernel_type_ *>, kernel, env.batch_per_core);
 }
 
-void bench_reduce(environment_t const &env) {
+void bench_reduce(bench_settings_t const &env) {
     constexpr nk_dtype_t f32_k = nk_f32_k;
     constexpr nk_dtype_t f64_k = nk_f64_k;
     constexpr nk_dtype_t i8_k = nk_i8_k;

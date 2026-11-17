@@ -17,7 +17,7 @@ namespace ashvardanian::numkong::bench {
 
 template <typename input_type_, typename input_b_type_ = input_type_, typename output_type_ = input_type_,
           typename kernel_type_>
-void measure_dots_unpacked(loop_t &loop, environment_t const &env, std::size_t m, std::size_t n, std::size_t k,
+void measure_dots_unpacked(loop_t &loop, bench_settings_t const &env, std::size_t m, std::size_t n, std::size_t k,
                            kernel_type_ kernel) {
 
     bytes_t const per_set {m * k * sizeof(input_type_) + n * k * sizeof(input_b_type_) + m * n * sizeof(output_type_)};
@@ -29,7 +29,7 @@ void measure_dots_unpacked(loop_t &loop, environment_t const &env, std::size_t m
         std::vector<output_type_> c;
     };
     std::vector<gemm_set_t> sets(sets_count);
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     for (auto &s : sets) {
         s.a.resize(m * k);
         s.b.resize(n * k);
@@ -46,7 +46,8 @@ void measure_dots_unpacked(loop_t &loop, environment_t const &env, std::size_t m
     loop.rate("scalar-ops", 2.0 * m * n * k);
 }
 
-void measure_dots_f32_with_blas(loop_t &loop, environment_t const &env, std::size_t m, std::size_t n, std::size_t k) {
+void measure_dots_f32_with_blas(loop_t &loop, bench_settings_t const &env, std::size_t m, std::size_t n,
+                                std::size_t k) {
     measure_dots_unpacked<float>(loop, env, m, n, k,
                                  [](float *a, float *b, float *c, std::size_t m, std::size_t n, std::size_t k) {
                                      cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, static_cast<int>(m),
@@ -55,7 +56,8 @@ void measure_dots_f32_with_blas(loop_t &loop, environment_t const &env, std::siz
                                  });
 }
 
-void measure_dots_f64_with_blas(loop_t &loop, environment_t const &env, std::size_t m, std::size_t n, std::size_t k) {
+void measure_dots_f64_with_blas(loop_t &loop, bench_settings_t const &env, std::size_t m, std::size_t n,
+                                std::size_t k) {
     measure_dots_unpacked<double>(loop, env, m, n, k,
                                   [](double *a, double *b, double *c, std::size_t m, std::size_t n, std::size_t k) {
                                       cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, static_cast<int>(m),
@@ -65,7 +67,7 @@ void measure_dots_f64_with_blas(loop_t &loop, environment_t const &env, std::siz
 }
 
 template <typename input_type_, typename output_type_ = input_type_, typename kernel_type_>
-void measure_dots_symmetric_unpacked(loop_t &loop, environment_t const &env, std::size_t n, std::size_t k,
+void measure_dots_symmetric_unpacked(loop_t &loop, bench_settings_t const &env, std::size_t n, std::size_t k,
                                      kernel_type_ kernel) {
     bytes_t const per_set {n * k * sizeof(input_type_) + n * n * sizeof(output_type_)};
     std::size_t const sets_count = input_sets_count(per_set);
@@ -75,7 +77,7 @@ void measure_dots_symmetric_unpacked(loop_t &loop, environment_t const &env, std
         std::vector<output_type_> c;
     };
     std::vector<syrk_set_t> sets(sets_count);
-    std::mt19937 generator(env.settings.seed.value);
+    split_mix_generator_t generator(env.seed);
     for (auto &s : sets) {
         s.a.resize(n * k);
         s.c.resize(n * n);
@@ -90,14 +92,14 @@ void measure_dots_symmetric_unpacked(loop_t &loop, environment_t const &env, std
     loop.rate("scalar-ops", 1.0 * n * (n + 1) * k);
 }
 
-void measure_dots_symmetric_f32_with_blas(loop_t &loop, environment_t const &env, std::size_t n, std::size_t k) {
+void measure_dots_symmetric_f32_with_blas(loop_t &loop, bench_settings_t const &env, std::size_t n, std::size_t k) {
     measure_dots_symmetric_unpacked<float>(loop, env, n, k, [](float *a, float *c, std::size_t n, std::size_t k) {
         cblas_ssyrk(CblasRowMajor, CblasUpper, CblasNoTrans, static_cast<int>(n), static_cast<int>(k), 1.0f, a,
                     static_cast<int>(k), 0.0f, c, static_cast<int>(n));
     });
 }
 
-void measure_dots_symmetric_f64_with_blas(loop_t &loop, environment_t const &env, std::size_t n, std::size_t k) {
+void measure_dots_symmetric_f64_with_blas(loop_t &loop, bench_settings_t const &env, std::size_t n, std::size_t k) {
     measure_dots_symmetric_unpacked<double>(loop, env, n, k, [](double *a, double *c, std::size_t n, std::size_t k) {
         cblas_dsyrk(CblasRowMajor, CblasUpper, CblasNoTrans, static_cast<int>(n), static_cast<int>(k), 1.0, a,
                     static_cast<int>(k), 0.0, c, static_cast<int>(n));
@@ -118,7 +120,7 @@ static BNNSNDArrayDescriptor bnns_matrix_desc(BNNSDataType dtype, void *data, st
     return desc;
 }
 
-void measure_dots_f16_with_accelerate(loop_t &loop, environment_t const &env, std::size_t m, std::size_t n,
+void measure_dots_f16_with_accelerate(loop_t &loop, bench_settings_t const &env, std::size_t m, std::size_t n,
                                       std::size_t k) {
     measure_dots_unpacked<nk_f16_t, nk_f16_t, float>(
         loop, env, m, n, k, [](nk_f16_t *a, nk_f16_t *b, float *c, std::size_t m, std::size_t n, std::size_t k) {
@@ -129,7 +131,7 @@ void measure_dots_f16_with_accelerate(loop_t &loop, environment_t const &env, st
         });
 }
 
-void measure_dots_bf16_with_accelerate(loop_t &loop, environment_t const &env, std::size_t m, std::size_t n,
+void measure_dots_bf16_with_accelerate(loop_t &loop, bench_settings_t const &env, std::size_t m, std::size_t n,
                                        std::size_t k) {
     measure_dots_unpacked<nk_bf16_t, nk_bf16_t, float>(
         loop, env, m, n, k, [](nk_bf16_t *a, nk_bf16_t *b, float *c, std::size_t m, std::size_t n, std::size_t k) {
@@ -144,7 +146,7 @@ void measure_dots_bf16_with_accelerate(loop_t &loop, environment_t const &env, s
 
 #if NUMKONG_COMPARE_TO_MKL
 
-void measure_dots_f32_with_mkl(loop_t &loop, environment_t const &env, std::size_t m, std::size_t n, std::size_t k) {
+void measure_dots_f32_with_mkl(loop_t &loop, bench_settings_t const &env, std::size_t m, std::size_t n, std::size_t k) {
     measure_dots_unpacked<float>(loop, env, m, n, k,
                                  [](float *a, float *b, float *c, std::size_t m, std::size_t n, std::size_t k) {
                                      cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, (MKL_INT)m, (MKL_INT)n,
@@ -152,7 +154,8 @@ void measure_dots_f32_with_mkl(loop_t &loop, environment_t const &env, std::size
                                  });
 }
 
-void measure_dots_bf16_with_mkl(loop_t &loop, environment_t const &env, std::size_t m, std::size_t n, std::size_t k) {
+void measure_dots_bf16_with_mkl(loop_t &loop, bench_settings_t const &env, std::size_t m, std::size_t n,
+                                std::size_t k) {
     measure_dots_unpacked<MKL_BF16, MKL_BF16, float>(
         loop, env, m, n, k, [](MKL_BF16 *a, MKL_BF16 *b, float *c, std::size_t m, std::size_t n, std::size_t k) {
             cblas_gemm_bf16bf16f32(CblasRowMajor, CblasNoTrans, CblasTrans, (MKL_INT)m, (MKL_INT)n, (MKL_INT)k, 1.0f, a,
@@ -160,7 +163,7 @@ void measure_dots_bf16_with_mkl(loop_t &loop, environment_t const &env, std::siz
         });
 }
 
-void measure_dots_f16_with_mkl(loop_t &loop, environment_t const &env, std::size_t m, std::size_t n, std::size_t k) {
+void measure_dots_f16_with_mkl(loop_t &loop, bench_settings_t const &env, std::size_t m, std::size_t n, std::size_t k) {
     measure_dots_unpacked<MKL_F16, MKL_F16, float>(
         loop, env, m, n, k, [](MKL_F16 *a, MKL_F16 *b, float *c, std::size_t m, std::size_t n, std::size_t k) {
             cblas_gemm_f16f16f32(CblasRowMajor, CblasNoTrans, CblasTrans, (MKL_INT)m, (MKL_INT)n, (MKL_INT)k, 1.0f, a,
@@ -168,7 +171,7 @@ void measure_dots_f16_with_mkl(loop_t &loop, environment_t const &env, std::size
         });
 }
 
-void measure_dots_f64_with_mkl(loop_t &loop, environment_t const &env, std::size_t m, std::size_t n, std::size_t k) {
+void measure_dots_f64_with_mkl(loop_t &loop, bench_settings_t const &env, std::size_t m, std::size_t n, std::size_t k) {
     measure_dots_unpacked<double>(loop, env, m, n, k,
                                   [](double *a, double *b, double *c, std::size_t m, std::size_t n, std::size_t k) {
                                       cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, (MKL_INT)m, (MKL_INT)n,
@@ -176,7 +179,8 @@ void measure_dots_f64_with_mkl(loop_t &loop, environment_t const &env, std::size
                                   });
 }
 
-void measure_dots_i8u8_with_mkl(loop_t &loop, environment_t const &env, std::size_t m, std::size_t n, std::size_t k) {
+void measure_dots_i8u8_with_mkl(loop_t &loop, bench_settings_t const &env, std::size_t m, std::size_t n,
+                                std::size_t k) {
     measure_dots_unpacked<std::uint8_t, std::int8_t, std::int32_t>(
         loop, env, m, n, k,
         [](std::uint8_t *a, std::int8_t *b, std::int32_t *c, std::size_t m, std::size_t n, std::size_t k) {
@@ -186,7 +190,7 @@ void measure_dots_i8u8_with_mkl(loop_t &loop, environment_t const &env, std::siz
         });
 }
 
-void measure_dots_i16_with_mkl(loop_t &loop, environment_t const &env, std::size_t m, std::size_t n, std::size_t k) {
+void measure_dots_i16_with_mkl(loop_t &loop, bench_settings_t const &env, std::size_t m, std::size_t n, std::size_t k) {
     measure_dots_unpacked<std::int16_t, std::int16_t, std::int32_t>(
         loop, env, m, n, k,
         [](std::int16_t *a, std::int16_t *b, std::int32_t *c, std::size_t m, std::size_t n, std::size_t k) {
@@ -198,12 +202,11 @@ void measure_dots_i16_with_mkl(loop_t &loop, environment_t const &env, std::size
 
 #endif // NUMKONG_COMPARE_TO_MKL
 
-void bench_cross_blas(environment_t const &env) {
+void bench_cross_blas(bench_settings_t const &env) {
 
-    std::string syrk_dims = std::to_string(env.settings.matrix_height) + "x" +
-                            std::to_string(env.settings.matrix_depth);
-    std::string gemm_dims = std::to_string(env.settings.matrix_height) + "x" +
-                            std::to_string(env.settings.matrix_width) + "x" + std::to_string(env.settings.matrix_depth);
+    std::string syrk_dims = std::to_string(env.matrix_height) + "x" + std::to_string(env.matrix_depth);
+    std::string gemm_dims = std::to_string(env.matrix_height) + "x" + std::to_string(env.matrix_width) + "x" +
+                            std::to_string(env.matrix_depth);
 
     nk_unused_(syrk_dims);
     nk_unused_(gemm_dims);
@@ -211,38 +214,38 @@ void bench_cross_blas(environment_t const &env) {
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
     section(env, "Cross External Baselines", nk_cap_serial_k);
     // BLAS GEMM baselines for matmul comparison (same layout as NumKong: A x B^T)
-    run_benchmark(env, "dots_packed_f32_with_blas<" + gemm_dims + ">", measure_dots_f32_with_blas,
-                  env.settings.matrix_height, env.settings.matrix_width, env.settings.matrix_depth);
-    run_benchmark(env, "dots_packed_f64_with_blas<" + gemm_dims + ">", measure_dots_f64_with_blas,
-                  env.settings.matrix_height, env.settings.matrix_width, env.settings.matrix_depth);
+    run_benchmark(env, "dots_packed_f32_with_blas<" + gemm_dims + ">", measure_dots_f32_with_blas, env.matrix_height,
+                  env.matrix_width, env.matrix_depth);
+    run_benchmark(env, "dots_packed_f64_with_blas<" + gemm_dims + ">", measure_dots_f64_with_blas, env.matrix_height,
+                  env.matrix_width, env.matrix_depth);
 
     // BLAS SYRK baselines for symmetric operations (correct operation for dots_symmetric: A x A^T)
     run_benchmark(env, "dots_symmetric_f32_with_blas<" + syrk_dims + ">", measure_dots_symmetric_f32_with_blas,
-                  env.settings.matrix_height, env.settings.matrix_depth);
+                  env.matrix_height, env.matrix_depth);
     run_benchmark(env, "dots_symmetric_f64_with_blas<" + syrk_dims + ">", measure_dots_symmetric_f64_with_blas,
-                  env.settings.matrix_height, env.settings.matrix_depth);
+                  env.matrix_height, env.matrix_depth);
 #endif
 
 #if NUMKONG_COMPARE_TO_ACCELERATE
     run_benchmark(env, "dots_packed_f16_with_accelerate<" + gemm_dims + ">", measure_dots_f16_with_accelerate,
-                  env.settings.matrix_height, env.settings.matrix_width, env.settings.matrix_depth);
+                  env.matrix_height, env.matrix_width, env.matrix_depth);
     run_benchmark(env, "dots_packed_bf16_with_accelerate<" + gemm_dims + ">", measure_dots_bf16_with_accelerate,
-                  env.settings.matrix_height, env.settings.matrix_width, env.settings.matrix_depth);
+                  env.matrix_height, env.matrix_width, env.matrix_depth);
 #endif
 
 #if NUMKONG_COMPARE_TO_MKL
-    run_benchmark(env, "dots_packed_f32_with_mkl<" + gemm_dims + ">", measure_dots_f32_with_mkl,
-                  env.settings.matrix_height, env.settings.matrix_width, env.settings.matrix_depth);
-    run_benchmark(env, "dots_packed_bf16_with_mkl<" + gemm_dims + ">", measure_dots_bf16_with_mkl,
-                  env.settings.matrix_height, env.settings.matrix_width, env.settings.matrix_depth);
-    run_benchmark(env, "dots_packed_f16_with_mkl<" + gemm_dims + ">", measure_dots_f16_with_mkl,
-                  env.settings.matrix_height, env.settings.matrix_width, env.settings.matrix_depth);
-    run_benchmark(env, "dots_packed_f64_with_mkl<" + gemm_dims + ">", measure_dots_f64_with_mkl,
-                  env.settings.matrix_height, env.settings.matrix_width, env.settings.matrix_depth);
-    run_benchmark(env, "dots_packed_i8u8_with_mkl<" + gemm_dims + ">", measure_dots_i8u8_with_mkl,
-                  env.settings.matrix_height, env.settings.matrix_width, env.settings.matrix_depth);
-    run_benchmark(env, "dots_packed_i16_with_mkl<" + gemm_dims + ">", measure_dots_i16_with_mkl,
-                  env.settings.matrix_height, env.settings.matrix_width, env.settings.matrix_depth);
+    run_benchmark(env, "dots_packed_f32_with_mkl<" + gemm_dims + ">", measure_dots_f32_with_mkl, env.matrix_height,
+                  env.matrix_width, env.matrix_depth);
+    run_benchmark(env, "dots_packed_bf16_with_mkl<" + gemm_dims + ">", measure_dots_bf16_with_mkl, env.matrix_height,
+                  env.matrix_width, env.matrix_depth);
+    run_benchmark(env, "dots_packed_f16_with_mkl<" + gemm_dims + ">", measure_dots_f16_with_mkl, env.matrix_height,
+                  env.matrix_width, env.matrix_depth);
+    run_benchmark(env, "dots_packed_f64_with_mkl<" + gemm_dims + ">", measure_dots_f64_with_mkl, env.matrix_height,
+                  env.matrix_width, env.matrix_depth);
+    run_benchmark(env, "dots_packed_i8u8_with_mkl<" + gemm_dims + ">", measure_dots_i8u8_with_mkl, env.matrix_height,
+                  env.matrix_width, env.matrix_depth);
+    run_benchmark(env, "dots_packed_i16_with_mkl<" + gemm_dims + ">", measure_dots_i16_with_mkl, env.matrix_height,
+                  env.matrix_width, env.matrix_depth);
 #endif
 }
 

@@ -3209,7 +3209,8 @@ impl<Scalar: Euclideans, const R: usize, OutputTensor: TensorRef<Scalar, R>> Sym
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{DIMS, FloatLike, NumberLike, TestableType, align_depth, assert_upper_triangle_eq, init_thread};
+    use crate::testing::{DIMS, TestableType, align_depth, assert_upper_triangle_eq, init_thread};
+    use crate::types::{FloatLike, NumberLike};
 
     fn check_angulars_packed<Scalar: TestableType + Angulars>()
     where
@@ -3449,7 +3450,7 @@ mod tests {
     }
 
     #[test]
-    fn angulars_packed() {
+    fn angulars_packed_of_equal_rows_are_zero_across_types() {
         check_angulars_packed::<f32>();
         check_angulars_packed::<f64>();
         check_angulars_packed::<f16>();
@@ -3465,7 +3466,7 @@ mod tests {
     }
 
     #[test]
-    fn euclideans_packed() {
+    fn euclideans_packed_of_equal_rows_are_zero_across_types() {
         check_euclideans_packed::<f32>();
         check_euclideans_packed::<f64>();
         check_euclideans_packed::<f16>();
@@ -3524,7 +3525,7 @@ mod tests {
     #[test]
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
-    fn spatials_packed_parallel() {
+    fn spatials_packed_parallel_match_serial() {
         check_angulars_packed_parallel::<f32>();
         check_euclideans_packed_parallel::<f32>();
     }
@@ -3532,12 +3533,12 @@ mod tests {
     #[test]
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
-    fn spatials_symmetric_parallel() {
+    fn spatials_symmetric_parallel_match_serial() {
         check_spatials_symmetric_parallel::<f32>();
     }
 
     #[test]
-    fn angulars_symmetric() {
+    fn angulars_symmetric_of_equal_rows_are_zero_across_types() {
         check_angulars_symmetric::<f32>();
         check_angulars_symmetric::<f64>();
         check_angulars_symmetric::<f16>();
@@ -3553,7 +3554,7 @@ mod tests {
     }
 
     #[test]
-    fn euclideans_symmetric() {
+    fn euclideans_symmetric_of_equal_rows_are_zero_across_types() {
         check_euclideans_symmetric::<f32>();
         check_euclideans_symmetric::<f64>();
         check_euclideans_symmetric::<f16>();

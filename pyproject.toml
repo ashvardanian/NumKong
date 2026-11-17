@@ -62,7 +62,7 @@ environment-pass = [
     "NUMKONG_FILTER",
     "NUMKONG_IN_QEMU",
     "NUMKONG_MAX_COORD_ANGLE",
-    "NUMKONG_REPETITIONS",
+    "NUMKONG_SCALE",
     "NUMKONG_SEED",
     "NUMKONG_SHAPE_POINTS",
     "NUMKONG_SPARSE_DIMS",
@@ -221,7 +221,7 @@ ignore = [
     "RUF043",  # pytest.raises regex patterns: the metacharacters are intentional
     "SIM105",  # contextlib.suppress: explicit try/except is clearer here
 ]
-select = ["B", "D", "E", "F", "I", "PLC0415", "RUF", "SIM", "TID", "UP", "W"]
+select = ["B", "D", "E", "F", "I", "PLC0415", "PT", "RUF", "SIM", "TID", "UP", "W"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -231,7 +231,8 @@ known-first-party = ["numkong"]
 lines-after-imports = 2
 
 [tool.ruff.lint.per-file-ignores]
-"test/*" = ["D", "E501", "F811"]  # tests self-document via names; docstrings not required
+# Tests owe a docstring on every module-level function (D103) and nothing else from pydocstyle.
+"test/*" = ["D100", "D101", "D102", "D104", "D105", "D106", "D107", "D2", "D3", "D4", "E501"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

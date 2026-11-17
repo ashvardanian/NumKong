@@ -3332,289 +3332,12 @@ where
 
 // endregion: Dimension Proxies
 
-// region: TestableType Trait, test-only
-
-#[cfg(test)]
-pub(crate) trait TestableType: FloatLike {
-    /// Base absolute tolerance for this type.
-    fn atol() -> f64;
-    /// Base relative tolerance for this type.
-    fn rtol() -> f64;
-}
-
-#[cfg(test)]
-pub(crate) fn assert_close(actual: f64, expected: f64, atol: f64, rtol: f64, msg: &str) {
-    let tol = atol + rtol * expected.abs();
-    assert!(
-        (actual - expected).abs() <= tol,
-        "{}: expected {} but got {} (atol={}, rtol={}, tol={})",
-        msg,
-        expected,
-        actual,
-        atol,
-        rtol,
-        tol
-    );
-}
-
-/// One-time SIMD thread setup shared by the batched dots/spatials/sets tests.
-#[cfg(test)]
-static PACKED_TEST_INIT: std::sync::Once = std::sync::Once::new();
-
-/// Configure the current thread's SIMD features once per test process.
-#[cfg(test)]
-pub(crate) fn init_thread() {
-    PACKED_TEST_INIT.call_once(|| {
-        crate::capabilities::configure_cpu_thread().unwrap();
-    });
-}
-
-/// Standard `(rows, columns, depth)` problem sizes swept by the batched tests.
-#[cfg(test)]
-pub(crate) const DIMS: &[(usize, usize, usize)] = &[(1, 1, 1), (1, 8, 3), (3, 1, 7), (7, 5, 3), (33, 17, 65)];
-
-/// Lifts a test `depth` to the next valid dimension count, a multiple of the values per byte.
-#[cfg(test)]
-pub(crate) fn align_depth<Scalar: StorageElement>(depth: usize) -> usize {
-    let dims_per_value = Scalar::dimensions_per_value();
-    depth.div_ceil(dims_per_value) * dims_per_value
-}
-
-/// Compare only the upper-triangle elements of two __\[n,n\]__ buffers; symmetric kernels do not
-/// write the lower triangle.
-#[cfg(test)]
-pub(crate) fn assert_upper_triangle_eq<X: Copy + PartialEq + core::fmt::Debug>(
-    left: &[X],
-    right: &[X],
-    n: usize,
-    tag: &str,
-) {
-    for i in 0..n {
-        for j in i..n {
-            let index = i * n + j;
-            assert_eq!(left[index], right[index], "{tag}[{i},{j}]");
-        }
-    }
-}
-
-#[cfg(test)]
-impl TestableType for f32 {
-    fn atol() -> f64 {
-        1e-4
-    }
-    fn rtol() -> f64 {
-        1e-4
-    }
-}
-#[cfg(test)]
-impl TestableType for f64 {
-    fn atol() -> f64 {
-        1e-9
-    }
-    fn rtol() -> f64 {
-        1e-9
-    }
-}
-#[cfg(test)]
-impl TestableType for f16 {
-    fn atol() -> f64 {
-        0.05
-    }
-    fn rtol() -> f64 {
-        0.05
-    }
-}
-#[cfg(test)]
-impl TestableType for bf16 {
-    fn atol() -> f64 {
-        0.1
-    }
-    fn rtol() -> f64 {
-        0.1
-    }
-}
-#[cfg(test)]
-impl TestableType for e4m3 {
-    fn atol() -> f64 {
-        0.5
-    }
-    fn rtol() -> f64 {
-        0.1
-    }
-}
-#[cfg(test)]
-impl TestableType for e5m2 {
-    fn atol() -> f64 {
-        1.0
-    }
-    fn rtol() -> f64 {
-        0.1
-    }
-}
-#[cfg(test)]
-impl TestableType for e2m3 {
-    fn atol() -> f64 {
-        0.5
-    }
-    fn rtol() -> f64 {
-        0.1
-    }
-}
-#[cfg(test)]
-impl TestableType for e3m2 {
-    fn atol() -> f64 {
-        0.5
-    }
-    fn rtol() -> f64 {
-        0.1
-    }
-}
-#[cfg(test)]
-impl TestableType for i8 {
-    fn atol() -> f64 {
-        1.0
-    }
-    fn rtol() -> f64 {
-        0.0
-    }
-}
-#[cfg(test)]
-impl TestableType for u8 {
-    fn atol() -> f64 {
-        1.0
-    }
-    fn rtol() -> f64 {
-        0.0
-    }
-}
-#[cfg(test)]
-impl TestableType for i32 {
-    fn atol() -> f64 {
-        1.0
-    }
-    fn rtol() -> f64 {
-        0.0
-    }
-}
-#[cfg(test)]
-impl TestableType for u32 {
-    fn atol() -> f64 {
-        1.0
-    }
-    fn rtol() -> f64 {
-        0.0
-    }
-}
-#[cfg(test)]
-impl TestableType for i16 {
-    fn atol() -> f64 {
-        1.0
-    }
-    fn rtol() -> f64 {
-        0.0
-    }
-}
-#[cfg(test)]
-impl TestableType for u16 {
-    fn atol() -> f64 {
-        1.0
-    }
-    fn rtol() -> f64 {
-        0.0
-    }
-}
-#[cfg(test)]
-impl TestableType for i64 {
-    fn atol() -> f64 {
-        1.0
-    }
-    fn rtol() -> f64 {
-        0.0
-    }
-}
-#[cfg(test)]
-impl TestableType for u64 {
-    fn atol() -> f64 {
-        1.0
-    }
-    fn rtol() -> f64 {
-        0.0
-    }
-}
-#[cfg(test)]
-impl TestableType for i4x2 {
-    fn atol() -> f64 {
-        1.0
-    }
-    fn rtol() -> f64 {
-        0.0
-    }
-}
-#[cfg(test)]
-impl TestableType for u4x2 {
-    fn atol() -> f64 {
-        1.0
-    }
-    fn rtol() -> f64 {
-        0.0
-    }
-}
-#[cfg(test)]
-impl TestableType for u1x8 {
-    fn atol() -> f64 {
-        0.0
-    }
-    fn rtol() -> f64 {
-        0.0
-    }
-}
-
-// endregion: TestableType Trait
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::assert_close;
 
-    fn assert_scalar_roundtrip<Scalar: FloatLike>(original: f32, abs_tol: f32, rel_tol: f32) {
-        let converted = Scalar::from_f32(original);
-        let roundtrip = NumberLike::to_f32(converted);
-        if original == 0.0 {
-            assert_eq!(roundtrip, 0.0, "Zero should roundtrip exactly");
-            return;
-        }
-        let abs_error = f32_abs_compat(roundtrip - original);
-        let rel_error = abs_error / f32_abs_compat(original);
-        assert!(
-            abs_error <= abs_tol || rel_error <= rel_tol,
-            "Roundtrip failed for {}: got {} (abs_err={:.6}, rel_err={:.6})",
-            original,
-            roundtrip,
-            abs_error,
-            rel_error
-        );
-    }
-
-    fn assert_scalar_almost_equal<Scalar: FloatLike>(
-        actual: f32,
-        expected: f32,
-        abs_tol: f32,
-        rel_tol: f32,
-        context: &str,
-    ) {
-        let abs_error = f32_abs_compat(actual - expected);
-        let rel_error = if expected != 0.0 { abs_error / f32_abs_compat(expected) } else { abs_error };
-        assert!(
-            abs_error <= abs_tol || rel_error <= rel_tol,
-            "{}: expected {} but got {} (abs_err={:.6}, rel_err={:.6})",
-            context,
-            expected,
-            actual,
-            abs_error,
-            rel_error
-        );
-    }
-
-    fn check_arithmetic<Scalar>(a_val: f32, b_val: f32, abs_tol: f32, rel_tol: f32)
+    fn check_arithmetic<Scalar>(a_val: f32, b_val: f32, atol: f64, rtol: f64)
     where
         Scalar: FloatLike
             + PartialOrd
@@ -3627,23 +3350,20 @@ mod tests {
     {
         let a = Scalar::from_f32(a_val);
         let b = Scalar::from_f32(b_val);
-        assert_scalar_almost_equal::<Scalar>(NumberLike::to_f32(a + b), a_val + b_val, abs_tol, rel_tol, "add");
-        assert_scalar_almost_equal::<Scalar>(NumberLike::to_f32(a - b), a_val - b_val, abs_tol, rel_tol, "sub");
-        assert_scalar_almost_equal::<Scalar>(NumberLike::to_f32(a * b), a_val * b_val, abs_tol, rel_tol, "mul");
-        assert_scalar_almost_equal::<Scalar>(NumberLike::to_f32(a / b), a_val / b_val, abs_tol, rel_tol, "div");
-        assert_scalar_almost_equal::<Scalar>(NumberLike::to_f32(-a), -a_val, abs_tol, rel_tol, "neg");
+        let close = |actual: Scalar, expected: f32, what: &str| {
+            assert_close(NumberLike::to_f32(actual) as f64, expected as f64, atol, rtol, what);
+        };
+        close(a + b, a_val + b_val, "add");
+        close(a - b, a_val - b_val, "sub");
+        close(a * b, a_val * b_val, "mul");
+        close(a / b, a_val / b_val, "div");
+        close(-a, -a_val, "neg");
         assert_eq!(NumberLike::to_f32(Scalar::zero()), 0.0);
-        assert_scalar_almost_equal::<Scalar>(NumberLike::to_f32(Scalar::one()), 1.0, abs_tol, rel_tol, "ONE");
-        assert_scalar_almost_equal::<Scalar>(
-            NumberLike::to_f32(Scalar::from_f32(-1.0)),
-            -1.0,
-            abs_tol,
-            rel_tol,
-            "NEG_ONE",
-        );
+        close(Scalar::one(), 1.0, "one");
+        close(Scalar::from_f32(-1.0), -1.0, "minus one");
         assert!(a > b);
         assert!(a == a);
-        assert_scalar_almost_equal::<Scalar>(NumberLike::to_f32(NumberLike::abs(-a)), a_val, abs_tol, rel_tol, "abs");
+        close(NumberLike::abs(-a), a_val, "abs");
         assert!(NumberLike::is_finite(a));
         assert!(!NumberLike::is_nan(a));
         if Scalar::has_infinity() {
@@ -3651,9 +3371,14 @@ mod tests {
         }
     }
 
-    fn check_roundtrip<Scalar: FloatLike>(values: &[f32], abs_tol: f32, rel_tol: f32) {
-        for &v in values {
-            assert_scalar_roundtrip::<Scalar>(v, abs_tol, rel_tol);
+    fn check_round_trip<Scalar: FloatLike>(values: &[f32], atol: f64, rtol: f64) {
+        for &value in values {
+            let round_trip = NumberLike::to_f32(Scalar::from_f32(value));
+            if value == 0.0 {
+                assert_eq!(round_trip, 0.0, "zero must round trip exactly");
+            } else {
+                assert_close(round_trip as f64, value as f64, atol, rtol, &format!("round trip of {value}"));
+            }
         }
     }
 
@@ -3687,25 +3412,25 @@ mod tests {
 
     fn check_subnormals<Scalar: FloatLike>(values: &[f32], upper_bound: f32) {
         for &val in values {
-            let roundtrip = NumberLike::to_f32(Scalar::from_f32(val));
+            let round_trip = NumberLike::to_f32(Scalar::from_f32(val));
             assert!(
-                roundtrip >= 0.0 && roundtrip < upper_bound,
+                round_trip >= 0.0 && round_trip < upper_bound,
                 "{} subnormal test failed for {}: got {}",
                 core::any::type_name::<Scalar>(),
                 val,
-                roundtrip
+                round_trip
             );
         }
     }
 
     #[test]
-    fn arithmetic_ieee_halfs() {
+    fn ieee_halfs_do_arithmetic_within_their_precision() {
         check_arithmetic::<f16>(3.5, 2.0, 0.002, 0.001);
         check_arithmetic::<bf16>(3.5, 2.0, 0.016, 0.008);
     }
 
     #[test]
-    fn arithmetic_minifloats() {
+    fn minifloats_do_arithmetic_within_their_precision() {
         check_arithmetic::<e4m3>(2.0, 1.5, 0.25, 0.125);
         check_arithmetic::<e5m2>(2.0, 1.5, 0.5, 0.25);
         check_arithmetic::<e2m3>(2.0, 1.5, 0.25, 0.125);
@@ -3713,8 +3438,8 @@ mod tests {
     }
 
     #[test]
-    fn roundtrip() {
-        check_roundtrip::<f16>(
+    fn narrow_floats_round_trip_through_f32() {
+        check_round_trip::<f16>(
             &[
                 0.0, 1.0, -1.0, 0.5, 2.0, 4.0, 8.0, 16.0, 100.0, 1000.0, 10000.0, 0.001, 0.0001, 0.00001, -100.0,
                 -1000.0,
@@ -3722,19 +3447,19 @@ mod tests {
             0.002,
             0.001,
         );
-        check_roundtrip::<bf16>(
+        check_round_trip::<bf16>(
             &[0.0, 1.0, -1.0, 0.5, 2.0, 10.0, 100.0, 1000.0, 1e6, 0.001, 1e-6, -100.0, -1000.0],
             0.016,
             0.008,
         );
-        check_roundtrip::<e4m3>(&[0.0, 1.0, -1.0, 0.5, 2.0, 4.0, 8.0, 16.0, 64.0, 128.0, 224.0], 0.25, 0.125);
-        check_roundtrip::<e5m2>(&[0.0, 1.0, -1.0, 0.5, 2.0, 4.0, 8.0, 16.0, 64.0, 256.0, 1024.0], 0.5, 0.25);
-        check_roundtrip::<e2m3>(
+        check_round_trip::<e4m3>(&[0.0, 1.0, -1.0, 0.5, 2.0, 4.0, 8.0, 16.0, 64.0, 128.0, 224.0], 0.25, 0.125);
+        check_round_trip::<e5m2>(&[0.0, 1.0, -1.0, 0.5, 2.0, 4.0, 8.0, 16.0, 64.0, 256.0, 1024.0], 0.5, 0.25);
+        check_round_trip::<e2m3>(
             &[0.0, 1.0, -1.0, 0.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 7.5, 0.25, -0.25, 0.125, -0.125, -4.0, -6.0, -7.5],
             0.25,
             0.125,
         );
-        check_roundtrip::<e3m2>(
+        check_round_trip::<e3m2>(
             &[0.0, 1.0, -1.0, 0.5, 2.0, 4.0, 8.0, 16.0, 20.0, 24.0, 28.0, 0.25, -0.25, -20.0, -28.0],
             0.5,
             0.25,
@@ -3742,7 +3467,7 @@ mod tests {
     }
 
     #[test]
-    fn edge_cases() {
+    fn narrow_floats_handle_specials_and_overflow_by_their_format() {
         check_edge_cases::<f16>();
         check_edge_cases::<bf16>();
         check_edge_cases::<e4m3>();
@@ -3752,7 +3477,7 @@ mod tests {
     }
 
     #[test]
-    fn subnormals() {
+    fn narrow_floats_round_tiny_values_into_their_subnormal_range() {
         check_subnormals::<f16>(&[1e-5, 1e-6, 1e-7, 5e-6, 5e-7], 1e-4);
         check_subnormals::<bf16>(&[1e-39, 1e-40, 1e-42], 1e-37);
         check_subnormals::<e4m3>(&[0.001, 0.0005], 0.002);
@@ -3762,7 +3487,7 @@ mod tests {
     }
 
     #[test]
-    fn half_crate_interop() {
+    fn halfs_decode_every_bit_pattern_as_the_half_crate() {
         use half::{bf16 as HalfBF16, f16 as HalfF16};
 
         // f16: all 65536 bit patterns
@@ -3787,26 +3512,26 @@ mod tests {
     }
 
     #[test]
-    fn is_close_exact() {
+    fn is_close_accepts_equal_values() {
         assert!(is_close(1.0, 1.0, 0.0, 0.0));
         assert!(is_close(0.0, 0.0, 0.0, 0.0));
         assert!(is_close(-5.0, -5.0, 0.0, 0.0));
     }
 
     #[test]
-    fn is_close_within_atol() {
+    fn is_close_honors_the_absolute_tolerance() {
         assert!(is_close(1.0, 1.0 + 1e-7, 1e-6, 0.0));
         assert!(!is_close(1.0, 1.0 + 1e-5, 1e-6, 0.0));
     }
 
     #[test]
-    fn is_close_within_rtol() {
+    fn is_close_honors_the_relative_tolerance() {
         assert!(is_close(100.0, 100.01, 0.0, 1e-3));
         assert!(!is_close(100.0, 100.2, 0.0, 1e-3));
     }
 
     #[test]
-    fn is_close_nan_inf() {
+    fn is_close_rejects_nan_and_infinities() {
         // NaN is never close to anything, including itself.
         assert!(!is_close(f64::NAN, f64::NAN, 1e-6, 1e-6));
         assert!(!is_close(f64::NAN, 0.0, 1e-6, 1e-6));
