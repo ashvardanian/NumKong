@@ -592,6 +592,16 @@ if (NUMKONG_BUILD_TEST)
 
     add_test(NAME numkong_cpu_test COMMAND numkong_cpu_test)
 
+    # The tile scheduler the bindings share, on every thread count, under whatever sanitizer the build enables.
+    if (NOT numkong_os_wasi_)
+        find_package(Threads REQUIRED)
+        add_executable(numkong_parallel_test test/parallel.cpp src/parallel.c)
+        target_include_directories(numkong_parallel_test PRIVATE src)
+        target_link_libraries(numkong_parallel_test numkong_static numkong_warnings Threads::Threads)
+        target_compile_features(numkong_parallel_test PRIVATE cxx_std_20)
+        add_test(NAME numkong_parallel_test COMMAND numkong_parallel_test)
+    endif ()
+
     # The same suites compiling every kernel inline, with stubbed dispatch points, skipping the capabilities this CPU
     # lacks.
     add_executable(numkong_cpu_header_test ${numkong_test_sources_})
@@ -758,6 +768,7 @@ endif ()
 if (NUMKONG_BUILD_PYTHON)
     find_package(Python 3.12 REQUIRED COMPONENTS Interpreter Development.Module)
     find_package(OpenMP COMPONENTS C)
+    find_package(Threads REQUIRED)
     python_add_library(
         numkong_python MODULE WITH_SOABI python/numkong.c python/tensor.c python/matrix.c python/types.c
         python/distance.c python/each.c python/trigonometry.c python/geospatial.c python/shapes.c python/attention.c
@@ -767,7 +778,7 @@ if (NUMKONG_BUILD_PYTHON)
     target_compile_features(numkong_python PRIVATE c_std_11)
     target_include_directories(numkong_python PRIVATE python src)
     target_link_libraries(
-        numkong_python PRIVATE numkong_static numkong_warnings $<$<PLATFORM_ID:Linux,FreeBSD>:m>
+        numkong_python PRIVATE numkong_static numkong_warnings $<$<PLATFORM_ID:Linux,FreeBSD>:m> Threads::Threads
                                $<$<AND:$<BOOL:${OpenMP_C_FOUND}>,$<PLATFORM_ID:Linux,FreeBSD>>:OpenMP::OpenMP_C>
     )
     # The module's one export is its init function; the static library's kernels stay inside it.
@@ -786,6 +797,7 @@ if (NUMKONG_BUILD_NODE)
         message(FATAL_ERROR "The Node addon is built by cmake-js, which supplies the headers and import library")
     endif ()
     find_package(OpenMP COMPONENTS C)
+    find_package(Threads REQUIRED)
     # `CMAKE_JS_SRC` is the Windows delay-load hook and empty everywhere else.
     add_library(numkong_node SHARED javascript/numkong.c src/parallel.c ${CMAKE_JS_SRC})
     set_target_properties(numkong_node PROPERTIES PREFIX "" SUFFIX ".node" OUTPUT_NAME "numkong")
@@ -794,7 +806,7 @@ if (NUMKONG_BUILD_NODE)
     target_compile_definitions(numkong_node PRIVATE NAPI_VERSION=8)
     target_compile_options(numkong_node PRIVATE $<$<C_COMPILER_ID:MSVC>:/Zc:preprocessor>)
     target_link_libraries(
-        numkong_node PRIVATE numkong_static numkong_warnings ${CMAKE_JS_LIB}
+        numkong_node PRIVATE numkong_static numkong_warnings ${CMAKE_JS_LIB} Threads::Threads
                              $<$<AND:$<BOOL:${OpenMP_C_FOUND}>,$<PLATFORM_ID:Linux,FreeBSD>>:OpenMP::OpenMP_C>
     )
 endif ()

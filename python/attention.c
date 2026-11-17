@@ -61,8 +61,10 @@ typedef struct attention_arguments_t {
     nk_stream_t stream;
 } attention_arguments_t;
 
-/** Most windows of the query tokens × heads grid one attention call is cut into. */
-enum { attention_windows_limit_k = 4 * NUMKONG_PARALLEL_MAX_THREADS };
+/** Most windows of the query tokens × heads grid one attention call is cut into, as their
+ *  bounds live in a table on the caller's stack; past 1024 threads a window is under a quarter
+ *  of a share. */
+enum { attention_windows_limit_k = 4096 };
 
 /** Attention cut into windows of the query tokens × heads grid, window @c w spanning the tasks
  *  from `window_bounds[w]` to `window_bounds[w + 1]`. */
