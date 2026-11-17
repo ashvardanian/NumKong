@@ -20,8 +20,8 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     env:
-      CC: gcc-14
-      CXX: g++-14
+      CC: gcc-16
+      CXX: g++-16
 
     steps:
       - name: Checkout Repository
@@ -41,7 +41,7 @@ jobs:
           timeout_minutes: 180
           command: |
             sudo apt update
-            sudo apt install -y cmake build-essential
+            sudo apt install -y cmake build-essential gcc-16 g++-16
 
       - name: Set Up Node.js
         uses: actions/setup-node@v7
@@ -296,8 +296,8 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     env:
-      CC: gcc-14
-      CXX: g++-14
+      CC: gcc-16
+      CXX: g++-16
 
     steps:
       - name: Checkout Repository
@@ -317,7 +317,7 @@ jobs:
           timeout_minutes: 180
           command: |
             sudo apt update
-            sudo apt install -y cmake build-essential
+            sudo apt install -y cmake build-essential gcc-16 g++-16
 
       - name: Set Up Node.js
         uses: actions/setup-node@v7
@@ -344,8 +344,8 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     env:
-      CC: gcc-14
-      CXX: g++-14
+      CC: gcc-16
+      CXX: g++-16
 
     steps:
       - name: Checkout Repository
@@ -365,7 +365,7 @@ jobs:
           timeout_minutes: 180
           command: |
             sudo apt update
-            sudo apt install -y cmake build-essential
+            sudo apt install -y cmake build-essential gcc-16 g++-16
 
       - name: Set Up Node.js
         uses: actions/setup-node@v7
