@@ -487,7 +487,7 @@ NUMKONG_INLINE void nk_euclideans_from_relative_sme_streaming_(nk_f32_t *row, nk
 
 #pragma region F16 Floats
 
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_f16_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_f16_sme_streaming_( //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -556,7 +556,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_f16_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_f16_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_f16_sme_streaming_( //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -593,7 +593,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_f16_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_f16_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_f16_sme_streaming_( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -646,7 +646,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_f16_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_f16_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_f16_sme_streaming_( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -700,7 +700,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_sme( //
 
 #pragma region BF16 Floats
 
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_bf16_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_bf16_sme_streaming_( //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -768,7 +768,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_bf16_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_bf16_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_bf16_sme_streaming_( //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -805,7 +805,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_bf16_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_bf16_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_bf16_sme_streaming_( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -858,7 +858,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_bf16_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_bf16_sme_streaming_( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -912,7 +912,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_sme( //
 
 #pragma region E4M3 Floats
 
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_e4m3_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_e4m3_sme_streaming_( //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -980,7 +980,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_e4m3_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_e4m3_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_e4m3_sme_streaming_( //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1017,7 +1017,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_e4m3_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_e4m3_sme_streaming_( //
     nk_e4m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1070,7 +1070,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_e4m3_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_e4m3_sme_streaming_( //
     nk_e4m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1124,7 +1124,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_sme( //
 
 #pragma region E5M2 Floats
 
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_e5m2_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_e5m2_sme_streaming_( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1192,7 +1192,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_e5m2_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_e5m2_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_e5m2_sme_streaming_( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1229,7 +1229,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_e5m2_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_e5m2_sme_streaming_( //
     nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1282,7 +1282,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_e5m2_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_e5m2_sme_streaming_( //
     nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1336,7 +1336,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_sme( //
 
 #pragma region E2M3 Floats
 
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_e2m3_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_e2m3_sme_streaming_( //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1404,7 +1404,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_e2m3_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_e2m3_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_e2m3_sme_streaming_( //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1441,7 +1441,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_e2m3_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_e2m3_sme_streaming_( //
     nk_e2m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1494,7 +1494,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_e2m3_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_e2m3_sme_streaming_( //
     nk_e2m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1548,7 +1548,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_sme( //
 
 #pragma region E2M1 Floats
 
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_e2m1_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_e2m1_sme_streaming_( //
     nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1616,7 +1616,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_e2m1_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_e2m1_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_e2m1_sme_streaming_( //
     nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1653,7 +1653,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_e2m1_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_e2m1_sme_streaming_( //
     nk_e2m1x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1706,7 +1706,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_e2m1_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_e2m1_sme_streaming_( //
     nk_e2m1x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1760,7 +1760,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_sme( //
 
 #pragma region E3M2 Floats
 
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_e3m2_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_e3m2_sme_streaming_( //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1828,7 +1828,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_e3m2_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_e3m2_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_e3m2_sme_streaming_( //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1865,7 +1865,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_e3m2_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_e3m2_sme_streaming_( //
     nk_e3m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1918,7 +1918,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_e3m2_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_e3m2_sme_streaming_( //
     nk_e3m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1971,7 +1971,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_sme( //
 #pragma endregion E3M2 Floats
 #pragma region I8 Integers
 
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_i8_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_i8_sme_streaming_( //
     nk_i8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -2041,7 +2041,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_i8_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_i8_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_i8_sme_streaming_( //
     nk_i8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -2070,7 +2070,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_i8_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_i8_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_i8_sme_streaming_( //
     nk_i8_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -2126,7 +2126,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_i8_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_i8_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_i8_sme_streaming_( //
     nk_i8_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -2181,7 +2181,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_sme( //
 
 #pragma region U8 Integers
 
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_u8_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_u8_sme_streaming_( //
     nk_u8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -2251,7 +2251,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_u8_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_u8_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_u8_sme_streaming_( //
     nk_u8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -2280,7 +2280,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_u8_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_u8_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_u8_sme_streaming_( //
     nk_u8_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -2336,7 +2336,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_u8_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_u8_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_u8_sme_streaming_( //
     nk_u8_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -2391,7 +2391,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_sme( //
 
 #pragma region I4 Integers
 
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_i4_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_i4_sme_streaming_( //
     nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -2461,7 +2461,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_i4_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_i4_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_i4_sme_streaming_( //
     nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -2490,7 +2490,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_i4_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_i4_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_i4_sme_streaming_( //
     nk_i4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -2546,7 +2546,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_i4_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_i4_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_i4_sme_streaming_( //
     nk_i4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -2601,7 +2601,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_sme( //
 
 #pragma region U4 Integers
 
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_u4_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_u4_sme_streaming_( //
     nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -2671,7 +2671,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_u4_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_u4_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_u4_sme_streaming_( //
     nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -2700,7 +2700,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_u4_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_u4_sme_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_u4_sme_streaming_( //
     nk_u4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -2756,7 +2756,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_u4_sme( //
     return nk_success_k;
 }
 
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_u4_sme_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_u4_sme_streaming_( //
     nk_u4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -2810,11 +2810,11 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_sme( //
 #pragma endregion Unsigned Integers
 
 /** Turns packed NVFP4 relative dots into angular distances. */
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_nvfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                        void const *b_packed, nk_f32_t *c,
-                                                                        nk_size_t rows, nk_size_t columns,
-                                                                        nk_size_t depth,
-                                                                        nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_nvfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                       void const *b_packed, nk_f32_t *c,
+                                                                       nk_size_t rows, nk_size_t columns,
+                                                                       nk_size_t depth,
+                                                                       nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 16, 4);
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(a.tensor_scale), &tensor_exponent) *
@@ -2839,11 +2839,11 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_nvfp4_sme_streaming_(nk_cross
 }
 
 /** Turns symmetric NVFP4 relative dots into angular distances with a zero diagonal. */
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_nvfp4_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                           nk_size_t vector_count, nk_size_t depth,
-                                                                           nk_f32_t *result, nk_size_t result_stride,
-                                                                           nk_size_t rows_begin,
-                                                                           nk_size_t rows_end) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_nvfp4_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
+                                                                          nk_size_t vector_count, nk_size_t depth,
+                                                                          nk_f32_t *result, nk_size_t result_stride,
+                                                                          nk_size_t rows_begin,
+                                                                          nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale),
                                                    &tensor_exponent);
@@ -2871,11 +2871,11 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_nvfp4_sme_streaming_(nk_cr
 }
 
 /** Turns packed NVFP4 relative dots into Euclidean distances. */
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_nvfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                          void const *b_packed, nk_f32_t *c,
-                                                                          nk_size_t rows, nk_size_t columns,
-                                                                          nk_size_t depth,
-                                                                          nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_nvfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                         void const *b_packed, nk_f32_t *c,
+                                                                         nk_size_t rows, nk_size_t columns,
+                                                                         nk_size_t depth,
+                                                                         nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 16, 4);
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(a.tensor_scale), &tensor_exponent) *
@@ -2889,7 +2889,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_nvfp4_sme_streaming_(nk_cro
 }
 
 /** Turns symmetric NVFP4 relative dots into Euclidean distances with a zero diagonal. */
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_nvfp4_sme_streaming_(
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_nvfp4_sme_streaming_(
     nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
     nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_i32_t tensor_exponent;
@@ -3009,11 +3009,11 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_nvfp4_sme(nk_nvfp4_cref_t const 
 }
 
 /** Turns packed MXFP4 relative dots into angular distances. */
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_mxfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                        void const *b_packed, nk_f32_t *c,
-                                                                        nk_size_t rows, nk_size_t columns,
-                                                                        nk_size_t depth,
-                                                                        nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_mxfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                       void const *b_packed, nk_f32_t *c,
+                                                                       nk_size_t rows, nk_size_t columns,
+                                                                       nk_size_t depth,
+                                                                       nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 4);
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(a.tensor_scale), &tensor_exponent) *
@@ -3040,11 +3040,11 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_mxfp4_sme_streaming_(nk_cross
 }
 
 /** Turns symmetric MXFP4 relative dots into angular distances with a zero diagonal. */
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp4_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                           nk_size_t vector_count, nk_size_t depth,
-                                                                           nk_f32_t *result, nk_size_t result_stride,
-                                                                           nk_size_t rows_begin,
-                                                                           nk_size_t rows_end) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_mxfp4_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
+                                                                          nk_size_t vector_count, nk_size_t depth,
+                                                                          nk_f32_t *result, nk_size_t result_stride,
+                                                                          nk_size_t rows_begin,
+                                                                          nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale),
@@ -3080,11 +3080,11 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp4_sme_streaming_(nk_cr
 }
 
 /** Turns packed MXFP4 relative dots into Euclidean distances. */
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_mxfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                          void const *b_packed, nk_f32_t *c,
-                                                                          nk_size_t rows, nk_size_t columns,
-                                                                          nk_size_t depth,
-                                                                          nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_mxfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                         void const *b_packed, nk_f32_t *c,
+                                                                         nk_size_t rows, nk_size_t columns,
+                                                                         nk_size_t depth,
+                                                                         nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 4);
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(a.tensor_scale), &tensor_exponent) *
@@ -3100,7 +3100,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_mxfp4_sme_streaming_(nk_cro
 }
 
 /** Turns symmetric MXFP4 relative dots into Euclidean distances with a zero diagonal. */
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_mxfp4_sme_streaming_(
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_mxfp4_sme_streaming_(
     nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
     nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
@@ -3228,11 +3228,11 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp4_sme(nk_mxfp4_cref_t const 
 }
 
 /** Turns packed MXFP6 E2M3 relative dots into angular distances. */
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_mxfp6e2m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                            void const *b_packed, nk_f32_t *c,
-                                                                            nk_size_t rows, nk_size_t columns,
-                                                                            nk_size_t depth,
-                                                                            nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_mxfp6e2m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                           void const *b_packed, nk_f32_t *c,
+                                                                           nk_size_t rows, nk_size_t columns,
+                                                                           nk_size_t depth,
+                                                                           nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(a.tensor_scale), &tensor_exponent) *
@@ -3259,7 +3259,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_mxfp6e2m3_sme_streaming_(nk_c
 }
 
 /** Turns symmetric MXFP6 E2M3 relative dots into angular distances with a zero diagonal. */
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp6e2m3_sme_streaming_(
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_mxfp6e2m3_sme_streaming_(
     nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
     nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
@@ -3297,11 +3297,11 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp6e2m3_sme_streaming_(
 }
 
 /** Turns packed MXFP6 E2M3 relative dots into Euclidean distances. */
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_mxfp6e2m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                              void const *b_packed, nk_f32_t *c,
-                                                                              nk_size_t rows, nk_size_t columns,
-                                                                              nk_size_t depth,
-                                                                              nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_mxfp6e2m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                             void const *b_packed, nk_f32_t *c,
+                                                                             nk_size_t rows, nk_size_t columns,
+                                                                             nk_size_t depth,
+                                                                             nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(a.tensor_scale), &tensor_exponent) *
@@ -3317,7 +3317,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_mxfp6e2m3_sme_streaming_(nk
 }
 
 /** Turns symmetric MXFP6 E2M3 relative dots into Euclidean distances with a zero diagonal. */
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_mxfp6e2m3_sme_streaming_(
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_mxfp6e2m3_sme_streaming_(
     nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
     nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
@@ -3449,11 +3449,11 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp6e2m3_sme(nk_mxfp6e2m3_cref_
 }
 
 /** Turns packed MXFP6 E3M2 relative dots into angular distances. */
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_mxfp6e3m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                            void const *b_packed, nk_f32_t *c,
-                                                                            nk_size_t rows, nk_size_t columns,
-                                                                            nk_size_t depth,
-                                                                            nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_mxfp6e3m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                           void const *b_packed, nk_f32_t *c,
+                                                                           nk_size_t rows, nk_size_t columns,
+                                                                           nk_size_t depth,
+                                                                           nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(a.tensor_scale), &tensor_exponent) *
@@ -3480,7 +3480,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_mxfp6e3m2_sme_streaming_(nk_c
 }
 
 /** Turns symmetric MXFP6 E3M2 relative dots into angular distances with a zero diagonal. */
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp6e3m2_sme_streaming_(
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_mxfp6e3m2_sme_streaming_(
     nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
     nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
@@ -3518,11 +3518,11 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp6e3m2_sme_streaming_(
 }
 
 /** Turns packed MXFP6 E3M2 relative dots into Euclidean distances. */
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_mxfp6e3m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                              void const *b_packed, nk_f32_t *c,
-                                                                              nk_size_t rows, nk_size_t columns,
-                                                                              nk_size_t depth,
-                                                                              nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_mxfp6e3m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                             void const *b_packed, nk_f32_t *c,
+                                                                             nk_size_t rows, nk_size_t columns,
+                                                                             nk_size_t depth,
+                                                                             nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(a.tensor_scale), &tensor_exponent) *
@@ -3538,7 +3538,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_mxfp6e3m2_sme_streaming_(nk
 }
 
 /** Turns symmetric MXFP6 E3M2 relative dots into Euclidean distances with a zero diagonal. */
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_mxfp6e3m2_sme_streaming_(
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_mxfp6e3m2_sme_streaming_(
     nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
     nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
@@ -3670,11 +3670,11 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp6e3m2_sme(nk_mxfp6e3m2_cref_
 }
 
 /** Turns packed MXFP8 E4M3 relative dots into angular distances. */
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_mxfp8e4m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                            void const *b_packed, nk_f32_t *c,
-                                                                            nk_size_t rows, nk_size_t columns,
-                                                                            nk_size_t depth,
-                                                                            nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_mxfp8e4m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                           void const *b_packed, nk_f32_t *c,
+                                                                           nk_size_t rows, nk_size_t columns,
+                                                                           nk_size_t depth,
+                                                                           nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(a.tensor_scale), &tensor_exponent) *
@@ -3701,7 +3701,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_mxfp8e4m3_sme_streaming_(nk_c
 }
 
 /** Turns symmetric MXFP8 E4M3 relative dots into angular distances with a zero diagonal. */
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp8e4m3_sme_streaming_(
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_mxfp8e4m3_sme_streaming_(
     nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
     nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
@@ -3739,11 +3739,11 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp8e4m3_sme_streaming_(
 }
 
 /** Turns packed MXFP8 E4M3 relative dots into Euclidean distances. */
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_mxfp8e4m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                              void const *b_packed, nk_f32_t *c,
-                                                                              nk_size_t rows, nk_size_t columns,
-                                                                              nk_size_t depth,
-                                                                              nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_mxfp8e4m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                             void const *b_packed, nk_f32_t *c,
+                                                                             nk_size_t rows, nk_size_t columns,
+                                                                             nk_size_t depth,
+                                                                             nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(a.tensor_scale), &tensor_exponent) *
@@ -3759,7 +3759,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_mxfp8e4m3_sme_streaming_(nk
 }
 
 /** Turns symmetric MXFP8 E4M3 relative dots into Euclidean distances with a zero diagonal. */
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_mxfp8e4m3_sme_streaming_(
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_mxfp8e4m3_sme_streaming_(
     nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
     nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
@@ -3891,11 +3891,11 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp8e4m3_sme(nk_mxfp8e4m3_cref_
 }
 
 /** Turns packed MXFP8 E5M2 relative dots into angular distances. */
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_mxfp8e5m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                            void const *b_packed, nk_f32_t *c,
-                                                                            nk_size_t rows, nk_size_t columns,
-                                                                            nk_size_t depth,
-                                                                            nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_mxfp8e5m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                           void const *b_packed, nk_f32_t *c,
+                                                                           nk_size_t rows, nk_size_t columns,
+                                                                           nk_size_t depth,
+                                                                           nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(a.tensor_scale), &tensor_exponent) *
@@ -3922,7 +3922,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_mxfp8e5m2_sme_streaming_(nk_c
 }
 
 /** Turns symmetric MXFP8 E5M2 relative dots into angular distances with a zero diagonal. */
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp8e5m2_sme_streaming_(
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_mxfp8e5m2_sme_streaming_(
     nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
     nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
@@ -3960,11 +3960,11 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp8e5m2_sme_streaming_(
 }
 
 /** Turns packed MXFP8 E5M2 relative dots into Euclidean distances. */
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_mxfp8e5m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                              void const *b_packed, nk_f32_t *c,
-                                                                              nk_size_t rows, nk_size_t columns,
-                                                                              nk_size_t depth,
-                                                                              nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_mxfp8e5m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                             void const *b_packed, nk_f32_t *c,
+                                                                             nk_size_t rows, nk_size_t columns,
+                                                                             nk_size_t depth,
+                                                                             nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(a.tensor_scale), &tensor_exponent) *
@@ -3980,7 +3980,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_mxfp8e5m2_sme_streaming_(nk
 }
 
 /** Turns symmetric MXFP8 E5M2 relative dots into Euclidean distances with a zero diagonal. */
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_mxfp8e5m2_sme_streaming_(
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_mxfp8e5m2_sme_streaming_(
     nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
     nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;

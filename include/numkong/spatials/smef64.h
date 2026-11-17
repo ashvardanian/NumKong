@@ -97,7 +97,7 @@ NUMKONG_INLINE svfloat64_t nk_euclideans_from_dot_ssvef64_f64x_smef64_(
 
 #pragma region F32 Packed Angular
 
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_f32_smef64_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_f32_smef64_streaming_( //
     nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
 
@@ -173,7 +173,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_f32_smef64( //
 #pragma endregion F32 Packed Angular
 #pragma region F32 Packed Euclidean
 
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_f32_smef64_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_f32_smef64_streaming_( //
     nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
 
@@ -218,7 +218,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_f32_smef64( //
 #pragma endregion F32 Packed Euclidean
 #pragma region F32 Symmetric Angular
 
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_f32_smef64_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_f32_smef64_streaming_( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -279,7 +279,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_f32_smef64( //
 #pragma endregion F32 Symmetric Angular
 #pragma region F32 Symmetric Euclidean
 
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_f32_smef64_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_f32_smef64_streaming_( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -340,7 +340,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_smef64( //
 #pragma endregion F32 Symmetric Euclidean
 #pragma region F64 Packed Angular
 
-NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_f64_smef64_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_packed_finalize_f64_smef64_streaming_( //
     nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
 
@@ -415,7 +415,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_f64_smef64( //
 #pragma endregion F64 Packed Angular
 #pragma region F64 Packed Euclidean
 
-NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_f64_smef64_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_packed_finalize_f64_smef64_streaming_( //
     nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
 
@@ -460,7 +460,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_f64_smef64( //
 #pragma endregion F64 Packed Euclidean
 #pragma region F64 Symmetric Angular
 
-NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_f64_smef64_streaming_( //
+NUMKONG_OUTLINED void nk_angulars_symmetric_finalize_f64_smef64_streaming_( //
     nk_f64_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -521,7 +521,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_f64_smef64( //
 #pragma endregion F64 Symmetric Angular
 #pragma region F64 Symmetric Euclidean
 
-NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_f64_smef64_streaming_( //
+NUMKONG_OUTLINED void nk_euclideans_symmetric_finalize_f64_smef64_streaming_( //
     nk_f64_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
     nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal

@@ -12,10 +12,6 @@ if (NUMKONG_CUDA_ARCH)
     # plain code suffices, so it runs on every later GPU, and family SASS where the row needs an "a" or "f" code.
     # `native` maps each visible GPU to the code its capability rows need, family suffix included, where CMake's own
     # resolution would drop it. A native or named code compiles as SASS alone.
-    set(numkong_cuda_native_codes_
-        75-real=75-real 80-real=80-real 86-real=86-real 89-real=89-real 90-real=90a-real 100-real=100f-real
-        103-real=103f-real 110-real=110f-real 120-real=120f-real 121-real=121f-real
-    )
     if (NUMKONG_CUDA_ARCH STREQUAL "all")
         set(numkong_cuda_resolved_architectures_ 75-virtual 80-virtual 89-virtual 90a-real 100f-real 103f-real
                                                  120f-real
@@ -23,19 +19,18 @@ if (NUMKONG_CUDA_ARCH)
     elseif (NUMKONG_CUDA_ARCH STREQUAL "native")
         set(numkong_cuda_resolved_architectures_)
         foreach (visible_ IN LISTS CMAKE_CUDA_ARCHITECTURES_NATIVE)
-            set(native_code_)
-            foreach (pair_ IN LISTS numkong_cuda_native_codes_)
-                if (pair_ MATCHES "^${visible_}=(.+)$")
-                    set(native_code_ ${CMAKE_MATCH_1})
-                endif ()
-            endforeach ()
-            if (NOT native_code_)
+            if (visible_ MATCHES "^(75|80|86|89)-real$")
+                list(APPEND numkong_cuda_resolved_architectures_ ${visible_})
+            elseif (visible_ STREQUAL "90-real")
+                list(APPEND numkong_cuda_resolved_architectures_ 90a-real)
+            elseif (visible_ MATCHES "^(100|103|110|120|121)-real$")
+                list(APPEND numkong_cuda_resolved_architectures_ ${CMAKE_MATCH_1}f-real)
+            else ()
                 message(
                     FATAL_ERROR
                         "NUMKONG_CUDA_ARCH=native has no code for the visible ${visible_} GPU; name its code instead"
                 )
             endif ()
-            list(APPEND numkong_cuda_resolved_architectures_ ${native_code_})
         endforeach ()
     elseif (NUMKONG_CUDA_ARCH MATCHES "^[0-9]+[af]?$")
         set(numkong_cuda_resolved_architectures_ ${NUMKONG_CUDA_ARCH}-real)
@@ -44,6 +39,14 @@ if (NUMKONG_CUDA_ARCH)
     endif ()
     if (CMAKE_VERSION VERSION_LESS 3.31 AND numkong_cuda_resolved_architectures_ MATCHES "1[0-9][0-9][af]")
         message(FATAL_ERROR "Three-digit \"a\" and \"f\" CUDA codes need CMake 3.31, found ${CMAKE_VERSION}")
+    endif ()
+    # A monoversioned build folds every GPU dispatch row to one capability, which only one architecture per vendor
+    # names: sibling capabilities, like `blackwellrtx` beside `blackwell`, are no chain.
+    list(LENGTH numkong_cuda_resolved_architectures_ numkong_cuda_count_)
+    if (NOT NUMKONG_MULTIVERSIONED AND numkong_cuda_count_ GREATER 1)
+        message(FATAL_ERROR "A monoversioned build takes one CUDA architecture, not "
+                            "`${numkong_cuda_resolved_architectures_}`; name one code or set NUMKONG_MULTIVERSIONED=ON"
+        )
     endif ()
     set(CMAKE_CUDA_ARCHITECTURES "${numkong_cuda_resolved_architectures_}")
     # NVCC's default leaves Turing and Ampere cubins uncompressed, ten times their compressed size.
@@ -74,21 +77,12 @@ int main() { return 0; }
         message(FATAL_ERROR "NumKong needs a HIP compiler that knows CDNA5's builtins, like ROCm Clang 22 or newer")
     endif ()
     set(numkong_rocm_resolved_architectures_ ${CMAKE_HIP_ARCHITECTURES})
-endif ()
-
-# A monoversioned build folds every GPU dispatch row to one capability, which only one architecture per vendor names:
-# sibling capabilities, like `blackwellrtx` beside `blackwell`, are no chain.
-if (NOT NUMKONG_MULTIVERSIONED)
-    foreach (vendor_ cuda rocm)
-        list(LENGTH numkong_${vendor_}_resolved_architectures_ architectures_count_)
-        if (architectures_count_ GREATER 1)
-            message(
-                FATAL_ERROR
-                    "A monoversioned build takes one ${vendor_} architecture, not "
-                    "`${numkong_${vendor_}_resolved_architectures_}`; name one code or set NUMKONG_MULTIVERSIONED=ON"
-            )
-        endif ()
-    endforeach ()
+    list(LENGTH numkong_rocm_resolved_architectures_ numkong_rocm_count_)
+    if (NOT NUMKONG_MULTIVERSIONED AND numkong_rocm_count_ GREATER 1)
+        message(FATAL_ERROR "A monoversioned build takes one ROCm architecture, not "
+                            "`${numkong_rocm_resolved_architectures_}`; name one code or set NUMKONG_MULTIVERSIONED=ON"
+        )
+    endif ()
 endif ()
 
 # Metal compiles on the device, so the families only choose the capabilities embedded: the Metal baseline always,

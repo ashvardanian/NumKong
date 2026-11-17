@@ -77,7 +77,7 @@ extern "C" {
  *  Each ZA0.S batch covers 16 depth u32 steps, one full depth tile. BMOPA has an expansion of 1 for
  *  u32, so each u32 contributes 32 bits via XNOR and POPCNT.
  */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_hammings_packed_u1_smebi32_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED void nk_hammings_packed_u1_smebi32_streaming_( //
     nk_u1x8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
     nk_size_t depth_bits, nk_size_t a_stride, nk_size_t c_stride) NUMKONG_STREAMING_ {
 
@@ -243,7 +243,7 @@ NUMKONG_API nk_status_t nk_hammings_packed_u1_smebi32( //
 /** Symmetric Hamming using ZA0 time-sharing and a 3-tile fast path. ZA0.S stages A rows, loaded
  *  horizontally and read vertically for BMOPA, while ZA1-3.S hold the BMOPA accumulators for 3 B
  *  column tiles, mirroring the unpacked @c nk_hammings_packed_u1_smebi32_streaming_ kernel. */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_hammings_symmetric_u1_smebi32_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED void nk_hammings_symmetric_u1_smebi32_streaming_( //
     nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t depth_bits, nk_size_t stride, nk_u32_t *result,
     nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
 
@@ -508,7 +508,7 @@ NUMKONG_API nk_status_t nk_hammings_symmetric_u1_smebi32( //
  *  jaccard      = 1 - intersection / union, or 1.0 when union == 0
  *  @endverbatim
  */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_jaccards_packed_u1_smebi32_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED void nk_jaccards_packed_u1_smebi32_streaming_( //
     nk_u1x8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
     nk_size_t depth_bits, nk_size_t a_stride, nk_size_t c_stride) NUMKONG_STREAMING_ {
 
@@ -747,7 +747,7 @@ NUMKONG_API nk_status_t nk_jaccards_packed_u1_smebi32( //
 /** Symmetric Jaccard kernel using ZA0 time-sharing and a 3-tile fast path. Fills the upper triangle
  *  only, where column_tile ≥ row_tile, so the caller sees result[i][j] for j ≥ i. Norms are
  *  computed on the fly using streaming SVE popcount. */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_jaccards_symmetric_u1_smebi32_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED void nk_jaccards_symmetric_u1_smebi32_streaming_( //
     nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t depth_bits, nk_size_t stride, nk_f32_t *result,
     nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
 

@@ -816,8 +816,8 @@ NUMKONG_INLINE void nk_partial_load_u32x8_to_f32x8_haswell_(nk_u32_t const *src,
 #pragma region Public API
 
 /** Converts @p n elements between any two dtypes through an F32 hub, eight at a time. */
-NUMKONG_INLINE void nk_cast_elementwise_haswell_(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                                 nk_dtype_t to_type) {
+NUMKONG_OUTLINED void nk_cast_elementwise_haswell_(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                                   nk_dtype_t to_type) {
     // Same-type fast path
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);

@@ -604,9 +604,8 @@ NUMKONG_INLINE void nk_f16_to_f32_serial_(nk_f16_t const *src, nk_f32_t *dest) N
 #endif
 }
 
-/*  Keep the serial conversions below scalar regardless of build type, as dots/serial.h does.
- *  Without this, -O3 and LTO can vectorize or clone the serial kernels under AVX-512 callers in
- *  dispatch_*.c, which wastes binary size and breaks the nk_*_serial scalar-oracle contract. */
+/*  Keep the serial conversions below scalar regardless of build type, as dots/serial.h does:
+ *  they are the dispatch floor that runs on every CPU of the architecture. */
 #if NUMKONG_TARGET_SERIAL
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((noinline)), apply_to = function)
@@ -2707,7 +2706,7 @@ NUMKONG_INLINE nk_cast_operand_t nk_cast_operand_serial_(nk_dtype_t dtype, void 
 
 /** Converts @p count values between plain and block-scaled formats, a chunk of blocks at a time
  *  through an F32 scratch, deriving a zero destination tensor scale from the source amax. */
-NUMKONG_INLINE void nk_cast_block_scaled_through_f32_serial_(                                           //
+NUMKONG_OUTLINED void nk_cast_block_scaled_through_f32_serial_(                                         //
     void const *from, nk_u8_t const *from_scales, nk_f32_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                        //
     void *to, nk_u8_t *to_scales, nk_f32_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //

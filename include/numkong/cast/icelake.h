@@ -527,8 +527,8 @@ NUMKONG_INLINE void nk_partial_load_e5m2x32_to_bf16x32_icelake_(void const *src,
 #pragma region Public API
 
 /** Converts @p n elements between dtypes: FP8 and FP6 via VBMI codecs, the rest as Skylake does. */
-NUMKONG_INLINE void nk_cast_elementwise_icelake_(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                                 nk_dtype_t to_type) {
+NUMKONG_OUTLINED void nk_cast_elementwise_icelake_(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                                   nk_dtype_t to_type) {
     // Group 1: Conversions to bf16 (e4m3 → bf16, e5m2 → bf16)
     if (to_type == nk_bf16_k && (from_type == nk_e4m3_k || from_type == nk_e5m2_k)) {
         nk_e4m3_t const *from_ptr = (nk_e4m3_t const *)from;

@@ -17,10 +17,8 @@ extern "C" {
 
 #if NUMKONG_TARGET_SERIAL
 
-/*  Keep the serial instantiations below actually scalar, regardless of build type. Without this,
- *  -O3 + LTO can vectorize or clone the serial kernels under AVX-512 callers in dispatch_*.c, which
- *  wastes binary and breaks the nk_*_serial-as-scalar-oracle contract that tests and
- *  numerical-stability docs rely on. See dots/serial.h. */
+/*  Keep the serial instantiations below actually scalar, regardless of build type: they are the
+ *  dispatch floor that runs on every CPU of the architecture. See dots/serial.h. */
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((noinline)), apply_to = function)
 #elif defined(__GNUC__)

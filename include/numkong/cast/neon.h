@@ -1080,8 +1080,8 @@ NUMKONG_INLINE uint32x4_t nk_f32x4_to_e2m1x4_neon_(float32x4_t values_f32x4) {
 #pragma region Public API
 
 /** Converts @p n elements between plain dtypes via an F16 or F32 hub, serially where NEON can't. */
-NUMKONG_INLINE void nk_cast_elementwise_neon_(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                              nk_dtype_t to_type) {
+NUMKONG_OUTLINED void nk_cast_elementwise_neon_(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                                nk_dtype_t to_type) {
     // Same-type fast path
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);

@@ -779,9 +779,9 @@ NUMKONG_INLINE void nk_store_panel_steps_sme_(void *panel, nk_size_t step_first,
  *  transpose; rows past @p rows stay zero. MX rows rebase by @p bases, one per row. */
 
 /** Stages raw f16 or bf16 rows. */
-NUMKONG_OUTLINED_ void nk_stage_panel_b16_sme_(nk_u16_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
-                                               nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
-                                               nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_OUTLINED void nk_stage_panel_b16_sme_(nk_u16_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+                                              nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
+                                              nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
     svbool_t const predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += vector_elements) {
@@ -799,9 +799,9 @@ NUMKONG_OUTLINED_ void nk_stage_panel_b16_sme_(nk_u16_t const *rows_data, nk_siz
 }
 
 /** Stages E4M3 rows as f16. */
-NUMKONG_OUTLINED_ void nk_stage_panel_e4m3_sme_(nk_e4m3_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
-                                                nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
-                                                nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_OUTLINED void nk_stage_panel_e4m3_sme_(nk_e4m3_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+                                               nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
+                                               nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
     svbool_t const predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += vector_elements) {
@@ -819,9 +819,9 @@ NUMKONG_OUTLINED_ void nk_stage_panel_e4m3_sme_(nk_e4m3_t const *rows_data, nk_s
 }
 
 /** Stages E5M2 rows as f16. */
-NUMKONG_OUTLINED_ void nk_stage_panel_e5m2_sme_(nk_e5m2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
-                                                nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
-                                                nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_OUTLINED void nk_stage_panel_e5m2_sme_(nk_e5m2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+                                               nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
+                                               nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
     svbool_t const predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += vector_elements) {
@@ -839,9 +839,9 @@ NUMKONG_OUTLINED_ void nk_stage_panel_e5m2_sme_(nk_e5m2_t const *rows_data, nk_s
 }
 
 /** Stages E3M2 rows as f16. */
-NUMKONG_OUTLINED_ void nk_stage_panel_e3m2_sme_(nk_e3m2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
-                                                nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
-                                                nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_OUTLINED void nk_stage_panel_e3m2_sme_(nk_e3m2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+                                               nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
+                                               nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
     svbool_t const predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += vector_elements) {
@@ -859,9 +859,9 @@ NUMKONG_OUTLINED_ void nk_stage_panel_e3m2_sme_(nk_e3m2_t const *rows_data, nk_s
 }
 
 /** Stages NVFP4 rows times their block scales as f16. */
-NUMKONG_OUTLINED_ void nk_stage_panel_nvfp4_sme_(nk_cross_operand_t operand, nk_size_t row_stride, nk_size_t row_first,
-                                                 nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
-                                                 nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_OUTLINED void nk_stage_panel_nvfp4_sme_(nk_cross_operand_t operand, nk_size_t row_stride, nk_size_t row_first,
+                                                nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
+                                                nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
     svbool_t const predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += vector_elements) {
@@ -879,9 +879,9 @@ NUMKONG_OUTLINED_ void nk_stage_panel_nvfp4_sme_(nk_cross_operand_t operand, nk_
 }
 
 /** Stages MXFP4 rows as rebased bf16. */
-NUMKONG_OUTLINED_ void nk_stage_panel_mxfp4_sme_(nk_cross_operand_t operand, nk_size_t row_stride, nk_size_t row_first,
-                                                 nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
-                                                 nk_i32_t const *bases, nk_u16_t *panel) NUMKONG_STREAMING_
+NUMKONG_OUTLINED void nk_stage_panel_mxfp4_sme_(nk_cross_operand_t operand, nk_size_t row_stride, nk_size_t row_first,
+                                                nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
+                                                nk_i32_t const *bases, nk_u16_t *panel) NUMKONG_STREAMING_
     __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
     svbool_t const predicate_all_b32x = svptrue_b32();
@@ -900,10 +900,10 @@ NUMKONG_OUTLINED_ void nk_stage_panel_mxfp4_sme_(nk_cross_operand_t operand, nk_
 }
 
 /** Stages MXFP6 E2M3 rows as rebased bf16. */
-NUMKONG_OUTLINED_ void nk_stage_panel_mxfp6e2m3_sme_(nk_cross_operand_t operand, nk_size_t row_stride,
-                                                     nk_size_t row_first, nk_size_t rows, nk_size_t depth_first,
-                                                     nk_size_t depth, nk_i32_t const *bases,
-                                                     nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_OUTLINED void nk_stage_panel_mxfp6e2m3_sme_(nk_cross_operand_t operand, nk_size_t row_stride,
+                                                    nk_size_t row_first, nk_size_t rows, nk_size_t depth_first,
+                                                    nk_size_t depth, nk_i32_t const *bases,
+                                                    nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
     svbool_t const predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += vector_elements) {
@@ -921,10 +921,10 @@ NUMKONG_OUTLINED_ void nk_stage_panel_mxfp6e2m3_sme_(nk_cross_operand_t operand,
 }
 
 /** Stages MXFP6 E3M2 rows as rebased bf16. */
-NUMKONG_OUTLINED_ void nk_stage_panel_mxfp6e3m2_sme_(nk_cross_operand_t operand, nk_size_t row_stride,
-                                                     nk_size_t row_first, nk_size_t rows, nk_size_t depth_first,
-                                                     nk_size_t depth, nk_i32_t const *bases,
-                                                     nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_OUTLINED void nk_stage_panel_mxfp6e3m2_sme_(nk_cross_operand_t operand, nk_size_t row_stride,
+                                                    nk_size_t row_first, nk_size_t rows, nk_size_t depth_first,
+                                                    nk_size_t depth, nk_i32_t const *bases,
+                                                    nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
     svbool_t const predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += vector_elements) {
@@ -942,10 +942,10 @@ NUMKONG_OUTLINED_ void nk_stage_panel_mxfp6e3m2_sme_(nk_cross_operand_t operand,
 }
 
 /** Stages MXFP8 E4M3 rows as rebased bf16. */
-NUMKONG_OUTLINED_ void nk_stage_panel_mxfp8e4m3_sme_(nk_cross_operand_t operand, nk_size_t row_stride,
-                                                     nk_size_t row_first, nk_size_t rows, nk_size_t depth_first,
-                                                     nk_size_t depth, nk_i32_t const *bases,
-                                                     nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_OUTLINED void nk_stage_panel_mxfp8e4m3_sme_(nk_cross_operand_t operand, nk_size_t row_stride,
+                                                    nk_size_t row_first, nk_size_t rows, nk_size_t depth_first,
+                                                    nk_size_t depth, nk_i32_t const *bases,
+                                                    nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
     svbool_t const predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += vector_elements) {
@@ -963,10 +963,10 @@ NUMKONG_OUTLINED_ void nk_stage_panel_mxfp8e4m3_sme_(nk_cross_operand_t operand,
 }
 
 /** Stages MXFP8 E5M2 rows as rebased bf16. */
-NUMKONG_OUTLINED_ void nk_stage_panel_mxfp8e5m2_sme_(nk_cross_operand_t operand, nk_size_t row_stride,
-                                                     nk_size_t row_first, nk_size_t rows, nk_size_t depth_first,
-                                                     nk_size_t depth, nk_i32_t const *bases,
-                                                     nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_OUTLINED void nk_stage_panel_mxfp8e5m2_sme_(nk_cross_operand_t operand, nk_size_t row_stride,
+                                                    nk_size_t row_first, nk_size_t rows, nk_size_t depth_first,
+                                                    nk_size_t depth, nk_i32_t const *bases,
+                                                    nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
     svbool_t const predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += vector_elements) {
@@ -993,9 +993,9 @@ NUMKONG_INLINE nk_size_t nk_panel_steps_b8_sme_(nk_size_t dims_per_word, nk_size
  *  row i's four bytes of that step. */
 
 /** Stages raw i8 or u8 rows. */
-NUMKONG_OUTLINED_ void nk_stage_panel_b8_sme_(void const *rows_data, nk_size_t row_stride, nk_size_t row_first,
-                                              nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
-                                              nk_u8_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_OUTLINED void nk_stage_panel_b8_sme_(void const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+                                             nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
+                                             nk_u8_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_bytes = svcntb();
     svbool_t const predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += vector_bytes) {
@@ -1012,9 +1012,9 @@ NUMKONG_OUTLINED_ void nk_stage_panel_b8_sme_(void const *rows_data, nk_size_t r
 }
 
 /** Stages E2M3 rows as sixteen times their values in i8. */
-NUMKONG_OUTLINED_ void nk_stage_panel_e2m3_sme_(nk_e2m3_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
-                                                nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
-                                                nk_u8_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_OUTLINED void nk_stage_panel_e2m3_sme_(nk_e2m3_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+                                               nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
+                                               nk_u8_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_bytes = svcntb();
     svbool_t const predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += vector_bytes) {
@@ -1031,9 +1031,9 @@ NUMKONG_OUTLINED_ void nk_stage_panel_e2m3_sme_(nk_e2m3_t const *rows_data, nk_s
 }
 
 /** Stages E2M1 rows as twice their values in i8. */
-NUMKONG_OUTLINED_ void nk_stage_panel_e2m1_sme_(nk_e2m1x2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
-                                                nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
-                                                nk_u8_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_OUTLINED void nk_stage_panel_e2m1_sme_(nk_e2m1x2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+                                               nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
+                                               nk_u8_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_bytes = svcntb();
     svbool_t const predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += vector_bytes) {
@@ -1065,9 +1065,9 @@ NUMKONG_INLINE void nk_write_nibble_rows_sme_(void const *rows_data, nk_size_t r
 }
 
 /** Stages i4 rows as sign-extended nibble steps, each 8-dim word a low step and a high step. */
-NUMKONG_OUTLINED_ void nk_stage_panel_i4_sme_(nk_i4x2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
-                                              nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
-                                              nk_u8_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_OUTLINED void nk_stage_panel_i4_sme_(nk_i4x2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+                                             nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
+                                             nk_u8_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_bytes = svcntb(), batch_dims = 2 * vector_bytes;
     svbool_t const predicate_all_b8x = svptrue_b8(), predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += batch_dims) {
@@ -1086,9 +1086,9 @@ NUMKONG_OUTLINED_ void nk_stage_panel_i4_sme_(nk_i4x2_t const *rows_data, nk_siz
 }
 
 /** Stages u4 rows as zero-extended nibble steps, each 8-dim word a low step and a high step. */
-NUMKONG_OUTLINED_ void nk_stage_panel_u4_sme_(nk_u4x2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
-                                              nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
-                                              nk_u8_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_OUTLINED void nk_stage_panel_u4_sme_(nk_u4x2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+                                             nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
+                                             nk_u8_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_bytes = svcntb(), batch_dims = 2 * vector_bytes;
     svbool_t const predicate_all_b8x = svptrue_b8(), predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += batch_dims) {
@@ -1897,10 +1897,10 @@ NUMKONG_INLINE void nk_pack_norms_scale_sme_(nk_u32_t *norms, nk_size_t columns,
  *  then take the squared norms of their staged steps. */
 
 /** Packs f16 columns. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_f16_sme_streaming_(nk_f16_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
-                                         nk_u16_t *tiles, nk_f32_t *norms, nk_size_t tile_begin,
-                                         nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_pack_f16_sme_streaming_(nk_f16_t const *b, nk_size_t b_stride, nk_size_t columns,
+                                                          nk_size_t depth, nk_u16_t *tiles, nk_f32_t *norms,
+                                                          nk_size_t tile_begin, nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), steps = nk_size_divide_round_up_(depth, 2);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
@@ -1913,10 +1913,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** Packs bf16 columns. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_bf16_sme_streaming_(nk_bf16_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
-                                          nk_u16_t *tiles, nk_f32_t *norms, nk_size_t tile_begin,
-                                          nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_pack_bf16_sme_streaming_(nk_bf16_t const *b, nk_size_t b_stride, nk_size_t columns,
+                                                           nk_size_t depth, nk_u16_t *tiles, nk_f32_t *norms,
+                                                           nk_size_t tile_begin,
+                                                           nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), steps = nk_size_divide_round_up_(depth, 2);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
@@ -1929,10 +1930,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** Packs e4m3 columns as f16. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_e4m3_sme_streaming_(nk_e4m3_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
-                                          nk_u16_t *tiles, nk_f32_t *norms, nk_size_t tile_begin,
-                                          nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_pack_e4m3_sme_streaming_(nk_e4m3_t const *b, nk_size_t b_stride, nk_size_t columns,
+                                                           nk_size_t depth, nk_u16_t *tiles, nk_f32_t *norms,
+                                                           nk_size_t tile_begin,
+                                                           nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), steps = nk_size_divide_round_up_(depth, 2);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
@@ -1945,10 +1947,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** Packs e5m2 columns as f16. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_e5m2_sme_streaming_(nk_e5m2_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
-                                          nk_u16_t *tiles, nk_f32_t *norms, nk_size_t tile_begin,
-                                          nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_pack_e5m2_sme_streaming_(nk_e5m2_t const *b, nk_size_t b_stride, nk_size_t columns,
+                                                           nk_size_t depth, nk_u16_t *tiles, nk_f32_t *norms,
+                                                           nk_size_t tile_begin,
+                                                           nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), steps = nk_size_divide_round_up_(depth, 2);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
@@ -1961,10 +1964,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** Packs e3m2 columns as f16. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_e3m2_sme_streaming_(nk_e3m2_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
-                                          nk_u16_t *tiles, nk_f32_t *norms, nk_size_t tile_begin,
-                                          nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_pack_e3m2_sme_streaming_(nk_e3m2_t const *b, nk_size_t b_stride, nk_size_t columns,
+                                                           nk_size_t depth, nk_u16_t *tiles, nk_f32_t *norms,
+                                                           nk_size_t tile_begin,
+                                                           nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), steps = nk_size_divide_round_up_(depth, 2);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
@@ -1977,10 +1981,10 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** Packs i8 columns. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_i8_sme_streaming_(nk_i8_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
-                                        nk_u8_t *tiles, nk_u32_t *norms, nk_size_t tile_begin,
-                                        nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_pack_i8_sme_streaming_(nk_i8_t const *b, nk_size_t b_stride, nk_size_t columns,
+                                                         nk_size_t depth, nk_u8_t *tiles, nk_u32_t *norms,
+                                                         nk_size_t tile_begin, nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), steps = nk_panel_steps_b8_sme_(4, depth);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
@@ -1993,10 +1997,10 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** Packs u8 columns. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_u8_sme_streaming_(nk_u8_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
-                                        nk_u8_t *tiles, nk_u32_t *norms, nk_size_t tile_begin,
-                                        nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_pack_u8_sme_streaming_(nk_u8_t const *b, nk_size_t b_stride, nk_size_t columns,
+                                                         nk_size_t depth, nk_u8_t *tiles, nk_u32_t *norms,
+                                                         nk_size_t tile_begin, nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), steps = nk_panel_steps_b8_sme_(4, depth);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
@@ -2009,10 +2013,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** Packs e2m3 columns as i8 sixteenths, with F32 norms. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_e2m3_sme_streaming_(nk_e2m3_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
-                                          nk_u8_t *tiles, nk_u32_t *norms, nk_size_t tile_begin,
-                                          nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_pack_e2m3_sme_streaming_(nk_e2m3_t const *b, nk_size_t b_stride, nk_size_t columns,
+                                                           nk_size_t depth, nk_u8_t *tiles, nk_u32_t *norms,
+                                                           nk_size_t tile_begin,
+                                                           nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), steps = nk_panel_steps_b8_sme_(4, depth);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
@@ -2026,10 +2031,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** Packs e2m1 columns as doubled i8, with F32 norms. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_e2m1_sme_streaming_(nk_e2m1x2_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
-                                          nk_u8_t *tiles, nk_u32_t *norms, nk_size_t tile_begin,
-                                          nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_pack_e2m1_sme_streaming_(nk_e2m1x2_t const *b, nk_size_t b_stride, nk_size_t columns,
+                                                           nk_size_t depth, nk_u8_t *tiles, nk_u32_t *norms,
+                                                           nk_size_t tile_begin,
+                                                           nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), steps = nk_panel_steps_b8_sme_(4, depth);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
@@ -2043,10 +2049,10 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** Packs i4 columns as sign-extended nibble steps. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_i4_sme_streaming_(nk_i4x2_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
-                                        nk_u8_t *tiles, nk_u32_t *norms, nk_size_t tile_begin,
-                                        nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_pack_i4_sme_streaming_(nk_i4x2_t const *b, nk_size_t b_stride, nk_size_t columns,
+                                                         nk_size_t depth, nk_u8_t *tiles, nk_u32_t *norms,
+                                                         nk_size_t tile_begin, nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), steps = nk_panel_steps_b8_sme_(8, depth);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
@@ -2059,10 +2065,10 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** Packs u4 columns as zero-extended nibble steps. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_u4_sme_streaming_(nk_u4x2_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
-                                        nk_u8_t *tiles, nk_u32_t *norms, nk_size_t tile_begin,
-                                        nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_pack_u4_sme_streaming_(nk_u4x2_t const *b, nk_size_t b_stride, nk_size_t columns,
+                                                         nk_size_t depth, nk_u8_t *tiles, nk_u32_t *norms,
+                                                         nk_size_t tile_begin, nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), steps = nk_panel_steps_b8_sme_(8, depth);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
@@ -2402,9 +2408,10 @@ NUMKONG_INLINE void nk_store_factor_slices_sme_(nk_size_t block_first, nk_size_t
 
 /** Packs NVFP4 columns of whole column tiles from @p tile_begin up to @p tile_end: byte codes, f16
  *  block scale vectors, raw code and scale rows, and relative norms with their exponents. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_nvfp4_sme_streaming_(nk_cross_operand_t b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
-                                           nk_u8_t *pack, nk_size_t tile_begin, nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_pack_nvfp4_sme_streaming_(nk_cross_operand_t b, nk_size_t b_stride, nk_size_t columns,
+                                                            nk_size_t depth, nk_u8_t *pack, nk_size_t tile_begin,
+                                                            nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth(), blocks = depth / 16;
     nk_size_t const steps = nk_size_divide_round_up_(depth, 2);
     nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_layout_sme_(columns, depth, tile_dimension, 16, 4);
@@ -2446,9 +2453,10 @@ __arm_new("za") NUMKONG_OUTLINED_
 /** Packs MXFP4 columns of whole column tiles: byte codes, decrement vectors against each column's
  *  largest block exponent, raw rows, and relative norms with their exponents. Columns past the
  *  fold or holding a NaN scale are marked for the exact path. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_mxfp4_sme_streaming_(nk_cross_operand_t b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
-                                           nk_u8_t *pack, nk_size_t tile_begin, nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_pack_mxfp4_sme_streaming_(nk_cross_operand_t b, nk_size_t b_stride, nk_size_t columns,
+                                                            nk_size_t depth, nk_u8_t *pack, nk_size_t tile_begin,
+                                                            nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth(), blocks = depth / 32;
     nk_size_t const steps = nk_size_divide_round_up_(depth, 2);
     nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_layout_sme_(columns, depth, tile_dimension, 32, 4);
@@ -2513,10 +2521,10 @@ NUMKONG_INLINE void nk_pack_mx_bases_sme_(nk_cross_operand_t b, nk_size_t column
  *  and relative norms with their exponents. */
 
 /** Packs MXFP6 E2M3 columns. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_mxfp6e2m3_sme_streaming_(nk_cross_operand_t b, nk_size_t b_stride, nk_size_t columns,
-                                               nk_size_t depth, nk_u8_t *pack, nk_size_t tile_begin,
-                                               nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_pack_mxfp6e2m3_sme_streaming_(nk_cross_operand_t b, nk_size_t b_stride,
+                                                                            nk_size_t columns, nk_size_t depth,
+                                                                            nk_u8_t *pack, nk_size_t tile_begin,
+                                                                            nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), blocks = depth / 32, steps = nk_size_divide_round_up_(depth, 2);
     nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_layout_sme_(columns, depth, tile_dimension, 32, 8);
     nk_i32_t bases[nk_sme_max_tile_k];
@@ -2538,10 +2546,10 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** Packs MXFP6 E3M2 columns. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_mxfp6e3m2_sme_streaming_(nk_cross_operand_t b, nk_size_t b_stride, nk_size_t columns,
-                                               nk_size_t depth, nk_u8_t *pack, nk_size_t tile_begin,
-                                               nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_pack_mxfp6e3m2_sme_streaming_(nk_cross_operand_t b, nk_size_t b_stride,
+                                                                            nk_size_t columns, nk_size_t depth,
+                                                                            nk_u8_t *pack, nk_size_t tile_begin,
+                                                                            nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), blocks = depth / 32, steps = nk_size_divide_round_up_(depth, 2);
     nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_layout_sme_(columns, depth, tile_dimension, 32, 8);
     nk_i32_t bases[nk_sme_max_tile_k];
@@ -2563,10 +2571,10 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** Packs MXFP8 E4M3 columns. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_mxfp8e4m3_sme_streaming_(nk_cross_operand_t b, nk_size_t b_stride, nk_size_t columns,
-                                               nk_size_t depth, nk_u8_t *pack, nk_size_t tile_begin,
-                                               nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_pack_mxfp8e4m3_sme_streaming_(nk_cross_operand_t b, nk_size_t b_stride,
+                                                                            nk_size_t columns, nk_size_t depth,
+                                                                            nk_u8_t *pack, nk_size_t tile_begin,
+                                                                            nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), blocks = depth / 32, steps = nk_size_divide_round_up_(depth, 2);
     nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_layout_sme_(columns, depth, tile_dimension, 32, 8);
     nk_i32_t bases[nk_sme_max_tile_k];
@@ -2588,10 +2596,10 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** Packs MXFP8 E5M2 columns. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_pack_mxfp8e5m2_sme_streaming_(nk_cross_operand_t b, nk_size_t b_stride, nk_size_t columns,
-                                               nk_size_t depth, nk_u8_t *pack, nk_size_t tile_begin,
-                                               nk_size_t tile_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_pack_mxfp8e5m2_sme_streaming_(nk_cross_operand_t b, nk_size_t b_stride,
+                                                                            nk_size_t columns, nk_size_t depth,
+                                                                            nk_u8_t *pack, nk_size_t tile_begin,
+                                                                            nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), blocks = depth / 32, steps = nk_size_divide_round_up_(depth, 2);
     nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_layout_sme_(columns, depth, tile_dimension, 32, 8);
     nk_i32_t bases[nk_sme_max_tile_k];
@@ -2634,10 +2642,10 @@ NUMKONG_INLINE void nk_dots_pack_scaled_window_sme_(nk_cross_operand_t b, nk_siz
 #pragma region Packed Kernels
 
 /** A × packed B for f16 rows. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_f16_sme_streaming_(nk_f16_t const *a, nk_size_t a_stride, void const *b_packed, nk_f32_t *c,
-                                           nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                           nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_f16_sme_streaming_(nk_f16_t const *a, nk_size_t a_stride, void const *b_packed,
+                                                            nk_f32_t *c, nk_size_t rows, nk_size_t columns,
+                                                            nk_size_t depth, nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u16_t const *b_tiles = (nk_u16_t const *)(header + 1);
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth();
@@ -2668,10 +2676,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** A × packed B for bf16 rows. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_bf16_sme_streaming_(nk_bf16_t const *a, nk_size_t a_stride, void const *b_packed, nk_f32_t *c,
-                                            nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                            nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_bf16_sme_streaming_(nk_bf16_t const *a, nk_size_t a_stride,
+                                                             void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                             nk_size_t columns, nk_size_t depth,
+                                                             nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u16_t const *b_tiles = (nk_u16_t const *)(header + 1);
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth();
@@ -2692,10 +2701,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** A × packed B for e4m3 rows decoded to f16. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_e4m3_sme_streaming_(nk_e4m3_t const *a, nk_size_t a_stride, void const *b_packed, nk_f32_t *c,
-                                            nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                            nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_e4m3_sme_streaming_(nk_e4m3_t const *a, nk_size_t a_stride,
+                                                             void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                             nk_size_t columns, nk_size_t depth,
+                                                             nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u16_t const *b_tiles = (nk_u16_t const *)(header + 1);
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth();
@@ -2725,10 +2735,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** A × packed B for e5m2 rows decoded to f16. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_e5m2_sme_streaming_(nk_e5m2_t const *a, nk_size_t a_stride, void const *b_packed, nk_f32_t *c,
-                                            nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                            nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_e5m2_sme_streaming_(nk_e5m2_t const *a, nk_size_t a_stride,
+                                                             void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                             nk_size_t columns, nk_size_t depth,
+                                                             nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u16_t const *b_tiles = (nk_u16_t const *)(header + 1);
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth();
@@ -2758,10 +2769,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** A × packed B for e3m2 rows decoded to f16. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_e3m2_sme_streaming_(nk_e3m2_t const *a, nk_size_t a_stride, void const *b_packed, nk_f32_t *c,
-                                            nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                            nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_e3m2_sme_streaming_(nk_e3m2_t const *a, nk_size_t a_stride,
+                                                             void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                             nk_size_t columns, nk_size_t depth,
+                                                             nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u16_t const *b_tiles = (nk_u16_t const *)(header + 1);
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth();
@@ -2791,10 +2803,10 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** A × packed B for i8 rows. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_i8_sme_streaming_(nk_i8_t const *a, nk_size_t a_stride, void const *b_packed, nk_i32_t *c,
-                                          nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                          nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_i8_sme_streaming_(nk_i8_t const *a, nk_size_t a_stride, void const *b_packed,
+                                                           nk_i32_t *c, nk_size_t rows, nk_size_t columns,
+                                                           nk_size_t depth, nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u8_t const *b_tiles = (nk_u8_t const *)(header + 1);
     nk_size_t const tile_dimension = svcntw(), vector_bytes = svcntb();
@@ -2824,10 +2836,10 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** A × packed B for u8 rows. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_u8_sme_streaming_(nk_u8_t const *a, nk_size_t a_stride, void const *b_packed, nk_u32_t *c,
-                                          nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                          nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_u8_sme_streaming_(nk_u8_t const *a, nk_size_t a_stride, void const *b_packed,
+                                                           nk_u32_t *c, nk_size_t rows, nk_size_t columns,
+                                                           nk_size_t depth, nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u8_t const *b_tiles = (nk_u8_t const *)(header + 1);
     nk_size_t const tile_dimension = svcntw(), vector_bytes = svcntb();
@@ -2857,10 +2869,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** A × packed B for e2m3 rows as i8 sixteenths, converted to F32 per finished row block. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_e2m3_sme_streaming_(nk_e2m3_t const *a, nk_size_t a_stride, void const *b_packed, nk_f32_t *c,
-                                            nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                            nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_e2m3_sme_streaming_(nk_e2m3_t const *a, nk_size_t a_stride,
+                                                             void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                             nk_size_t columns, nk_size_t depth,
+                                                             nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u8_t const *b_tiles = (nk_u8_t const *)(header + 1);
     nk_size_t const tile_dimension = svcntw(), vector_bytes = svcntb();
@@ -2891,10 +2904,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** A × packed B for e2m1 rows as doubled i8, converted to F32 per finished row block. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_e2m1_sme_streaming_(nk_e2m1x2_t const *a, nk_size_t a_stride, void const *b_packed, nk_f32_t *c,
-                                            nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                            nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_e2m1_sme_streaming_(nk_e2m1x2_t const *a, nk_size_t a_stride,
+                                                             void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                             nk_size_t columns, nk_size_t depth,
+                                                             nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u8_t const *b_tiles = (nk_u8_t const *)(header + 1);
     nk_size_t const tile_dimension = svcntw(), vector_bytes = svcntb();
@@ -2925,10 +2939,10 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** A × packed B for i4 rows as sign-extended nibble steps. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_i4_sme_streaming_(nk_i4x2_t const *a, nk_size_t a_stride, void const *b_packed, nk_i32_t *c,
-                                          nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                          nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_i4_sme_streaming_(nk_i4x2_t const *a, nk_size_t a_stride, void const *b_packed,
+                                                           nk_i32_t *c, nk_size_t rows, nk_size_t columns,
+                                                           nk_size_t depth, nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u8_t const *b_tiles = (nk_u8_t const *)(header + 1);
     nk_size_t const tile_dimension = svcntw(), vector_bytes = svcntb();
@@ -2958,10 +2972,10 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** A × packed B for u4 rows as zero-extended nibble steps. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_u4_sme_streaming_(nk_u4x2_t const *a, nk_size_t a_stride, void const *b_packed, nk_u32_t *c,
-                                          nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                          nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_u4_sme_streaming_(nk_u4x2_t const *a, nk_size_t a_stride, void const *b_packed,
+                                                           nk_u32_t *c, nk_size_t rows, nk_size_t columns,
+                                                           nk_size_t depth, nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u8_t const *b_tiles = (nk_u8_t const *)(header + 1);
     nk_size_t const tile_dimension = svcntw(), vector_bytes = svcntb();
@@ -2992,10 +3006,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 
 /** A × packed B for NVFP4 rows, exact f16 panels against byte codes and block scale vectors,
  *  relative to the tensor scales. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_nvfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride, void const *b_packed,
-                                             nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                             nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_nvfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                              void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                              nk_size_t columns, nk_size_t depth,
+                                                              nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth(), blocks = depth / 16;
     nk_size_t const code_stride = header->depth_tile_count * vector_elements, factor_stride = blocks * vector_elements;
@@ -3029,10 +3044,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 
 /** A × packed B for MXFP4 rows, panels rebased to each row's largest block exponent against byte
  *  codes and decrement vectors, relative to the row and column exponents. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_mxfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride, void const *b_packed,
-                                             nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                             nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_mxfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                              void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                              nk_size_t columns, nk_size_t depth,
+                                                              nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth(), blocks = depth / 32;
     nk_size_t const code_stride = header->depth_tile_count * vector_elements, factor_stride = blocks * vector_elements;
@@ -3072,10 +3088,11 @@ __arm_new("za") NUMKONG_OUTLINED_
  *  packs of folded bf16 values in 1×4 bodies, relative to the row and column exponents. */
 
 /** A × packed B for MXFP6 E2M3 rows. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_mxfp6e2m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride, void const *b_packed,
-                                                 nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                                 nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_mxfp6e2m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                  void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                                  nk_size_t columns, nk_size_t depth,
+                                                                  nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u16_t const *b_tiles = (nk_u16_t const *)(header + 1);
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth(), blocks = depth / 32;
@@ -3097,10 +3114,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** A × packed B for MXFP6 E3M2 rows. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_mxfp6e3m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride, void const *b_packed,
-                                                 nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                                 nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_mxfp6e3m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                  void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                                  nk_size_t columns, nk_size_t depth,
+                                                                  nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u16_t const *b_tiles = (nk_u16_t const *)(header + 1);
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth(), blocks = depth / 32;
@@ -3122,10 +3140,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** A × packed B for MXFP8 E4M3 rows. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_mxfp8e4m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride, void const *b_packed,
-                                                 nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                                 nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_mxfp8e4m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                  void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                                  nk_size_t columns, nk_size_t depth,
+                                                                  nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u16_t const *b_tiles = (nk_u16_t const *)(header + 1);
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth(), blocks = depth / 32;
@@ -3147,10 +3166,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** A × packed B for MXFP8 E5M2 rows. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_packed_mxfp8e5m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride, void const *b_packed,
-                                                 nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                                 nk_size_t c_stride) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_packed_mxfp8e5m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                  void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                                  nk_size_t columns, nk_size_t depth,
+                                                                  nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u16_t const *b_tiles = (nk_u16_t const *)(header + 1);
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth(), blocks = depth / 32;
@@ -3181,10 +3201,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 #pragma region Symmetric Kernels
 
 /** The upper triangle of V × Vᵀ for f16 vectors. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_f16_sme_streaming_(nk_f16_t const *vectors, nk_size_t stride, nk_size_t vector_count,
-                                              nk_size_t depth, nk_f32_t *result, nk_size_t result_stride,
-                                              nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_symmetric_f16_sme_streaming_(nk_f16_t const *vectors, nk_size_t stride,
+                                                                           nk_size_t vector_count, nk_size_t depth,
+                                                                           nk_f32_t *result, nk_size_t result_stride,
+                                                                           nk_size_t rows_begin,
+                                                                           nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 2;
     nk_size_t const panel_elements = nk_sme_window_panel_bytes_k / sizeof(nk_u16_t);
@@ -3220,10 +3241,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for bf16 vectors. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_bf16_sme_streaming_(nk_bf16_t const *vectors, nk_size_t stride, nk_size_t vector_count,
-                                               nk_size_t depth, nk_f32_t *result, nk_size_t result_stride,
-                                               nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_symmetric_bf16_sme_streaming_(nk_bf16_t const *vectors, nk_size_t stride,
+                                                                            nk_size_t vector_count, nk_size_t depth,
+                                                                            nk_f32_t *result, nk_size_t result_stride,
+                                                                            nk_size_t rows_begin,
+                                                                            nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 2;
     nk_size_t const panel_elements = nk_sme_window_panel_bytes_k / sizeof(nk_u16_t);
@@ -3259,10 +3281,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for e4m3 vectors decoded to f16. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_e4m3_sme_streaming_(nk_e4m3_t const *vectors, nk_size_t stride, nk_size_t vector_count,
-                                               nk_size_t depth, nk_f32_t *result, nk_size_t result_stride,
-                                               nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_symmetric_e4m3_sme_streaming_(nk_e4m3_t const *vectors, nk_size_t stride,
+                                                                            nk_size_t vector_count, nk_size_t depth,
+                                                                            nk_f32_t *result, nk_size_t result_stride,
+                                                                            nk_size_t rows_begin,
+                                                                            nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 2;
     nk_size_t const panel_elements = nk_sme_window_panel_bytes_k / sizeof(nk_u16_t);
@@ -3297,10 +3320,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for e5m2 vectors decoded to f16. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_e5m2_sme_streaming_(nk_e5m2_t const *vectors, nk_size_t stride, nk_size_t vector_count,
-                                               nk_size_t depth, nk_f32_t *result, nk_size_t result_stride,
-                                               nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_symmetric_e5m2_sme_streaming_(nk_e5m2_t const *vectors, nk_size_t stride,
+                                                                            nk_size_t vector_count, nk_size_t depth,
+                                                                            nk_f32_t *result, nk_size_t result_stride,
+                                                                            nk_size_t rows_begin,
+                                                                            nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 2;
     nk_size_t const panel_elements = nk_sme_window_panel_bytes_k / sizeof(nk_u16_t);
@@ -3335,10 +3359,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for e3m2 vectors decoded to f16. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_e3m2_sme_streaming_(nk_e3m2_t const *vectors, nk_size_t stride, nk_size_t vector_count,
-                                               nk_size_t depth, nk_f32_t *result, nk_size_t result_stride,
-                                               nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_symmetric_e3m2_sme_streaming_(nk_e3m2_t const *vectors, nk_size_t stride,
+                                                                            nk_size_t vector_count, nk_size_t depth,
+                                                                            nk_f32_t *result, nk_size_t result_stride,
+                                                                            nk_size_t rows_begin,
+                                                                            nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 2;
     nk_size_t const panel_elements = nk_sme_window_panel_bytes_k / sizeof(nk_u16_t);
@@ -3373,10 +3398,9 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for NVFP4 vectors as exact f16, relative to the tensor scale. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_nvfp4_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count,
-                                                nk_size_t depth, nk_f32_t *result, nk_size_t result_stride,
-                                                nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_symmetric_nvfp4_sme_streaming_(
+    nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 2;
     nk_size_t const panel_elements = nk_sme_window_panel_bytes_k / sizeof(nk_u16_t);
@@ -3411,10 +3435,9 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for MXFP4 vectors rebased to their largest block exponents. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_mxfp4_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count,
-                                                nk_size_t depth, nk_f32_t *result, nk_size_t result_stride,
-                                                nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_symmetric_mxfp4_sme_streaming_(
+    nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 2, blocks = depth / 32;
     nk_size_t const panel_elements = nk_sme_window_panel_bytes_k / sizeof(nk_u16_t);
@@ -3453,11 +3476,9 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for MXFP6 E2M3 vectors rebased to their largest block exponents. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_mxfp6e2m3_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                    nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
-                                                    nk_size_t result_stride, nk_size_t rows_begin,
-                                                    nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_symmetric_mxfp6e2m3_sme_streaming_(
+    nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 2, blocks = depth / 32;
     nk_size_t const panel_elements = nk_sme_window_panel_bytes_k / sizeof(nk_u16_t);
@@ -3496,11 +3517,9 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for MXFP6 E3M2 vectors rebased to their largest block exponents. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_mxfp6e3m2_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                    nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
-                                                    nk_size_t result_stride, nk_size_t rows_begin,
-                                                    nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_symmetric_mxfp6e3m2_sme_streaming_(
+    nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 2, blocks = depth / 32;
     nk_size_t const panel_elements = nk_sme_window_panel_bytes_k / sizeof(nk_u16_t);
@@ -3539,11 +3558,9 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for MXFP8 E4M3 vectors rebased to their largest block exponents. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_mxfp8e4m3_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                    nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
-                                                    nk_size_t result_stride, nk_size_t rows_begin,
-                                                    nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_symmetric_mxfp8e4m3_sme_streaming_(
+    nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 2, blocks = depth / 32;
     nk_size_t const panel_elements = nk_sme_window_panel_bytes_k / sizeof(nk_u16_t);
@@ -3582,11 +3599,9 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for MXFP8 E5M2 vectors rebased to their largest block exponents. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_mxfp8e5m2_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                    nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
-                                                    nk_size_t result_stride, nk_size_t rows_begin,
-                                                    nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_symmetric_mxfp8e5m2_sme_streaming_(
+    nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 2, blocks = depth / 32;
     nk_size_t const panel_elements = nk_sme_window_panel_bytes_k / sizeof(nk_u16_t);
@@ -3625,10 +3640,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for i8 vectors. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_i8_sme_streaming_(nk_i8_t const *vectors, nk_size_t stride, nk_size_t vector_count,
-                                             nk_size_t depth, nk_i32_t *result, nk_size_t result_stride,
-                                             nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_symmetric_i8_sme_streaming_(nk_i8_t const *vectors, nk_size_t stride,
+                                                              nk_size_t vector_count, nk_size_t depth, nk_i32_t *result,
+                                                              nk_size_t result_stride, nk_size_t rows_begin,
+                                                              nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 4;
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -3662,10 +3678,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for u8 vectors. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_u8_sme_streaming_(nk_u8_t const *vectors, nk_size_t stride, nk_size_t vector_count,
-                                             nk_size_t depth, nk_u32_t *result, nk_size_t result_stride,
-                                             nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_symmetric_u8_sme_streaming_(nk_u8_t const *vectors, nk_size_t stride,
+                                                              nk_size_t vector_count, nk_size_t depth, nk_u32_t *result,
+                                                              nk_size_t result_stride, nk_size_t rows_begin,
+                                                              nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 4;
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -3699,10 +3716,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for e2m3 vectors as i8 sixteenths, converted to F32 at the end. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_e2m3_sme_streaming_(nk_e2m3_t const *vectors, nk_size_t stride, nk_size_t vector_count,
-                                               nk_size_t depth, nk_f32_t *result, nk_size_t result_stride,
-                                               nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_symmetric_e2m3_sme_streaming_(nk_e2m3_t const *vectors, nk_size_t stride,
+                                                                            nk_size_t vector_count, nk_size_t depth,
+                                                                            nk_f32_t *result, nk_size_t result_stride,
+                                                                            nk_size_t rows_begin,
+                                                                            nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 4;
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -3737,10 +3755,9 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for e2m1 vectors as doubled i8, converted to F32 at the end. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_e2m1_sme_streaming_(nk_e2m1x2_t const *vectors, nk_size_t stride, nk_size_t vector_count,
-                                               nk_size_t depth, nk_f32_t *result, nk_size_t result_stride,
-                                               nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za") NUMKONG_OUTLINED void nk_dots_symmetric_e2m1_sme_streaming_(
+    nk_e2m1x2_t const *vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 4;
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -3775,10 +3792,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for i4 vectors as sign-extended nibble steps. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_i4_sme_streaming_(nk_i4x2_t const *vectors, nk_size_t stride, nk_size_t vector_count,
-                                             nk_size_t depth, nk_i32_t *result, nk_size_t result_stride,
-                                             nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_symmetric_i4_sme_streaming_(nk_i4x2_t const *vectors, nk_size_t stride,
+                                                              nk_size_t vector_count, nk_size_t depth, nk_i32_t *result,
+                                                              nk_size_t result_stride, nk_size_t rows_begin,
+                                                              nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 4;
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -3812,10 +3830,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 }
 
 /** The upper triangle of V × Vᵀ for u4 vectors as zero-extended nibble steps. */
-__arm_new("za") NUMKONG_OUTLINED_
-    void nk_dots_symmetric_u4_sme_streaming_(nk_u4x2_t const *vectors, nk_size_t stride, nk_size_t vector_count,
-                                             nk_size_t depth, nk_u32_t *result, nk_size_t result_stride,
-                                             nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
+__arm_new("za")
+    NUMKONG_OUTLINED void nk_dots_symmetric_u4_sme_streaming_(nk_u4x2_t const *vectors, nk_size_t stride,
+                                                              nk_size_t vector_count, nk_size_t depth, nk_u32_t *result,
+                                                              nk_size_t result_stride, nk_size_t rows_begin,
+                                                              nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), window_width = nk_sme_window_tiles_k * tile_dimension;
     nk_size_t const chunk_dims = nk_sme_window_panel_bytes_k / svcntb() * 4;
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -4033,10 +4052,10 @@ NUMKONG_INLINE void nk_dots_from_relative_sme_streaming_(nk_f32_t *dots, nk_size
  *  columns at a time. Rows the fold covers take their largest block exponent without a norm. */
 
 /** Finishes packed NVFP4 dots: times both tensor scales. */
-NUMKONG_OUTLINED_ void nk_dots_packed_finalize_nvfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                    void const *b_packed, nk_f32_t *c, nk_size_t rows,
-                                                                    nk_size_t columns, nk_size_t depth,
-                                                                    nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_dots_packed_finalize_nvfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                   void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                                   nk_size_t columns, nk_size_t depth,
+                                                                   nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 16, 4);
     nk_i32_t exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(a.tensor_scale), &exponent) *
@@ -4048,10 +4067,10 @@ NUMKONG_OUTLINED_ void nk_dots_packed_finalize_nvfp4_sme_streaming_(nk_cross_ope
 }
 
 /** Finishes symmetric NVFP4 dots: times the tensor scale squared. */
-NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_nvfp4_sme_streaming_(nk_cross_operand_t vectors, nk_size_t count,
-                                                                       nk_f32_t *result, nk_size_t result_stride,
-                                                                       nk_size_t rows_begin,
-                                                                       nk_size_t rows_end) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_dots_symmetric_finalize_nvfp4_sme_streaming_(nk_cross_operand_t vectors, nk_size_t count,
+                                                                      nk_f32_t *result, nk_size_t result_stride,
+                                                                      nk_size_t rows_begin,
+                                                                      nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_i32_t exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale), &exponent);
     nk_i32_t exponents[nk_sme_finish_columns_k];
@@ -4066,10 +4085,10 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_nvfp4_sme_streaming_(nk_cross_
 }
 
 /** Finishes packed MXFP4 dots. */
-NUMKONG_OUTLINED_ void nk_dots_packed_finalize_mxfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                    void const *b_packed, nk_f32_t *c, nk_size_t rows,
-                                                                    nk_size_t columns, nk_size_t depth,
-                                                                    nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_dots_packed_finalize_mxfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                   void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                                   nk_size_t columns, nk_size_t depth,
+                                                                   nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 4);
     nk_dots_scaled_exact_mxfp4_sme_(a, a_stride, 0, rows, b.raw, b.raw_stride, 0, columns, b.bases, b.exponents, 0,
                                     depth, c, c_stride);
@@ -4083,11 +4102,11 @@ NUMKONG_OUTLINED_ void nk_dots_packed_finalize_mxfp4_sme_streaming_(nk_cross_ope
 }
 
 /** Finishes packed MXFP6 E2M3 dots. */
-NUMKONG_OUTLINED_ void nk_dots_packed_finalize_mxfp6e2m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                        void const *b_packed, nk_f32_t *c,
-                                                                        nk_size_t rows, nk_size_t columns,
-                                                                        nk_size_t depth,
-                                                                        nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_dots_packed_finalize_mxfp6e2m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                       void const *b_packed, nk_f32_t *c,
+                                                                       nk_size_t rows, nk_size_t columns,
+                                                                       nk_size_t depth,
+                                                                       nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_dots_scaled_exact_mxfp6e2m3_sme_(a, a_stride, 0, rows, b.raw, b.raw_stride, 0, columns, b.bases, b.exponents, 0,
                                         depth, c, c_stride);
@@ -4101,11 +4120,11 @@ NUMKONG_OUTLINED_ void nk_dots_packed_finalize_mxfp6e2m3_sme_streaming_(nk_cross
 }
 
 /** Finishes packed MXFP6 E3M2 dots. */
-NUMKONG_OUTLINED_ void nk_dots_packed_finalize_mxfp6e3m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                        void const *b_packed, nk_f32_t *c,
-                                                                        nk_size_t rows, nk_size_t columns,
-                                                                        nk_size_t depth,
-                                                                        nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_dots_packed_finalize_mxfp6e3m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                       void const *b_packed, nk_f32_t *c,
+                                                                       nk_size_t rows, nk_size_t columns,
+                                                                       nk_size_t depth,
+                                                                       nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_dots_scaled_exact_mxfp6e3m2_sme_(a, a_stride, 0, rows, b.raw, b.raw_stride, 0, columns, b.bases, b.exponents, 0,
                                         depth, c, c_stride);
@@ -4119,11 +4138,11 @@ NUMKONG_OUTLINED_ void nk_dots_packed_finalize_mxfp6e3m2_sme_streaming_(nk_cross
 }
 
 /** Finishes packed MXFP8 E4M3 dots. */
-NUMKONG_OUTLINED_ void nk_dots_packed_finalize_mxfp8e4m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                        void const *b_packed, nk_f32_t *c,
-                                                                        nk_size_t rows, nk_size_t columns,
-                                                                        nk_size_t depth,
-                                                                        nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_dots_packed_finalize_mxfp8e4m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                       void const *b_packed, nk_f32_t *c,
+                                                                       nk_size_t rows, nk_size_t columns,
+                                                                       nk_size_t depth,
+                                                                       nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_dots_scaled_exact_mxfp8e4m3_sme_(a, a_stride, 0, rows, b.raw, b.raw_stride, 0, columns, b.bases, b.exponents, 0,
                                         depth, c, c_stride);
@@ -4137,11 +4156,11 @@ NUMKONG_OUTLINED_ void nk_dots_packed_finalize_mxfp8e4m3_sme_streaming_(nk_cross
 }
 
 /** Finishes packed MXFP8 E5M2 dots. */
-NUMKONG_OUTLINED_ void nk_dots_packed_finalize_mxfp8e5m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                        void const *b_packed, nk_f32_t *c,
-                                                                        nk_size_t rows, nk_size_t columns,
-                                                                        nk_size_t depth,
-                                                                        nk_size_t c_stride) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_dots_packed_finalize_mxfp8e5m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                       void const *b_packed, nk_f32_t *c,
+                                                                       nk_size_t rows, nk_size_t columns,
+                                                                       nk_size_t depth,
+                                                                       nk_size_t c_stride) NUMKONG_STREAMING_ {
     nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_dots_scaled_exact_mxfp8e5m2_sme_(a, a_stride, 0, rows, b.raw, b.raw_stride, 0, columns, b.bases, b.exponents, 0,
                                         depth, c, c_stride);
@@ -4158,11 +4177,11 @@ NUMKONG_OUTLINED_ void nk_dots_packed_finalize_mxfp8e5m2_sme_streaming_(nk_cross
  *  and wide marks, the exact pass over the chunk, then each row's dots in the chunk. */
 
 /** Finishes symmetric MXFP4 dots. */
-NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_mxfp4_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                       nk_size_t count, nk_size_t depth,
-                                                                       nk_f32_t *result, nk_size_t result_stride,
-                                                                       nk_size_t rows_begin,
-                                                                       nk_size_t rows_end) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_dots_symmetric_finalize_mxfp4_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
+                                                                      nk_size_t count, nk_size_t depth,
+                                                                      nk_f32_t *result, nk_size_t result_stride,
+                                                                      nk_size_t rows_begin,
+                                                                      nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
@@ -4188,11 +4207,11 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_mxfp4_sme_streaming_(nk_cross_
 }
 
 /** Finishes symmetric MXFP6 E2M3 dots. */
-NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_mxfp6e2m3_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                           nk_size_t count, nk_size_t depth,
-                                                                           nk_f32_t *result, nk_size_t result_stride,
-                                                                           nk_size_t rows_begin,
-                                                                           nk_size_t rows_end) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_dots_symmetric_finalize_mxfp6e2m3_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
+                                                                          nk_size_t count, nk_size_t depth,
+                                                                          nk_f32_t *result, nk_size_t result_stride,
+                                                                          nk_size_t rows_begin,
+                                                                          nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
@@ -4218,11 +4237,11 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_mxfp6e2m3_sme_streaming_(nk_cr
 }
 
 /** Finishes symmetric MXFP6 E3M2 dots. */
-NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_mxfp6e3m2_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                           nk_size_t count, nk_size_t depth,
-                                                                           nk_f32_t *result, nk_size_t result_stride,
-                                                                           nk_size_t rows_begin,
-                                                                           nk_size_t rows_end) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_dots_symmetric_finalize_mxfp6e3m2_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
+                                                                          nk_size_t count, nk_size_t depth,
+                                                                          nk_f32_t *result, nk_size_t result_stride,
+                                                                          nk_size_t rows_begin,
+                                                                          nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
@@ -4248,11 +4267,11 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_mxfp6e3m2_sme_streaming_(nk_cr
 }
 
 /** Finishes symmetric MXFP8 E4M3 dots. */
-NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_mxfp8e4m3_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                           nk_size_t count, nk_size_t depth,
-                                                                           nk_f32_t *result, nk_size_t result_stride,
-                                                                           nk_size_t rows_begin,
-                                                                           nk_size_t rows_end) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_dots_symmetric_finalize_mxfp8e4m3_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
+                                                                          nk_size_t count, nk_size_t depth,
+                                                                          nk_f32_t *result, nk_size_t result_stride,
+                                                                          nk_size_t rows_begin,
+                                                                          nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
@@ -4278,11 +4297,11 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_mxfp8e4m3_sme_streaming_(nk_cr
 }
 
 /** Finishes symmetric MXFP8 E5M2 dots. */
-NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_mxfp8e5m2_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                           nk_size_t count, nk_size_t depth,
-                                                                           nk_f32_t *result, nk_size_t result_stride,
-                                                                           nk_size_t rows_begin,
-                                                                           nk_size_t rows_end) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_dots_symmetric_finalize_mxfp8e5m2_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
+                                                                          nk_size_t count, nk_size_t depth,
+                                                                          nk_f32_t *result, nk_size_t result_stride,
+                                                                          nk_size_t rows_begin,
+                                                                          nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];

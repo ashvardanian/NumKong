@@ -151,7 +151,7 @@ NUMKONG_INLINE int nk_maxsim_any_nan_f64_sme_streaming_(nk_f64_t const *inverse_
 
 /** Turns @p count f32 squared norms into inverse norms in place through f64, zero for zero vectors
  *  and NaN for vectors holding a NaN. */
-NUMKONG_OUTLINED_ void nk_maxsim_inverse_norms_f32_sme_streaming_(nk_f32_t *norms, nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_maxsim_inverse_norms_f32_sme_streaming_(nk_f32_t *norms, nk_size_t count) NUMKONG_STREAMING_ {
     for (nk_size_t index = 0; index < count; index += svcntd()) {
         svbool_t const predicate_b64x = svwhilelt_b64_u64(index, count);
         svfloat64_t const sumsq_f64x = svcvt_f64_f32_x(
@@ -166,8 +166,8 @@ NUMKONG_OUTLINED_ void nk_maxsim_inverse_norms_f32_sme_streaming_(nk_f32_t *norm
 
 /** Turns @p count f64 sums of squares into inverse norms in place, as the f32 helper does, and
  *  multiplies the @p screen_weights by them. */
-NUMKONG_OUTLINED_ void nk_maxsim_inverse_norms_f64_sme_streaming_(nk_f64_t *norms, nk_f32_t *screen_weights,
-                                                                  nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED void nk_maxsim_inverse_norms_f64_sme_streaming_(nk_f64_t *norms, nk_f32_t *screen_weights,
+                                                                 nk_size_t count) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
     for (nk_size_t index = 0; index < count; index += svcntd()) {
         svbool_t const predicate_b64x = svwhilelt_b64_u64(index, count);
@@ -194,7 +194,7 @@ NUMKONG_OUTLINED_ void nk_maxsim_inverse_norms_f64_sme_streaming_(nk_f64_t *norm
  *
  *  The 1-tile remainder uses ZA0 only, with predicated loads for partial tiles.
  */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_maxsim_packed_f16_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED void nk_maxsim_packed_f16_streaming_( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_f32_t *result) NUMKONG_STREAMING_ {
 
@@ -379,7 +379,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_maxsim_packed_f16_streaming_( //
  *
  *  The 1-tile remainder uses ZA0 only, with predicated loads for partial tiles.
  */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_maxsim_packed_bf16_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED void nk_maxsim_packed_bf16_streaming_( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_f32_t *result) NUMKONG_STREAMING_ {
 
@@ -671,7 +671,7 @@ NUMKONG_INLINE void nk_maxsim_refine_column_sme_(                               
  *  in f64 every (query, document) pair the screen cannot rule out, so the compensated sum of
  *  angular distances 1 − dot / (‖q‖ · ‖d‖) matches an exhaustive search.
  */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_maxsim_packed_f32_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED void nk_maxsim_packed_f32_streaming_( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t residue, nk_f64_t *result) NUMKONG_STREAMING_ {
 
@@ -894,7 +894,7 @@ NUMKONG_INLINE svint32_t nk_maxsim_quantize_f32x_sme_(svfloat32_t values_f32x,
  *  do. The second pass quantizes the originals rows, writes the code rows horizontally and stores
  *  the quads it reads back vertically.
  */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_maxsim_pack_f32_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED void nk_maxsim_pack_f32_streaming_( //
     nk_f32_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t vector_stride, nk_i8_t *tiles,
     nk_f64_t *sumsqs, nk_f32_t *scales, char *originals, nk_size_t original_stride) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcntb();

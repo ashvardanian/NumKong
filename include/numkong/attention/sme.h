@@ -149,7 +149,7 @@ NUMKONG_INLINE nk_size_t nk_attention_pack_size_b16_sme_(nk_size_t key_value_hea
  *  position pair, so P × V runs as outer products over positions. Rows beyond the segment and
  *  channels beyond the head are zero-filled by the predicated loads and the ZA0 pre-zeroing.
  */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_b16_sme_streaming_(   //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_pack_b16_sme_streaming_(    //
     void const *keys, void const *values, nk_size_t element_bytes,             //
     nk_size_t key_value_head_count,                                            //
     nk_size_t depth, nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, //
@@ -897,7 +897,7 @@ NUMKONG_INLINE void nk_attention_block_f16_sme_streaming_(                      
  *  ZA0 transpose pair-interleaves the block's query rows once into a scratch of MOPA operand
  *  vectors, reused across every KV panel of @c nk_attention_block_bf16_sme_streaming_.
  */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_b16_sme_streaming_(                      //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_packed_b16_sme_streaming_(                       //
     void const *queries, nk_size_t element_bytes, void const *key_value_packed, nk_f32_t *output,   //
     nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,   //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, //
@@ -1011,7 +1011,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_b16_sme_streaming_(  
 
 /** The F16 twin of @c nk_attention_packed_b16_sme_streaming_, staging raw F16 query rows for
  *  @c nk_attention_block_f16_sme_streaming_. */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_f16_sme_streaming_(                      //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_packed_f16_sme_streaming_(                       //
     nk_f16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                          //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, //
@@ -1097,7 +1097,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_f16_sme_streaming_(  
  *  K position tiles decode through the ZA0 panel stager; V position pairs decode per channel tile
  *  and interleave through one @c ZIP1. Tensor scales stay in the header, which the caller writes.
  */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_nvfp4_sme_streaming_(                           //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_pack_nvfp4_sme_streaming_(                            //
     nk_cross_operand_t keys, nk_cross_operand_t values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count,                   //
     nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin,         //
@@ -1178,7 +1178,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_nvfp4_sme_streaming_(  
 /** The NVFP4 twin of @c nk_attention_packed_f16_sme_streaming_: query rows stage times their block
  *  scales as exact F16, scores multiply by @p scale2 with both tensor scales folded in, and the
  *  normalization carries the @p value_scale tensor scale. */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_nvfp4_sme_streaming_(                       //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_packed_nvfp4_sme_streaming_(                        //
     nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
@@ -1296,10 +1296,10 @@ NUMKONG_INLINE svuint16_t nk_attention_decode_row_mxfp4_sme_(nk_u8_t const *code
 
 /** Stages MXFP4 rows as @c nk_stage_panel_mxfp4_sme_ does, decoding through
  *  @c nk_attention_decode_row_mxfp4_sme_. */
-NUMKONG_OUTLINED_ void nk_attention_stage_panel_mxfp4_sme_(nk_cross_operand_t operand, nk_size_t row_stride,
-                                                           nk_size_t row_first, nk_size_t rows, nk_size_t depth_first,
-                                                           nk_size_t depth, nk_i32_t const *bases,
-                                                           nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_OUTLINED void nk_attention_stage_panel_mxfp4_sme_(nk_cross_operand_t operand, nk_size_t row_stride,
+                                                          nk_size_t row_first, nk_size_t rows, nk_size_t depth_first,
+                                                          nk_size_t depth, nk_i32_t const *bases,
+                                                          nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
     svbool_t const predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += vector_elements) {
@@ -1404,7 +1404,7 @@ NUMKONG_INLINE nk_u8_t const *nk_attention_value_row_sme_(char const *values_pla
  *  K position tiles stage through ZA0 and V position pairs decode per channel tile, as for NVFP4.
  *  Raw planes keep serial's rows of codes, then scale codes, which the exact path reads in place.
  */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_mxfp4_sme_streaming_(                           //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_pack_mxfp4_sme_streaming_(                            //
     nk_cross_operand_t keys, nk_cross_operand_t values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count,                   //
     nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin,         //
@@ -1520,7 +1520,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_mxfp4_sme_streaming_(  
  *  under its own base, and @c nk_attention_block_scale2_sme_ folds both bases into the score
  *  multiplier, or leaves the block to @c nk_attention_packed_exact_mxfp4_sme_; the value base
  *  scales the normalization. */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_mxfp4_sme_streaming_(                       //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_packed_mxfp4_sme_streaming_(                        //
     nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
@@ -1622,7 +1622,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_mxfp4_sme_streaming_(
  *  Raw planes serve their rows in place and tile planes through @c nk_attention_key_row_sme_ and
  *  @c nk_attention_value_row_sme_, so the serial score and plane helpers read serial's rows.
  */
-NUMKONG_OUTLINED_ void nk_attention_packed_exact_mxfp4_sme_(                                           //
+NUMKONG_OUTLINED void nk_attention_packed_exact_mxfp4_sme_(                                            //
     nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
@@ -1739,7 +1739,7 @@ NUMKONG_OUTLINED_ void nk_attention_packed_exact_mxfp4_sme_(                    
 }
 
 /** @c nk_attention_pack_mxfp4_sme_streaming_ for MXFP6 E2M3, over the dots stager and decoder. */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_mxfp6e2m3_sme_streaming_(                       //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_pack_mxfp6e2m3_sme_streaming_(                        //
     nk_cross_operand_t keys, nk_cross_operand_t values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count,                   //
     nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin,         //
@@ -1852,7 +1852,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_mxfp6e2m3_sme_streaming
 }
 
 /** @c nk_attention_packed_mxfp4_sme_streaming_ for MXFP6 E2M3, over the dots stager. */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_mxfp6e2m3_sme_streaming_(                   //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_packed_mxfp6e2m3_sme_streaming_(                    //
     nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
@@ -1946,7 +1946,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_mxfp6e2m3_sme_streami
 }
 
 /** @c nk_attention_packed_exact_mxfp4_sme_ for MXFP6 E2M3. */
-NUMKONG_OUTLINED_ void nk_attention_packed_exact_mxfp6e2m3_sme_(                                       //
+NUMKONG_OUTLINED void nk_attention_packed_exact_mxfp6e2m3_sme_(                                        //
     nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
@@ -2063,7 +2063,7 @@ NUMKONG_OUTLINED_ void nk_attention_packed_exact_mxfp6e2m3_sme_(                
 }
 
 /** @c nk_attention_pack_mxfp4_sme_streaming_ for MXFP6 E3M2, over the dots stager and decoder. */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_mxfp6e3m2_sme_streaming_(                       //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_pack_mxfp6e3m2_sme_streaming_(                        //
     nk_cross_operand_t keys, nk_cross_operand_t values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count,                   //
     nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin,         //
@@ -2176,7 +2176,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_mxfp6e3m2_sme_streaming
 }
 
 /** @c nk_attention_packed_mxfp4_sme_streaming_ for MXFP6 E3M2, over the dots stager. */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_mxfp6e3m2_sme_streaming_(                   //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_packed_mxfp6e3m2_sme_streaming_(                    //
     nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
@@ -2270,7 +2270,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_mxfp6e3m2_sme_streami
 }
 
 /** @c nk_attention_packed_exact_mxfp4_sme_ for MXFP6 E3M2. */
-NUMKONG_OUTLINED_ void nk_attention_packed_exact_mxfp6e3m2_sme_(                                       //
+NUMKONG_OUTLINED void nk_attention_packed_exact_mxfp6e3m2_sme_(                                        //
     nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
@@ -2387,7 +2387,7 @@ NUMKONG_OUTLINED_ void nk_attention_packed_exact_mxfp6e3m2_sme_(                
 }
 
 /** @c nk_attention_pack_mxfp4_sme_streaming_ for MXFP8 E4M3, over the dots stager and decoder. */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_mxfp8e4m3_sme_streaming_(                       //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_pack_mxfp8e4m3_sme_streaming_(                        //
     nk_cross_operand_t keys, nk_cross_operand_t values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count,                   //
     nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin,         //
@@ -2500,7 +2500,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_mxfp8e4m3_sme_streaming
 }
 
 /** @c nk_attention_packed_mxfp4_sme_streaming_ for MXFP8 E4M3, over the dots stager. */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_mxfp8e4m3_sme_streaming_(                   //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_packed_mxfp8e4m3_sme_streaming_(                    //
     nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
@@ -2594,7 +2594,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_mxfp8e4m3_sme_streami
 }
 
 /** @c nk_attention_packed_exact_mxfp4_sme_ for MXFP8 E4M3. */
-NUMKONG_OUTLINED_ void nk_attention_packed_exact_mxfp8e4m3_sme_(                                       //
+NUMKONG_OUTLINED void nk_attention_packed_exact_mxfp8e4m3_sme_(                                        //
     nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
@@ -2711,7 +2711,7 @@ NUMKONG_OUTLINED_ void nk_attention_packed_exact_mxfp8e4m3_sme_(                
 }
 
 /** @c nk_attention_pack_mxfp4_sme_streaming_ for MXFP8 E5M2, over the dots stager and decoder. */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_mxfp8e5m2_sme_streaming_(                       //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_pack_mxfp8e5m2_sme_streaming_(                        //
     nk_cross_operand_t keys, nk_cross_operand_t values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count,                   //
     nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin,         //
@@ -2824,7 +2824,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_mxfp8e5m2_sme_streaming
 }
 
 /** @c nk_attention_packed_mxfp4_sme_streaming_ for MXFP8 E5M2, over the dots stager. */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_mxfp8e5m2_sme_streaming_(                   //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_packed_mxfp8e5m2_sme_streaming_(                    //
     nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
@@ -2918,7 +2918,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_mxfp8e5m2_sme_streami
 }
 
 /** @c nk_attention_packed_exact_mxfp4_sme_ for MXFP8 E5M2. */
-NUMKONG_OUTLINED_ void nk_attention_packed_exact_mxfp8e5m2_sme_(                                       //
+NUMKONG_OUTLINED void nk_attention_packed_exact_mxfp8e5m2_sme_(                                        //
     nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
@@ -3050,7 +3050,7 @@ NUMKONG_INLINE nk_size_t nk_attention_pack_size_b8_sme_(nk_size_t key_value_head
  *  <tt>[channel_tile][position_quad]</tt> through a two-level @c ZIP1, so P × V runs as USMOPA outer
  *  products over positions with the U8 probabilities.
  */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_i8_sme_streaming_(     //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_pack_i8_sme_streaming_(      //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, //
     nk_size_t depth, nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,  //
     nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride,      //
@@ -3149,7 +3149,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_i8_sme_streaming_(     
  *  quad-interleaved U8 operands with three shift-ors per vector, and the P × V drain converts
  *  the exact I32 outer products to F32 before the correction FMA.
  */
-__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_i8_sme_streaming_(                       //
+__arm_new("za") NUMKONG_OUTLINED void nk_attention_packed_i8_sme_streaming_(                        //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp,  //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                          //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, //

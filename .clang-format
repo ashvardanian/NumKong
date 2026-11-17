@@ -80,6 +80,7 @@ AttributeMacros:
   - NUMKONG_API
   - NUMKONG_CONSTEXPR
   - NUMKONG_INLINE
+  - NUMKONG_OUTLINED
   - NUMKONG_DEVICE
 StatementMacros:
   - nk_define_bilinear_

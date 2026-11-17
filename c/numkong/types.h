@@ -164,7 +164,9 @@
 /** Base of function annotations:
  *  - @c NUMKONG_API every public function, a kernel of one capability or a dispatch point.
  *  - @c NUMKONG_CONSTEXPR internal helper; the compiler decides inlining.
- *  - @c NUMKONG_INLINE internal helper forced inline, for devirtualizing driver loops. */
+ *  - @c NUMKONG_INLINE internal helper forced inline, for devirtualizing driver loops.
+ *  - @c NUMKONG_OUTLINED internal helper forced out of line, like a dtype dispatcher many kernels
+ *    share. It omits @c inline, as GCC ignores @c noinline on an @c inline function. */
 #define NUMKONG_C_INLINE_ inline static
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -175,13 +177,16 @@
 
 #if defined(_MSC_VER)
 #define NUMKONG_INLINE __forceinline static
+#define NUMKONG_OUTLINED __declspec(noinline) static
 #elif defined(__clang__)
 #define NUMKONG_INLINE NUMKONG_MAYBE_UNUSED_ __attribute__((always_inline)) NUMKONG_C_INLINE_
+#define NUMKONG_OUTLINED NUMKONG_MAYBE_UNUSED_ __attribute__((noinline)) static
 #else
 
 /** GCC checks @c always_inline at the call as written, so a generic caller outside a target region
  *  needs plain inline. */
 #define NUMKONG_INLINE NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_
+#define NUMKONG_OUTLINED NUMKONG_MAYBE_UNUSED_ __attribute__((noinline)) static
 #endif
 
 /** The C++ standard in effect, or zero in C. MSVC reports it in @c _MSVC_LANG and leaves
@@ -1397,19 +1402,14 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 /** ARM streaming attributes, requiring an SME-capable compiler: GCC 14+, Clang 16+.
  *  @c NUMKONG_STREAMING_ marks functions that require streaming SVE mode, such as FCVTLT.
  *  @c NUMKONG_STREAMABLE_ marks helpers callable in and out of streaming mode.
- *  @c NUMKONG_OUTLINED_ replaces @c static on streaming bodies called from non-streaming kernels,
- *  which GCC would inline, then reject their SVE intrinsics or frame by VL and spill at SVL. */
+ *  Streaming bodies called from non-streaming kernels take @c NUMKONG_OUTLINED, as GCC would
+ *  inline them, then reject their SVE intrinsics or frame by VL and spill at SVL. */
 #if NUMKONG_ARCH_ARM64_ && NUMKONG_ARCH_ARM64_SME_
 #define NUMKONG_STREAMING_  __arm_streaming
 #define NUMKONG_STREAMABLE_ __arm_streaming_compatible
 #else
 #define NUMKONG_STREAMING_
 #define NUMKONG_STREAMABLE_
-#endif
-#if NUMKONG_ARCH_ARM64_ && NUMKONG_ARCH_ARM64_SME_ && defined(__GNUC__) && !defined(__clang__)
-#define NUMKONG_OUTLINED_ NUMKONG_MAYBE_UNUSED_ __attribute__((noinline)) static
-#else
-#define NUMKONG_OUTLINED_ NUMKONG_MAYBE_UNUSED_ static
 #endif
 
 /** @c NUMKONG_DEVICE marks helpers that kernels call, forced inline on the device. CUDA and

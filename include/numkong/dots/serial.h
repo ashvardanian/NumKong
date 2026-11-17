@@ -3440,10 +3440,10 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_stub_i4_serial_(nk_i4x2_t const *d, n
 
 #if NUMKONG_TARGET_SERIAL
 
-/*  Keep the serial instantiations below actually scalar, regardless of build type. Without this,
- *  -O3 + LTO can vectorize or clone the serial kernels under AVX-512 callers in dispatch_*.c, which
- *  wastes ~1 MB of binary and — more importantly — breaks the nk_*_serial-as-scalar-oracle contract
- *  that tests and the numerical-stability docs in this header rely on.
+/*  Keep the serial instantiations below actually scalar, regardless of build type. They are the
+ *  dispatch floor that runs on every CPU of the architecture; without this, -O3 + LTO can
+ *  vectorize or clone them under AVX-512 callers in dispatch_*.c, emitting instructions the CPUs
+ *  that need this path lack, and ~1 MB of extra binary.
  *
  *  Clang gets no blanket region here: one expansion of @c nk_define_cross_packed_ /
  *  @c nk_define_cross_symmetric_ emits @c always_inline @c _aligned_ fast paths next to the kernel,
