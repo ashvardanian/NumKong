@@ -5,6 +5,8 @@
  *  @brief Type casting benchmarks.
  */
 
+#include <fmt/format.h> // `fmt::format`
+
 #include "numkong/cast.h"
 
 #include "cross.hpp"
@@ -46,8 +48,8 @@ void measure_cast(loop_t &loop, bench_settings_t const &env, cast_kernel_t kerne
 
 template <nk_dtype_t input_dtype_, nk_dtype_t output_dtype_>
 void run_cast(bench_settings_t const &env, std::string name, cast_kernel_t kernel) {
-    std::string bench_name = name + "<" + std::to_string(env.batch_per_core) + ">";
-    run_benchmark(env, bench_name, measure_cast<input_dtype_, output_dtype_>, kernel, env.batch_per_core);
+    run_benchmark(env, fmt::format("{}<{}>", name, env.batch_per_core), measure_cast<input_dtype_, output_dtype_>,
+                  kernel, env.batch_per_core);
 }
 
 void bench_cast(bench_settings_t const &env) {

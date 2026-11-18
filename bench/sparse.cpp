@@ -5,6 +5,8 @@
  *  @brief Sparse operations benchmarks, sparse_intersect.
  */
 
+#include <fmt/format.h> // `fmt::format`
+
 #include "numkong/sparse.h"
 
 #include "harness.hpp"
@@ -57,9 +59,8 @@ void run_sparse(bench_settings_t const &env, std::string name, kernel_type_ *ker
     std::size_t const intersection_size = nk::max_of<std::size_t>(
         1, static_cast<std::size_t>(nk::min_of(env.sparse_first_count, env.sparse_second_count) *
                                     env.sparse_intersection_share));
-    std::string bench_name = name + "<|A|=" + std::to_string(env.sparse_first_count) +
-                             ",|B|=" + std::to_string(env.sparse_second_count) +
-                             ",|A^B|=" + std::to_string(intersection_size) + ">";
+    std::string const bench_name = fmt::format("{}<|A|={},|B|={},|A^B|={}>", name, env.sparse_first_count,
+                                               env.sparse_second_count, intersection_size);
     run_benchmark(env, bench_name, measure_sparse<input_dtype_, kernel_type_ *>, kernel, env.sparse_first_count,
                   env.sparse_second_count, intersection_size);
 }
@@ -173,9 +174,8 @@ void run_sparse_dot(bench_settings_t const &env, std::string name, kernel_type_ 
     std::size_t const intersection_size = nk::max_of<std::size_t>(
         1, static_cast<std::size_t>(nk::min_of(env.sparse_first_count, env.sparse_second_count) *
                                     env.sparse_intersection_share));
-    std::string bench_name = name + "<|A|=" + std::to_string(env.sparse_first_count) +
-                             ",|B|=" + std::to_string(env.sparse_second_count) +
-                             ",|A^B|=" + std::to_string(intersection_size) + ">";
+    std::string const bench_name = fmt::format("{}<|A|={},|B|={},|A^B|={}>", name, env.sparse_first_count,
+                                               env.sparse_second_count, intersection_size);
     run_benchmark(env, bench_name, measure_sparse_dot<index_dtype_, weight_dtype_, kernel_type_ *>, kernel,
                   env.sparse_first_count, env.sparse_second_count, intersection_size);
 }

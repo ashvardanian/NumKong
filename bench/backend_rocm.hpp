@@ -1,12 +1,12 @@
 /**
- *  @file bench/harness_rocm.hpp
+ *  @file bench/backend_rocm.hpp
  *  @author Ash Vardanian
  *  @date October 6, 2026
  *  @brief The ROCm backend that the ROCm benchmarks time their rows with.
  */
 #pragma once
-#ifndef NUMKONG_BENCH_HARNESS_ROCM_HPP
-#define NUMKONG_BENCH_HARNESS_ROCM_HPP
+#ifndef NUMKONG_BENCH_BACKEND_ROCM_HPP
+#define NUMKONG_BENCH_BACKEND_ROCM_HPP
 
 #include "harness.hpp" // `device_backend_t`, `attention_shape_t`, `loop_t`
 
@@ -111,4 +111,4 @@ void bench_each_rocm(bench_settings_t const &env, rocm_backend_t const &backend,
 } // namespace ashvardanian::numkong::bench
 
 #endif // NUMKONG_ARCH_ROCM_
-#endif // NUMKONG_BENCH_HARNESS_ROCM_HPP
+#endif // NUMKONG_BENCH_BACKEND_ROCM_HPP

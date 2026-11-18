@@ -124,6 +124,7 @@ StatementMacros:
   - nk_define_shapes_workspace_
   - nk_define_shapes_transport_
   - nk_define_shapes_
+  - nk_define_shapes_sizes_
   - nk_define_cross_pack_size_
   - nk_define_cross_packed_shape_
   - nk_define_cross_pack_

@@ -1660,8 +1660,10 @@ error_stats_t test_tensor_trig_for_type() {
 template <typename value_type_>
 bool check_equal_elements(nk::tensor_view<value_type_> actual, nk::tensor_view<value_type_> wanted,
                           std::source_location where = std::source_location::current()) {
+    located_format<std::size_t> element {"element {}"};
+    element.location = where; // a consteval constructor cannot take the caller's runtime location
     for (std::size_t index = 0; index != actual.numel(); ++index)
-        if (!expect_equal(actual[index], wanted[index], format_at_t("element {}", where), index)) return false;
+        if (!expect_equal(actual[index], wanted[index], element, index)) return false;
     return true;
 }
 

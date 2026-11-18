@@ -54,21 +54,21 @@ void bench_shapes(bench_settings_t const &env) {
         run_shapes_packed<nk_f32_k>(env, "hausdorffs_packed_f32_neon", backend, nk_hausdorffs_packed_f32_neon);
         run_shapes_packed<nk_f16_k>(env, "hausdorffs_packed_f16_neon", backend, nk_hausdorffs_packed_f16_neon);
         run_shapes_packed<nk_f32_k>(env, "chamfers_packed_f32_neon", backend,
-                                    with_workspace(nk_chamfers_packed_f32_neon, nk_chamfers_workspace_size_f32_serial));
+                                    with_workspace(nk_chamfers_packed_f32_neon, nk_chamfers_workspace_size_f32_neon));
         run_shapes_packed<nk_f16_k>(env, "chamfers_packed_f16_neon", backend,
-                                    with_workspace(nk_chamfers_packed_f16_neon, nk_chamfers_workspace_size_f16_serial));
-        run_shapes_packed<nk_f32_k>(env, "wassersteinprocrustes_packed_f32_neon", backend,
-                                    with_workspace(nk_wassersteinprocrustes_packed_f32_neon,
-                                                   nk_wassersteinprocrustes_workspace_size_f32_serial));
-        run_shapes_packed<nk_f16_k>(env, "wassersteinprocrustes_packed_f16_neon", backend,
-                                    with_workspace(nk_wassersteinprocrustes_packed_f16_neon,
-                                                   nk_wassersteinprocrustes_workspace_size_f16_serial));
+                                    with_workspace(nk_chamfers_packed_f16_neon, nk_chamfers_workspace_size_f16_neon));
+        run_shapes_packed<nk_f32_k>(
+            env, "wassersteinprocrustes_packed_f32_neon", backend,
+            with_workspace(nk_wassersteinprocrustes_packed_f32_neon, nk_wassersteinprocrustes_workspace_size_f32_neon));
+        run_shapes_packed<nk_f16_k>(
+            env, "wassersteinprocrustes_packed_f16_neon", backend,
+            with_workspace(nk_wassersteinprocrustes_packed_f16_neon, nk_wassersteinprocrustes_workspace_size_f16_neon));
         run_shapes_packed<nk_f32_k>(
             env, "gromovwassersteins_packed_f32_neon", backend,
-            with_workspace(nk_gromovwassersteins_packed_f32_neon, nk_gromovwassersteins_workspace_size_f32_serial));
+            with_workspace(nk_gromovwassersteins_packed_f32_neon, nk_gromovwassersteins_workspace_size_f32_neon));
         run_shapes_packed<nk_f16_k>(
             env, "gromovwassersteins_packed_f16_neon", backend,
-            with_workspace(nk_gromovwassersteins_packed_f16_neon, nk_gromovwassersteins_workspace_size_f16_serial));
+            with_workspace(nk_gromovwassersteins_packed_f16_neon, nk_gromovwassersteins_workspace_size_f16_neon));
     }
 #endif
 
@@ -78,7 +78,7 @@ void bench_shapes(bench_settings_t const &env) {
         run_shapes_packed<nk_f16_k>(env, "hausdorffs_packed_f16_neonfhm", backend, nk_hausdorffs_packed_f16_neonfhm);
         run_shapes_packed<nk_f16_k>(
             env, "chamfers_packed_f16_neonfhm", backend,
-            with_workspace(nk_chamfers_packed_f16_neonfhm, nk_chamfers_workspace_size_f16_serial));
+            with_workspace(nk_chamfers_packed_f16_neonfhm, nk_chamfers_workspace_size_f16_neonfhm));
     }
 #endif
 
@@ -91,22 +91,22 @@ void bench_shapes(bench_settings_t const &env) {
         run_shapes_packed<nk_f16_k>(env, "hausdorffs_packed_f16_haswell", backend, nk_hausdorffs_packed_f16_haswell);
         run_shapes_packed<nk_f32_k>(
             env, "chamfers_packed_f32_haswell", backend,
-            with_workspace(nk_chamfers_packed_f32_haswell, nk_chamfers_workspace_size_f32_serial));
+            with_workspace(nk_chamfers_packed_f32_haswell, nk_chamfers_workspace_size_f32_haswell));
         run_shapes_packed<nk_f16_k>(
             env, "chamfers_packed_f16_haswell", backend,
-            with_workspace(nk_chamfers_packed_f16_haswell, nk_chamfers_workspace_size_f16_serial));
+            with_workspace(nk_chamfers_packed_f16_haswell, nk_chamfers_workspace_size_f16_haswell));
         run_shapes_packed<nk_f32_k>(env, "wassersteinprocrustes_packed_f32_haswell", backend,
                                     with_workspace(nk_wassersteinprocrustes_packed_f32_haswell,
-                                                   nk_wassersteinprocrustes_workspace_size_f32_serial));
+                                                   nk_wassersteinprocrustes_workspace_size_f32_haswell));
         run_shapes_packed<nk_f16_k>(env, "wassersteinprocrustes_packed_f16_haswell", backend,
                                     with_workspace(nk_wassersteinprocrustes_packed_f16_haswell,
-                                                   nk_wassersteinprocrustes_workspace_size_f16_serial));
+                                                   nk_wassersteinprocrustes_workspace_size_f16_haswell));
         run_shapes_packed<nk_f32_k>(
             env, "gromovwassersteins_packed_f32_haswell", backend,
-            with_workspace(nk_gromovwassersteins_packed_f32_haswell, nk_gromovwassersteins_workspace_size_f32_serial));
+            with_workspace(nk_gromovwassersteins_packed_f32_haswell, nk_gromovwassersteins_workspace_size_f32_haswell));
         run_shapes_packed<nk_f16_k>(
             env, "gromovwassersteins_packed_f16_haswell", backend,
-            with_workspace(nk_gromovwassersteins_packed_f16_haswell, nk_gromovwassersteins_workspace_size_f16_serial));
+            with_workspace(nk_gromovwassersteins_packed_f16_haswell, nk_gromovwassersteins_workspace_size_f16_haswell));
     }
 #endif
 
@@ -120,31 +120,31 @@ void bench_shapes(bench_settings_t const &env) {
         run_shapes_packed<nk_f16_k>(env, "hausdorffs_packed_f16_skylake", backend, nk_hausdorffs_packed_f16_skylake);
         run_shapes_packed<nk_f64_k>(
             env, "chamfers_packed_f64_skylake", backend,
-            with_workspace(nk_chamfers_packed_f64_skylake, nk_chamfers_workspace_size_f64_serial));
+            with_workspace(nk_chamfers_packed_f64_skylake, nk_chamfers_workspace_size_f64_skylake));
         run_shapes_packed<nk_f32_k>(
             env, "chamfers_packed_f32_skylake", backend,
-            with_workspace(nk_chamfers_packed_f32_skylake, nk_chamfers_workspace_size_f32_serial));
+            with_workspace(nk_chamfers_packed_f32_skylake, nk_chamfers_workspace_size_f32_skylake));
         run_shapes_packed<nk_f16_k>(
             env, "chamfers_packed_f16_skylake", backend,
-            with_workspace(nk_chamfers_packed_f16_skylake, nk_chamfers_workspace_size_f16_serial));
+            with_workspace(nk_chamfers_packed_f16_skylake, nk_chamfers_workspace_size_f16_skylake));
         run_shapes_packed<nk_f64_k>(env, "wassersteinprocrustes_packed_f64_skylake", backend,
                                     with_workspace(nk_wassersteinprocrustes_packed_f64_skylake,
-                                                   nk_wassersteinprocrustes_workspace_size_f64_serial));
+                                                   nk_wassersteinprocrustes_workspace_size_f64_skylake));
         run_shapes_packed<nk_f32_k>(env, "wassersteinprocrustes_packed_f32_skylake", backend,
                                     with_workspace(nk_wassersteinprocrustes_packed_f32_skylake,
-                                                   nk_wassersteinprocrustes_workspace_size_f32_serial));
+                                                   nk_wassersteinprocrustes_workspace_size_f32_skylake));
         run_shapes_packed<nk_f16_k>(env, "wassersteinprocrustes_packed_f16_skylake", backend,
                                     with_workspace(nk_wassersteinprocrustes_packed_f16_skylake,
-                                                   nk_wassersteinprocrustes_workspace_size_f16_serial));
+                                                   nk_wassersteinprocrustes_workspace_size_f16_skylake));
         run_shapes_packed<nk_f64_k>(
             env, "gromovwassersteins_packed_f64_skylake", backend,
-            with_workspace(nk_gromovwassersteins_packed_f64_skylake, nk_gromovwassersteins_workspace_size_f64_serial));
+            with_workspace(nk_gromovwassersteins_packed_f64_skylake, nk_gromovwassersteins_workspace_size_f64_skylake));
         run_shapes_packed<nk_f32_k>(
             env, "gromovwassersteins_packed_f32_skylake", backend,
-            with_workspace(nk_gromovwassersteins_packed_f32_skylake, nk_gromovwassersteins_workspace_size_f32_serial));
+            with_workspace(nk_gromovwassersteins_packed_f32_skylake, nk_gromovwassersteins_workspace_size_f32_skylake));
         run_shapes_packed<nk_f16_k>(
             env, "gromovwassersteins_packed_f16_skylake", backend,
-            with_workspace(nk_gromovwassersteins_packed_f16_skylake, nk_gromovwassersteins_workspace_size_f16_serial));
+            with_workspace(nk_gromovwassersteins_packed_f16_skylake, nk_gromovwassersteins_workspace_size_f16_skylake));
     }
 #endif
 
@@ -156,21 +156,21 @@ void bench_shapes(bench_settings_t const &env) {
         run_shapes_packed<nk_f32_k>(env, "hausdorffs_packed_f32_rvv", backend, nk_hausdorffs_packed_f32_rvv);
         run_shapes_packed<nk_f16_k>(env, "hausdorffs_packed_f16_rvv", backend, nk_hausdorffs_packed_f16_rvv);
         run_shapes_packed<nk_f32_k>(env, "chamfers_packed_f32_rvv", backend,
-                                    with_workspace(nk_chamfers_packed_f32_rvv, nk_chamfers_workspace_size_f32_serial));
+                                    with_workspace(nk_chamfers_packed_f32_rvv, nk_chamfers_workspace_size_f32_rvv));
         run_shapes_packed<nk_f16_k>(env, "chamfers_packed_f16_rvv", backend,
-                                    with_workspace(nk_chamfers_packed_f16_rvv, nk_chamfers_workspace_size_f16_serial));
-        run_shapes_packed<nk_f32_k>(env, "wassersteinprocrustes_packed_f32_rvv", backend,
-                                    with_workspace(nk_wassersteinprocrustes_packed_f32_rvv,
-                                                   nk_wassersteinprocrustes_workspace_size_f32_serial));
-        run_shapes_packed<nk_f16_k>(env, "wassersteinprocrustes_packed_f16_rvv", backend,
-                                    with_workspace(nk_wassersteinprocrustes_packed_f16_rvv,
-                                                   nk_wassersteinprocrustes_workspace_size_f16_serial));
+                                    with_workspace(nk_chamfers_packed_f16_rvv, nk_chamfers_workspace_size_f16_rvv));
+        run_shapes_packed<nk_f32_k>(
+            env, "wassersteinprocrustes_packed_f32_rvv", backend,
+            with_workspace(nk_wassersteinprocrustes_packed_f32_rvv, nk_wassersteinprocrustes_workspace_size_f32_rvv));
+        run_shapes_packed<nk_f16_k>(
+            env, "wassersteinprocrustes_packed_f16_rvv", backend,
+            with_workspace(nk_wassersteinprocrustes_packed_f16_rvv, nk_wassersteinprocrustes_workspace_size_f16_rvv));
         run_shapes_packed<nk_f32_k>(
             env, "gromovwassersteins_packed_f32_rvv", backend,
-            with_workspace(nk_gromovwassersteins_packed_f32_rvv, nk_gromovwassersteins_workspace_size_f32_serial));
+            with_workspace(nk_gromovwassersteins_packed_f32_rvv, nk_gromovwassersteins_workspace_size_f32_rvv));
         run_shapes_packed<nk_f16_k>(
             env, "gromovwassersteins_packed_f16_rvv", backend,
-            with_workspace(nk_gromovwassersteins_packed_f16_rvv, nk_gromovwassersteins_workspace_size_f16_serial));
+            with_workspace(nk_gromovwassersteins_packed_f16_rvv, nk_gromovwassersteins_workspace_size_f16_rvv));
     }
 #endif
 
@@ -185,22 +185,22 @@ void bench_shapes(bench_settings_t const &env) {
                                     nk_hausdorffs_packed_f16_v128relaxed);
         run_shapes_packed<nk_f32_k>(
             env, "chamfers_packed_f32_v128relaxed", backend,
-            with_workspace(nk_chamfers_packed_f32_v128relaxed, nk_chamfers_workspace_size_f32_serial));
+            with_workspace(nk_chamfers_packed_f32_v128relaxed, nk_chamfers_workspace_size_f32_v128relaxed));
         run_shapes_packed<nk_f16_k>(
             env, "chamfers_packed_f16_v128relaxed", backend,
-            with_workspace(nk_chamfers_packed_f16_v128relaxed, nk_chamfers_workspace_size_f16_serial));
+            with_workspace(nk_chamfers_packed_f16_v128relaxed, nk_chamfers_workspace_size_f16_v128relaxed));
         run_shapes_packed<nk_f32_k>(env, "wassersteinprocrustes_packed_f32_v128relaxed", backend,
                                     with_workspace(nk_wassersteinprocrustes_packed_f32_v128relaxed,
-                                                   nk_wassersteinprocrustes_workspace_size_f32_serial));
+                                                   nk_wassersteinprocrustes_workspace_size_f32_v128relaxed));
         run_shapes_packed<nk_f16_k>(env, "wassersteinprocrustes_packed_f16_v128relaxed", backend,
                                     with_workspace(nk_wassersteinprocrustes_packed_f16_v128relaxed,
-                                                   nk_wassersteinprocrustes_workspace_size_f16_serial));
+                                                   nk_wassersteinprocrustes_workspace_size_f16_v128relaxed));
         run_shapes_packed<nk_f32_k>(env, "gromovwassersteins_packed_f32_v128relaxed", backend,
                                     with_workspace(nk_gromovwassersteins_packed_f32_v128relaxed,
-                                                   nk_gromovwassersteins_workspace_size_f32_serial));
+                                                   nk_gromovwassersteins_workspace_size_f32_v128relaxed));
         run_shapes_packed<nk_f16_k>(env, "gromovwassersteins_packed_f16_v128relaxed", backend,
                                     with_workspace(nk_gromovwassersteins_packed_f16_v128relaxed,
-                                                   nk_gromovwassersteins_workspace_size_f16_serial));
+                                                   nk_gromovwassersteins_workspace_size_f16_v128relaxed));
     }
 #endif
 
@@ -213,22 +213,22 @@ void bench_shapes(bench_settings_t const &env) {
         run_shapes_packed<nk_f16_k>(env, "hausdorffs_packed_f16_powervsx", backend, nk_hausdorffs_packed_f16_powervsx);
         run_shapes_packed<nk_f32_k>(
             env, "chamfers_packed_f32_powervsx", backend,
-            with_workspace(nk_chamfers_packed_f32_powervsx, nk_chamfers_workspace_size_f32_serial));
+            with_workspace(nk_chamfers_packed_f32_powervsx, nk_chamfers_workspace_size_f32_powervsx));
         run_shapes_packed<nk_f16_k>(
             env, "chamfers_packed_f16_powervsx", backend,
-            with_workspace(nk_chamfers_packed_f16_powervsx, nk_chamfers_workspace_size_f16_serial));
+            with_workspace(nk_chamfers_packed_f16_powervsx, nk_chamfers_workspace_size_f16_powervsx));
         run_shapes_packed<nk_f32_k>(env, "wassersteinprocrustes_packed_f32_powervsx", backend,
                                     with_workspace(nk_wassersteinprocrustes_packed_f32_powervsx,
-                                                   nk_wassersteinprocrustes_workspace_size_f32_serial));
+                                                   nk_wassersteinprocrustes_workspace_size_f32_powervsx));
         run_shapes_packed<nk_f16_k>(env, "wassersteinprocrustes_packed_f16_powervsx", backend,
                                     with_workspace(nk_wassersteinprocrustes_packed_f16_powervsx,
-                                                   nk_wassersteinprocrustes_workspace_size_f16_serial));
-        run_shapes_packed<nk_f32_k>(
-            env, "gromovwassersteins_packed_f32_powervsx", backend,
-            with_workspace(nk_gromovwassersteins_packed_f32_powervsx, nk_gromovwassersteins_workspace_size_f32_serial));
-        run_shapes_packed<nk_f16_k>(
-            env, "gromovwassersteins_packed_f16_powervsx", backend,
-            with_workspace(nk_gromovwassersteins_packed_f16_powervsx, nk_gromovwassersteins_workspace_size_f16_serial));
+                                                   nk_wassersteinprocrustes_workspace_size_f16_powervsx));
+        run_shapes_packed<nk_f32_k>(env, "gromovwassersteins_packed_f32_powervsx", backend,
+                                    with_workspace(nk_gromovwassersteins_packed_f32_powervsx,
+                                                   nk_gromovwassersteins_workspace_size_f32_powervsx));
+        run_shapes_packed<nk_f16_k>(env, "gromovwassersteins_packed_f16_powervsx", backend,
+                                    with_workspace(nk_gromovwassersteins_packed_f16_powervsx,
+                                                   nk_gromovwassersteins_workspace_size_f16_powervsx));
     }
 #endif
 }

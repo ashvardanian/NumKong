@@ -8,7 +8,7 @@
 #include "numkong/reduce.h" // `nk_reduce_moments_*_cuda`, `nk_reduce_minmax_*_cuda`
 
 #include "cross.hpp"
-#include "harness_cuda.hpp"
+#include "backend_cuda.hpp"
 
 namespace ashvardanian::numkong::bench {
 

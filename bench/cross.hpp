@@ -29,16 +29,19 @@
 #include <array>            // `std::array`
 #include <initializer_list> // `std::initializer_list`
 #include <random>           // `std::uniform_int_distribution`
-#include <string>           // `std::string`, `std::to_string`
+#include <string>           // `std::string`
+#include <string_view>      // `std::string_view`
 #include <type_traits>      // `std::is_integral_v`, `std::is_same_v`
 #include <vector>           // `std::vector`
+
+#include <fmt/format.h> // `fmt::format`
 
 #include "numkong/attention.hpp" // `nk::attention_packed_workspace_size`
 #include "numkong/cast.h"        // `nk_cast_serial`
 #include "numkong/shapes.hpp"    // `nk::shapes_pack`, `nk::shapes_pack_size`
 
 #include "harness.hpp"
-#include "harness_cpu.hpp" // `host_backend_t`, the drivers' default backend
+#include "backend_cpu.hpp" // `host_backend_t`, the drivers' default backend
 
 namespace ashvardanian::numkong::bench {
 
@@ -117,8 +120,9 @@ bool workspace_size_bytes(loop_t &loop, nk_size_t &bytes,
 }
 
 /** The `<columns>` suffix of a one-row benchmark name, `<rows x columns>` for more rows. */
-inline std::string token_rows_name(std::string const &name, std::size_t rows, std::size_t columns) {
-    return name + "<" + (rows == 1 ? "" : std::to_string(rows) + "x") + std::to_string(columns) + ">";
+inline std::string token_rows_name(std::string_view name, std::size_t rows, std::size_t columns) {
+    if (rows == 1) return fmt::format("{}<{}>", name, columns);
+    return fmt::format("{}<{}x{}>", name, rows, columns);
 }
 
 /** Uploads seeded random values, returning the allocation or copy status. */
@@ -431,8 +435,8 @@ void measure_symmetric(loop_t &loop, bench_settings_t const &env, backend_type_ 
 }
 
 /** The `<rows x columns x depth>` suffix of a matrix row's name. */
-inline std::string matrix_row_name(std::string const &name, std::size_t rows, std::size_t columns, std::size_t depth) {
-    return name + "<" + std::to_string(rows) + "x" + std::to_string(columns) + "x" + std::to_string(depth) + ">";
+inline std::string matrix_row_name(std::string_view name, std::size_t rows, std::size_t columns, std::size_t depth) {
+    return fmt::format("{}<{}x{}x{}>", name, rows, columns, depth);
 }
 
 /** Runs a packed-B row over the configured matrix shape on @p backend. */
@@ -454,7 +458,7 @@ template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_
 void run_symmetric(bench_settings_t const &env, std::string const &name, expected_metric_t compute_expected,
                    written_entries_t written, kernel_type_ kernel, backend_type_ backend) {
     std::size_t const rows = env.matrix_height, depth = env.matrix_depth;
-    std::string const row_name = name + "<" + std::to_string(rows) + "x" + std::to_string(depth) + ">";
+    std::string const row_name = fmt::format("{}<{}x{}>", name, rows, depth);
     run_benchmark(env, row_name, measure_symmetric<input_dtype_, output_type_, backend_type_, kernel_type_>, backend,
                   compute_expected, written, kernel, rows, depth);
 }
@@ -531,9 +535,8 @@ inline std::string attention_row_name(std::string const &name, attention_visibil
     std::string row = name;
     if (visibility == attention_visibility_t::causal_k) row += "_causal";
     if (visibility == attention_visibility_t::causal_window_1024_k) row += "_window1024";
-    if (*shape.label) row += std::string("_") + shape.label;
-    return row + "<" + std::to_string(shape.head_count) + "h_" + std::to_string(shape.queries) + "q_" +
-           std::to_string(shape.keys) + "kv_" + std::to_string(shape.depth) + "d>";
+    if (*shape.label) row.append("_").append(shape.label);
+    return fmt::format("{}<{}h_{}q_{}kv_{}d>", row, shape.head_count, shape.queries, shape.keys, shape.depth);
 }
 
 /** Query-key pairs per head that the queries at the end of the keys of @p shape see. */
@@ -1331,12 +1334,12 @@ template <nk_dtype_t input_dtype_, typename backend_type_, typename kernel_type_
 void run_shapes_packed(bench_settings_t const &env, std::string const &name, backend_type_ const &backend,
                        kernel_type_ kernel, std::initializer_list<shapes_tile_t> tiles) {
     for (shapes_tile_t const tile : tiles) {
-        std::string const points = tile.row_points == tile.column_points
-                                       ? std::to_string(tile.row_points)
-                                       : std::to_string(tile.row_points) + "x" + std::to_string(tile.column_points);
-        run_benchmark(env,
-                      name + "<" + std::to_string(tile.rows) + "x" + std::to_string(tile.columns) + "x" + points + ">",
-                      measure_shapes_packed<input_dtype_, backend_type_, kernel_type_>, backend, kernel, tile);
+        std::string const row_name = tile.row_points == tile.column_points
+                                         ? fmt::format("{}<{}x{}x{}>", name, tile.rows, tile.columns, tile.row_points)
+                                         : fmt::format("{}<{}x{}x{}x{}>", name, tile.rows, tile.columns,
+                                                       tile.row_points, tile.column_points);
+        run_benchmark(env, row_name, measure_shapes_packed<input_dtype_, backend_type_, kernel_type_>, backend, kernel,
+                      tile);
     }
 }
 

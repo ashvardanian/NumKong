@@ -23,7 +23,6 @@ import itertools
 import math
 import os
 import random
-import re
 import sys
 import sysconfig
 import time
@@ -112,32 +111,6 @@ def env_flag(variable: str, fallback: bool = False) -> bool:
     return text not in {"0", "false", "off", "no"}
 
 
-@dataclass(frozen=True)
-class Filter:
-    """Which node ids a run selects: a regex search when the pattern compiles, else a substring, all when empty."""
-
-    pattern: str
-    regex: re.Pattern[str] | None
-
-    def selects(self, nodeid: str) -> bool:
-        """Whether `nodeid` passes the filter."""
-        if not self.pattern:
-            return True
-        if self.regex is not None:
-            return self.regex.search(nodeid) is not None
-        return self.pattern in nodeid
-
-
-def env_filter(variable: str) -> Filter:
-    """The filter the environment `variable` spells, compiled once."""
-    pattern = env_text(variable) or ""
-    try:
-        regex = re.compile(pattern) if pattern else None
-    except re.error:
-        regex = None
-    return Filter(pattern, regex)
-
-
 def mix(value: int) -> int:
     """SplitMix64's finalizer, a bijection that spreads every input bit over all 64 output bits."""
     value = ((value ^ (value >> 30)) * 0xBF58476D1CE4E5B9) & _UINT64_MASK
@@ -172,7 +145,6 @@ class Settings:
     """Every `NUMKONG_*` variable the Python suite reads, parsed once at import."""
 
     seed: int
-    filter: Filter
     scale: float
     in_qemu: bool
     dims: list[int]
@@ -213,7 +185,6 @@ def read_settings() -> Settings:
         )
     return Settings(
         seed=env_seed("NUMKONG_SEED"),
-        filter=env_filter("NUMKONG_FILTER"),
         scale=env_real("NUMKONG_SCALE", 0.3 if in_qemu else 1.0),
         in_qemu=in_qemu,
         dims=dims,

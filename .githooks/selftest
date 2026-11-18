@@ -1291,6 +1291,10 @@ assert_accepts "a foreign macro keeps its abbreviation" include/$project_directo
 inline bool zabha(unsigned long extensions) { return extensions & RISCV_HWPROBE_EXT_ZABHA; }
 FIXTURE
 
+assert_accepts "a standard name deep in a std:: chain keeps its abbreviation" test/probe.cpp <<'FIXTURE'
+inline std::filesystem::path probe() { return std::filesystem::temp_directory_path(); }
+FIXTURE
+
 assert_rejects "a macro the file defines spells words out" "abbreviates a word this project spells out" include/$project_directory/probe.hpp <<'FIXTURE'
 #define PROBE_TMP_WORDS 4
 FIXTURE
@@ -3556,6 +3560,31 @@ inline int probe(value_type_) noexcept {
 using probe_category_t = std::random_access_iterator_tag;
 FIXTURE
 
+assert_rejects "a reference to a pointer to a pointer" "takes or binds a reference to a pointer" test/probe.cpp <<'FIXTURE'
+inline void probe(char **&arguments) noexcept { arguments = nullptr; }
+FIXTURE
+
+assert_rejects "a type alias above an include" "declares an alias above its last #include" test/probe.cpp <<'FIXTURE'
+using probe_t = int;
+#include <cstddef> // `std::size_t`
+inline std::size_t probe(probe_t value) noexcept { return static_cast<std::size_t>(value); }
+FIXTURE
+
+assert_accepts "a type alias below the includes" test/probe.cpp <<'FIXTURE'
+#include <cstddef> // `std::size_t`
+using probe_t = int;
+inline std::size_t probe(probe_t value) noexcept { return static_cast<std::size_t>(value); }
+FIXTURE
+
+assert_rejects "a reference to a pointer in a test helper" "takes or binds a reference to a pointer" test/probe.cpp <<'FIXTURE'
+inline void probe(char const*& cursor, std::size_t count) noexcept { cursor += count; }
+FIXTURE
+
+assert_accepts "a view the callee advances, and prose naming the reference it replaces" test/probe.cpp <<'FIXTURE'
+/** Advances @p remaining past @p count bytes, never a <tt>char const*& cursor</tt>. */
+inline void probe(std::span<char const>& remaining, std::size_t count) noexcept { remaining = remaining.subspan(count); }
+FIXTURE
+
 # endregion Shared Gate Fixtures
 
 # region NumKong Fixtures
@@ -4100,6 +4129,20 @@ assert_rejects "bare architecture test in serial.h" "breaks the guards of a seri
 #if NUMKONG_ARCH_ARM64_
 static int nk_probe_arm64_(int value) { return value; }
 #endif
+FIXTURE
+
+assert_rejects "dispatch export beside a generation kernel" "mixes a dispatch export with a generation kernel" test/probe.cpp <<'FIXTURE'
+void run_probe_cases() {
+    run_kernel_case("nk_dot_f32_best", test_dot_f32, haswell, cpu_best<nk_dot_f32_best>,
+                    nk_dot_f32_haswell);
+}
+FIXTURE
+
+assert_accepts "dispatch export and generation kernel registered apart" test/probe.cpp <<'FIXTURE'
+void run_probe_cases() {
+    run_kernel_case("nk_dot_f32_serial", test_dot_f32, serial, nk_dot_f32_serial);
+    run_kernel_case("test_dot_f32(cpu_best<nk_dot_f32_best>)", test_dot_f32, serial, cpu_best<nk_dot_f32_best>);
+}
 FIXTURE
 
 # region Shared Guard Fixtures

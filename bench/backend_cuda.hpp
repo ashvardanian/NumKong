@@ -1,12 +1,12 @@
 /**
- *  @file bench/harness_cuda.hpp
+ *  @file bench/backend_cuda.hpp
  *  @author Ash Vardanian
  *  @date October 6, 2026
  *  @brief The CUDA backend that the CUDA benchmarks time their rows with.
  */
 #pragma once
-#ifndef NUMKONG_BENCH_HARNESS_CUDA_HPP
-#define NUMKONG_BENCH_HARNESS_CUDA_HPP
+#ifndef NUMKONG_BENCH_BACKEND_CUDA_HPP
+#define NUMKONG_BENCH_BACKEND_CUDA_HPP
 
 #include "harness.hpp" // `device_backend_t`, `attention_shape_t`, `loop_t`
 
@@ -115,4 +115,4 @@ void bench_reduce_cuda(bench_settings_t const &env, cuda_backend_t const &backen
 } // namespace ashvardanian::numkong::bench
 
 #endif // NUMKONG_ARCH_CUDA_
-#endif // NUMKONG_BENCH_HARNESS_CUDA_HPP
+#endif // NUMKONG_BENCH_BACKEND_CUDA_HPP

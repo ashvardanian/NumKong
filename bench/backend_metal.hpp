@@ -1,12 +1,12 @@
 /**
- *  @file bench/harness_metal.hpp
+ *  @file bench/backend_metal.hpp
  *  @author Ash Vardanian
  *  @date October 6, 2026
- *  @brief The Metal backend that every @c bench/*_metal.cpp file times its rows with.
+ *  @brief The Metal backend that the Metal benchmarks time their rows with.
  */
 #pragma once
-#ifndef NUMKONG_BENCH_HARNESS_METAL_HPP
-#define NUMKONG_BENCH_HARNESS_METAL_HPP
+#ifndef NUMKONG_BENCH_BACKEND_METAL_HPP
+#define NUMKONG_BENCH_BACKEND_METAL_HPP
 
 #include "harness.hpp" // `device_backend_t`, `attention_shape_t`, `loop_t`
 
@@ -82,4 +82,4 @@ struct metal_backend_t : device_backend_t {
 } // namespace ashvardanian::numkong::bench
 
 #endif // NUMKONG_ARCH_METAL_
-#endif // NUMKONG_BENCH_HARNESS_METAL_HPP
+#endif // NUMKONG_BENCH_BACKEND_METAL_HPP

@@ -122,145 +122,101 @@ static void run_cross_metal_baseline_cases() {
     run_kernel_case("test_metal_bound_lifetime", test_metal_bound_lifetime, metal);
     run_kernel_case("nk_dots_packed_i8_metal", test_dots_packed<i8_t, metal_backend_t>, metal, backend,
                     nk_dots_pack_size_i8_metal, nk_dots_pack_i8_metal, nk_dots_packed_i8_metal);
-    run_kernel_case("nk_dots_pack_i8_metal",
-                    test_dots_pack_layout<i8_t, metal_backend_t, nk_dots_pack_size_i8_metal,
-                                          nk_dots_packed_shape_i8_metal, nk_dots_pack_i8_metal>,
-                    metal, backend);
-    run_kernel_case("test_dots_launch_contract<i8_t, metal_backend_t, nk_dots_pack_size_i8_metal, " //
-                    "nk_dots_packed_i8_metal, nk_dots_symmetric_i8_metal>(backend)",
-                    test_dots_launch_contract<i8_t, metal_backend_t, nk_dots_pack_size_i8_metal,
-                                              nk_dots_packed_i8_metal, nk_dots_symmetric_i8_metal>,
-                    metal, backend);
+    run_kernel_case("nk_dots_pack_i8_metal", test_dots_pack_layout<i8_t, metal_backend_t>, metal, backend,
+                    nk_dots_pack_size_i8_metal, nk_dots_packed_shape_i8_metal, nk_dots_pack_i8_metal);
+    run_kernel_case("test_dots_launch_contract<i8_t, metal_backend_t>(nk_dots_packed_i8_metal)",
+                    test_dots_launch_contract<i8_t, metal_backend_t>, metal, backend, nk_dots_pack_size_i8_metal,
+                    nk_dots_packed_i8_metal, nk_dots_symmetric_i8_metal);
     run_kernel_case("nk_dots_symmetric_i8_metal", test_dots_symmetric<i8_t, metal_backend_t>, metal, backend,
                     nk_dots_symmetric_i8_metal);
     run_kernel_case("nk_dots_packed_u8_metal", test_dots_packed<u8_t, metal_backend_t>, metal, backend,
                     nk_dots_pack_size_u8_metal, nk_dots_pack_u8_metal, nk_dots_packed_u8_metal);
-    run_kernel_case("nk_dots_pack_u8_metal",
-                    test_dots_pack_layout<u8_t, metal_backend_t, nk_dots_pack_size_u8_metal,
-                                          nk_dots_packed_shape_u8_metal, nk_dots_pack_u8_metal>,
-                    metal, backend);
-    run_kernel_case("test_dots_launch_contract<u8_t, metal_backend_t, nk_dots_pack_size_u8_metal, " //
-                    "nk_dots_packed_u8_metal, nk_dots_symmetric_u8_metal>(backend)",
-                    test_dots_launch_contract<u8_t, metal_backend_t, nk_dots_pack_size_u8_metal,
-                                              nk_dots_packed_u8_metal, nk_dots_symmetric_u8_metal>,
-                    metal, backend);
+    run_kernel_case("nk_dots_pack_u8_metal", test_dots_pack_layout<u8_t, metal_backend_t>, metal, backend,
+                    nk_dots_pack_size_u8_metal, nk_dots_packed_shape_u8_metal, nk_dots_pack_u8_metal);
+    run_kernel_case("test_dots_launch_contract<u8_t, metal_backend_t>(nk_dots_packed_u8_metal)",
+                    test_dots_launch_contract<u8_t, metal_backend_t>, metal, backend, nk_dots_pack_size_u8_metal,
+                    nk_dots_packed_u8_metal, nk_dots_symmetric_u8_metal);
     run_kernel_case("nk_dots_symmetric_u8_metal", test_dots_symmetric<u8_t, metal_backend_t>, metal, backend,
                     nk_dots_symmetric_u8_metal);
     run_kernel_case("nk_dots_packed_i4_metal", test_dots_packed<i4x2_t, metal_backend_t>, metal, backend,
                     nk_dots_pack_size_i4_metal, nk_dots_pack_i4_metal, nk_dots_packed_i4_metal);
-    run_kernel_case("nk_dots_pack_i4_metal",
-                    test_dots_pack_layout<i4x2_t, metal_backend_t, nk_dots_pack_size_i4_metal,
-                                          nk_dots_packed_shape_i4_metal, nk_dots_pack_i4_metal>,
-                    metal, backend);
-    run_kernel_case("test_dots_launch_contract<i4x2_t, metal_backend_t, nk_dots_pack_size_i4_metal, " //
-                    "nk_dots_packed_i4_metal, nk_dots_symmetric_i4_metal>(backend)",
-                    test_dots_launch_contract<i4x2_t, metal_backend_t, nk_dots_pack_size_i4_metal,
-                                              nk_dots_packed_i4_metal, nk_dots_symmetric_i4_metal>,
-                    metal, backend);
+    run_kernel_case("nk_dots_pack_i4_metal", test_dots_pack_layout<i4x2_t, metal_backend_t>, metal, backend,
+                    nk_dots_pack_size_i4_metal, nk_dots_packed_shape_i4_metal, nk_dots_pack_i4_metal);
+    run_kernel_case("test_dots_launch_contract<i4x2_t, metal_backend_t>(nk_dots_packed_i4_metal)",
+                    test_dots_launch_contract<i4x2_t, metal_backend_t>, metal, backend, nk_dots_pack_size_i4_metal,
+                    nk_dots_packed_i4_metal, nk_dots_symmetric_i4_metal);
     run_kernel_case("nk_dots_symmetric_i4_metal", test_dots_symmetric<i4x2_t, metal_backend_t>, metal, backend,
                     nk_dots_symmetric_i4_metal);
     run_kernel_case("nk_dots_packed_u4_metal", test_dots_packed<u4x2_t, metal_backend_t>, metal, backend,
                     nk_dots_pack_size_u4_metal, nk_dots_pack_u4_metal, nk_dots_packed_u4_metal);
-    run_kernel_case("nk_dots_pack_u4_metal",
-                    test_dots_pack_layout<u4x2_t, metal_backend_t, nk_dots_pack_size_u4_metal,
-                                          nk_dots_packed_shape_u4_metal, nk_dots_pack_u4_metal>,
-                    metal, backend);
-    run_kernel_case("test_dots_launch_contract<u4x2_t, metal_backend_t, nk_dots_pack_size_u4_metal, " //
-                    "nk_dots_packed_u4_metal, nk_dots_symmetric_u4_metal>(backend)",
-                    test_dots_launch_contract<u4x2_t, metal_backend_t, nk_dots_pack_size_u4_metal,
-                                              nk_dots_packed_u4_metal, nk_dots_symmetric_u4_metal>,
-                    metal, backend);
+    run_kernel_case("nk_dots_pack_u4_metal", test_dots_pack_layout<u4x2_t, metal_backend_t>, metal, backend,
+                    nk_dots_pack_size_u4_metal, nk_dots_packed_shape_u4_metal, nk_dots_pack_u4_metal);
+    run_kernel_case("test_dots_launch_contract<u4x2_t, metal_backend_t>(nk_dots_packed_u4_metal)",
+                    test_dots_launch_contract<u4x2_t, metal_backend_t>, metal, backend, nk_dots_pack_size_u4_metal,
+                    nk_dots_packed_u4_metal, nk_dots_symmetric_u4_metal);
     run_kernel_case("nk_dots_symmetric_u4_metal", test_dots_symmetric<u4x2_t, metal_backend_t>, metal, backend,
                     nk_dots_symmetric_u4_metal);
     run_kernel_case("nk_dots_packed_f16_metal", test_dots_packed<f16_t, metal_backend_t>, metal, backend,
                     nk_dots_pack_size_f16_metal, nk_dots_pack_f16_metal, nk_dots_packed_f16_metal);
-    run_kernel_case("nk_dots_pack_f16_metal",
-                    test_dots_pack_layout<f16_t, metal_backend_t, nk_dots_pack_size_f16_metal,
-                                          nk_dots_packed_shape_f16_metal, nk_dots_pack_f16_metal>,
-                    metal, backend);
-    run_kernel_case("test_dots_launch_contract<f16_t, metal_backend_t, nk_dots_pack_size_f16_metal, " //
-                    "nk_dots_packed_f16_metal, nk_dots_symmetric_f16_metal>(backend)",
-                    test_dots_launch_contract<f16_t, metal_backend_t, nk_dots_pack_size_f16_metal,
-                                              nk_dots_packed_f16_metal, nk_dots_symmetric_f16_metal>,
-                    metal, backend);
+    run_kernel_case("nk_dots_pack_f16_metal", test_dots_pack_layout<f16_t, metal_backend_t>, metal, backend,
+                    nk_dots_pack_size_f16_metal, nk_dots_packed_shape_f16_metal, nk_dots_pack_f16_metal);
+    run_kernel_case("test_dots_launch_contract<f16_t, metal_backend_t>(nk_dots_packed_f16_metal)",
+                    test_dots_launch_contract<f16_t, metal_backend_t>, metal, backend, nk_dots_pack_size_f16_metal,
+                    nk_dots_packed_f16_metal, nk_dots_symmetric_f16_metal);
     run_kernel_case("nk_dots_symmetric_f16_metal", test_dots_symmetric<f16_t, metal_backend_t>, metal, backend,
                     nk_dots_symmetric_f16_metal);
     run_kernel_case("nk_dots_packed_bf16_metal", test_dots_packed<bf16_t, metal_backend_t>, metal, backend,
                     nk_dots_pack_size_bf16_metal, nk_dots_pack_bf16_metal, nk_dots_packed_bf16_metal);
-    run_kernel_case("nk_dots_pack_bf16_metal",
-                    test_dots_pack_layout<bf16_t, metal_backend_t, nk_dots_pack_size_bf16_metal,
-                                          nk_dots_packed_shape_bf16_metal, nk_dots_pack_bf16_metal>,
-                    metal, backend);
-    run_kernel_case("test_dots_launch_contract<bf16_t, metal_backend_t, nk_dots_pack_size_bf16_metal, " //
-                    "nk_dots_packed_bf16_metal, nk_dots_symmetric_bf16_metal>(backend)",
-                    test_dots_launch_contract<bf16_t, metal_backend_t, nk_dots_pack_size_bf16_metal,
-                                              nk_dots_packed_bf16_metal, nk_dots_symmetric_bf16_metal>,
-                    metal, backend);
+    run_kernel_case("nk_dots_pack_bf16_metal", test_dots_pack_layout<bf16_t, metal_backend_t>, metal, backend,
+                    nk_dots_pack_size_bf16_metal, nk_dots_packed_shape_bf16_metal, nk_dots_pack_bf16_metal);
+    run_kernel_case("test_dots_launch_contract<bf16_t, metal_backend_t>(nk_dots_packed_bf16_metal)",
+                    test_dots_launch_contract<bf16_t, metal_backend_t>, metal, backend, nk_dots_pack_size_bf16_metal,
+                    nk_dots_packed_bf16_metal, nk_dots_symmetric_bf16_metal);
     run_kernel_case("nk_dots_symmetric_bf16_metal", test_dots_symmetric<bf16_t, metal_backend_t>, metal, backend,
                     nk_dots_symmetric_bf16_metal);
     run_kernel_case("nk_dots_packed_e4m3_metal", test_dots_packed<e4m3_t, metal_backend_t>, metal, backend,
                     nk_dots_pack_size_e4m3_metal, nk_dots_pack_e4m3_metal, nk_dots_packed_e4m3_metal);
-    run_kernel_case("nk_dots_pack_e4m3_metal",
-                    test_dots_pack_layout<e4m3_t, metal_backend_t, nk_dots_pack_size_e4m3_metal,
-                                          nk_dots_packed_shape_e4m3_metal, nk_dots_pack_e4m3_metal>,
-                    metal, backend);
-    run_kernel_case("test_dots_launch_contract<e4m3_t, metal_backend_t, nk_dots_pack_size_e4m3_metal, " //
-                    "nk_dots_packed_e4m3_metal, nk_dots_symmetric_e4m3_metal>(backend)",
-                    test_dots_launch_contract<e4m3_t, metal_backend_t, nk_dots_pack_size_e4m3_metal,
-                                              nk_dots_packed_e4m3_metal, nk_dots_symmetric_e4m3_metal>,
-                    metal, backend);
+    run_kernel_case("nk_dots_pack_e4m3_metal", test_dots_pack_layout<e4m3_t, metal_backend_t>, metal, backend,
+                    nk_dots_pack_size_e4m3_metal, nk_dots_packed_shape_e4m3_metal, nk_dots_pack_e4m3_metal);
+    run_kernel_case("test_dots_launch_contract<e4m3_t, metal_backend_t>(nk_dots_packed_e4m3_metal)",
+                    test_dots_launch_contract<e4m3_t, metal_backend_t>, metal, backend, nk_dots_pack_size_e4m3_metal,
+                    nk_dots_packed_e4m3_metal, nk_dots_symmetric_e4m3_metal);
     run_kernel_case("nk_dots_symmetric_e4m3_metal", test_dots_symmetric<e4m3_t, metal_backend_t>, metal, backend,
                     nk_dots_symmetric_e4m3_metal);
     run_kernel_case("nk_dots_packed_e5m2_metal", test_dots_packed<e5m2_t, metal_backend_t>, metal, backend,
                     nk_dots_pack_size_e5m2_metal, nk_dots_pack_e5m2_metal, nk_dots_packed_e5m2_metal);
-    run_kernel_case("nk_dots_pack_e5m2_metal",
-                    test_dots_pack_layout<e5m2_t, metal_backend_t, nk_dots_pack_size_e5m2_metal,
-                                          nk_dots_packed_shape_e5m2_metal, nk_dots_pack_e5m2_metal>,
-                    metal, backend);
-    run_kernel_case("test_dots_launch_contract<e5m2_t, metal_backend_t, nk_dots_pack_size_e5m2_metal, " //
-                    "nk_dots_packed_e5m2_metal, nk_dots_symmetric_e5m2_metal>(backend)",
-                    test_dots_launch_contract<e5m2_t, metal_backend_t, nk_dots_pack_size_e5m2_metal,
-                                              nk_dots_packed_e5m2_metal, nk_dots_symmetric_e5m2_metal>,
-                    metal, backend);
+    run_kernel_case("nk_dots_pack_e5m2_metal", test_dots_pack_layout<e5m2_t, metal_backend_t>, metal, backend,
+                    nk_dots_pack_size_e5m2_metal, nk_dots_packed_shape_e5m2_metal, nk_dots_pack_e5m2_metal);
+    run_kernel_case("test_dots_launch_contract<e5m2_t, metal_backend_t>(nk_dots_packed_e5m2_metal)",
+                    test_dots_launch_contract<e5m2_t, metal_backend_t>, metal, backend, nk_dots_pack_size_e5m2_metal,
+                    nk_dots_packed_e5m2_metal, nk_dots_symmetric_e5m2_metal);
     run_kernel_case("nk_dots_symmetric_e5m2_metal", test_dots_symmetric<e5m2_t, metal_backend_t>, metal, backend,
                     nk_dots_symmetric_e5m2_metal);
     run_kernel_case("nk_dots_packed_e3m2_metal", test_dots_packed<e3m2_t, metal_backend_t>, metal, backend,
                     nk_dots_pack_size_e3m2_metal, nk_dots_pack_e3m2_metal, nk_dots_packed_e3m2_metal);
-    run_kernel_case("nk_dots_pack_e3m2_metal",
-                    test_dots_pack_layout<e3m2_t, metal_backend_t, nk_dots_pack_size_e3m2_metal,
-                                          nk_dots_packed_shape_e3m2_metal, nk_dots_pack_e3m2_metal>,
-                    metal, backend);
-    run_kernel_case("test_dots_launch_contract<e3m2_t, metal_backend_t, nk_dots_pack_size_e3m2_metal, " //
-                    "nk_dots_packed_e3m2_metal, nk_dots_symmetric_e3m2_metal>(backend)",
-                    test_dots_launch_contract<e3m2_t, metal_backend_t, nk_dots_pack_size_e3m2_metal,
-                                              nk_dots_packed_e3m2_metal, nk_dots_symmetric_e3m2_metal>,
-                    metal, backend);
+    run_kernel_case("nk_dots_pack_e3m2_metal", test_dots_pack_layout<e3m2_t, metal_backend_t>, metal, backend,
+                    nk_dots_pack_size_e3m2_metal, nk_dots_packed_shape_e3m2_metal, nk_dots_pack_e3m2_metal);
+    run_kernel_case("test_dots_launch_contract<e3m2_t, metal_backend_t>(nk_dots_packed_e3m2_metal)",
+                    test_dots_launch_contract<e3m2_t, metal_backend_t>, metal, backend, nk_dots_pack_size_e3m2_metal,
+                    nk_dots_packed_e3m2_metal, nk_dots_symmetric_e3m2_metal);
     run_kernel_case("nk_dots_symmetric_e3m2_metal", test_dots_symmetric<e3m2_t, metal_backend_t>, metal, backend,
                     nk_dots_symmetric_e3m2_metal);
     run_kernel_case("nk_dots_packed_e2m3_metal", test_dots_packed<e2m3_t, metal_backend_t>, metal, backend,
                     nk_dots_pack_size_e2m3_metal, nk_dots_pack_e2m3_metal, nk_dots_packed_e2m3_metal);
-    run_kernel_case("nk_dots_pack_e2m3_metal",
-                    test_dots_pack_layout<e2m3_t, metal_backend_t, nk_dots_pack_size_e2m3_metal,
-                                          nk_dots_packed_shape_e2m3_metal, nk_dots_pack_e2m3_metal>,
-                    metal, backend);
-    run_kernel_case("test_dots_launch_contract<e2m3_t, metal_backend_t, nk_dots_pack_size_e2m3_metal, " //
-                    "nk_dots_packed_e2m3_metal, nk_dots_symmetric_e2m3_metal>(backend)",
-                    test_dots_launch_contract<e2m3_t, metal_backend_t, nk_dots_pack_size_e2m3_metal,
-                                              nk_dots_packed_e2m3_metal, nk_dots_symmetric_e2m3_metal>,
-                    metal, backend);
+    run_kernel_case("nk_dots_pack_e2m3_metal", test_dots_pack_layout<e2m3_t, metal_backend_t>, metal, backend,
+                    nk_dots_pack_size_e2m3_metal, nk_dots_packed_shape_e2m3_metal, nk_dots_pack_e2m3_metal);
+    run_kernel_case("test_dots_launch_contract<e2m3_t, metal_backend_t>(nk_dots_packed_e2m3_metal)",
+                    test_dots_launch_contract<e2m3_t, metal_backend_t>, metal, backend, nk_dots_pack_size_e2m3_metal,
+                    nk_dots_packed_e2m3_metal, nk_dots_symmetric_e2m3_metal);
     run_kernel_case("nk_dots_symmetric_e2m3_metal", test_dots_symmetric<e2m3_t, metal_backend_t>, metal, backend,
                     nk_dots_symmetric_e2m3_metal);
     run_kernel_case("nk_dots_packed_e2m1_metal", test_dots_packed<e2m1x2_t, metal_backend_t>, metal, backend,
                     nk_dots_pack_size_e2m1_metal, nk_dots_pack_e2m1_metal, nk_dots_packed_e2m1_metal);
-    run_kernel_case("nk_dots_pack_e2m1_metal",
-                    test_dots_pack_layout<e2m1x2_t, metal_backend_t, nk_dots_pack_size_e2m1_metal,
-                                          nk_dots_packed_shape_e2m1_metal, nk_dots_pack_e2m1_metal>,
-                    metal, backend);
-    run_kernel_case("test_dots_launch_contract<e2m1x2_t, metal_backend_t, nk_dots_pack_size_e2m1_metal, " //
-                    "nk_dots_packed_e2m1_metal, nk_dots_symmetric_e2m1_metal>(backend)",
-                    test_dots_launch_contract<e2m1x2_t, metal_backend_t, nk_dots_pack_size_e2m1_metal,
-                                              nk_dots_packed_e2m1_metal, nk_dots_symmetric_e2m1_metal>,
-                    metal, backend);
+    run_kernel_case("nk_dots_pack_e2m1_metal", test_dots_pack_layout<e2m1x2_t, metal_backend_t>, metal, backend,
+                    nk_dots_pack_size_e2m1_metal, nk_dots_packed_shape_e2m1_metal, nk_dots_pack_e2m1_metal);
+    run_kernel_case("test_dots_launch_contract<e2m1x2_t, metal_backend_t>(nk_dots_packed_e2m1_metal)",
+                    test_dots_launch_contract<e2m1x2_t, metal_backend_t>, metal, backend, nk_dots_pack_size_e2m1_metal,
+                    nk_dots_packed_e2m1_metal, nk_dots_symmetric_e2m1_metal);
     run_kernel_case("nk_dots_symmetric_e2m1_metal", test_dots_symmetric<e2m1x2_t, metal_backend_t>, metal, backend,
                     nk_dots_symmetric_e2m1_metal);
     run_kernel_case("nk_angulars_packed_i8_metal", test_angulars_packed<i8_t, metal_backend_t>, metal,
@@ -480,93 +436,65 @@ static void run_cross_apple9_cases() {
                     apple9, nk_euclideans_symmetric_mxfp8e5m2_apple9);
     run_kernel_case("nk_dots_packed_f16_apple9", test_dots_packed<f16_t, metal_backend_t>, apple9, backend,
                     nk_dots_pack_size_f16_apple9, nk_dots_pack_f16_apple9, nk_dots_packed_f16_apple9);
-    run_kernel_case("nk_dots_pack_f16_apple9",
-                    test_dots_pack_layout<f16_t, metal_backend_t, nk_dots_pack_size_f16_apple9,
-                                          nk_dots_packed_shape_f16_apple9, nk_dots_pack_f16_apple9>,
-                    apple9, backend);
-    run_kernel_case("test_dots_launch_contract<f16_t, metal_backend_t, nk_dots_pack_size_f16_apple9, " //
-                    "nk_dots_packed_f16_apple9, nk_dots_symmetric_f16_apple9>(backend)",
-                    test_dots_launch_contract<f16_t, metal_backend_t, nk_dots_pack_size_f16_apple9,
-                                              nk_dots_packed_f16_apple9, nk_dots_symmetric_f16_apple9>,
-                    apple9, backend);
+    run_kernel_case("nk_dots_pack_f16_apple9", test_dots_pack_layout<f16_t, metal_backend_t>, apple9, backend,
+                    nk_dots_pack_size_f16_apple9, nk_dots_packed_shape_f16_apple9, nk_dots_pack_f16_apple9);
+    run_kernel_case("test_dots_launch_contract<f16_t, metal_backend_t>(nk_dots_packed_f16_apple9)",
+                    test_dots_launch_contract<f16_t, metal_backend_t>, apple9, backend, nk_dots_pack_size_f16_apple9,
+                    nk_dots_packed_f16_apple9, nk_dots_symmetric_f16_apple9);
     run_kernel_case("nk_dots_symmetric_f16_apple9", test_dots_symmetric<f16_t, metal_backend_t>, apple9, backend,
                     nk_dots_symmetric_f16_apple9);
     run_kernel_case("nk_dots_packed_bf16_apple9", test_dots_packed<bf16_t, metal_backend_t>, apple9, backend,
                     nk_dots_pack_size_bf16_apple9, nk_dots_pack_bf16_apple9, nk_dots_packed_bf16_apple9);
-    run_kernel_case("nk_dots_pack_bf16_apple9",
-                    test_dots_pack_layout<bf16_t, metal_backend_t, nk_dots_pack_size_bf16_apple9,
-                                          nk_dots_packed_shape_bf16_apple9, nk_dots_pack_bf16_apple9>,
-                    apple9, backend);
-    run_kernel_case("test_dots_launch_contract<bf16_t, metal_backend_t, nk_dots_pack_size_bf16_apple9, " //
-                    "nk_dots_packed_bf16_apple9, nk_dots_symmetric_bf16_apple9>(backend)",
-                    test_dots_launch_contract<bf16_t, metal_backend_t, nk_dots_pack_size_bf16_apple9,
-                                              nk_dots_packed_bf16_apple9, nk_dots_symmetric_bf16_apple9>,
-                    apple9, backend);
+    run_kernel_case("nk_dots_pack_bf16_apple9", test_dots_pack_layout<bf16_t, metal_backend_t>, apple9, backend,
+                    nk_dots_pack_size_bf16_apple9, nk_dots_packed_shape_bf16_apple9, nk_dots_pack_bf16_apple9);
+    run_kernel_case("test_dots_launch_contract<bf16_t, metal_backend_t>(nk_dots_packed_bf16_apple9)",
+                    test_dots_launch_contract<bf16_t, metal_backend_t>, apple9, backend, nk_dots_pack_size_bf16_apple9,
+                    nk_dots_packed_bf16_apple9, nk_dots_symmetric_bf16_apple9);
     run_kernel_case("nk_dots_symmetric_bf16_apple9", test_dots_symmetric<bf16_t, metal_backend_t>, apple9, backend,
                     nk_dots_symmetric_bf16_apple9);
     run_kernel_case("nk_dots_packed_e4m3_apple9", test_dots_packed<e4m3_t, metal_backend_t>, apple9, backend,
                     nk_dots_pack_size_e4m3_apple9, nk_dots_pack_e4m3_apple9, nk_dots_packed_e4m3_apple9);
-    run_kernel_case("nk_dots_pack_e4m3_apple9",
-                    test_dots_pack_layout<e4m3_t, metal_backend_t, nk_dots_pack_size_e4m3_apple9,
-                                          nk_dots_packed_shape_e4m3_apple9, nk_dots_pack_e4m3_apple9>,
-                    apple9, backend);
-    run_kernel_case("test_dots_launch_contract<e4m3_t, metal_backend_t, nk_dots_pack_size_e4m3_apple9, " //
-                    "nk_dots_packed_e4m3_apple9, nk_dots_symmetric_e4m3_apple9>(backend)",
-                    test_dots_launch_contract<e4m3_t, metal_backend_t, nk_dots_pack_size_e4m3_apple9,
-                                              nk_dots_packed_e4m3_apple9, nk_dots_symmetric_e4m3_apple9>,
-                    apple9, backend);
+    run_kernel_case("nk_dots_pack_e4m3_apple9", test_dots_pack_layout<e4m3_t, metal_backend_t>, apple9, backend,
+                    nk_dots_pack_size_e4m3_apple9, nk_dots_packed_shape_e4m3_apple9, nk_dots_pack_e4m3_apple9);
+    run_kernel_case("test_dots_launch_contract<e4m3_t, metal_backend_t>(nk_dots_packed_e4m3_apple9)",
+                    test_dots_launch_contract<e4m3_t, metal_backend_t>, apple9, backend, nk_dots_pack_size_e4m3_apple9,
+                    nk_dots_packed_e4m3_apple9, nk_dots_symmetric_e4m3_apple9);
     run_kernel_case("nk_dots_symmetric_e4m3_apple9", test_dots_symmetric<e4m3_t, metal_backend_t>, apple9, backend,
                     nk_dots_symmetric_e4m3_apple9);
     run_kernel_case("nk_dots_packed_e5m2_apple9", test_dots_packed<e5m2_t, metal_backend_t>, apple9, backend,
                     nk_dots_pack_size_e5m2_apple9, nk_dots_pack_e5m2_apple9, nk_dots_packed_e5m2_apple9);
-    run_kernel_case("nk_dots_pack_e5m2_apple9",
-                    test_dots_pack_layout<e5m2_t, metal_backend_t, nk_dots_pack_size_e5m2_apple9,
-                                          nk_dots_packed_shape_e5m2_apple9, nk_dots_pack_e5m2_apple9>,
-                    apple9, backend);
-    run_kernel_case("test_dots_launch_contract<e5m2_t, metal_backend_t, nk_dots_pack_size_e5m2_apple9, " //
-                    "nk_dots_packed_e5m2_apple9, nk_dots_symmetric_e5m2_apple9>(backend)",
-                    test_dots_launch_contract<e5m2_t, metal_backend_t, nk_dots_pack_size_e5m2_apple9,
-                                              nk_dots_packed_e5m2_apple9, nk_dots_symmetric_e5m2_apple9>,
-                    apple9, backend);
+    run_kernel_case("nk_dots_pack_e5m2_apple9", test_dots_pack_layout<e5m2_t, metal_backend_t>, apple9, backend,
+                    nk_dots_pack_size_e5m2_apple9, nk_dots_packed_shape_e5m2_apple9, nk_dots_pack_e5m2_apple9);
+    run_kernel_case("test_dots_launch_contract<e5m2_t, metal_backend_t>(nk_dots_packed_e5m2_apple9)",
+                    test_dots_launch_contract<e5m2_t, metal_backend_t>, apple9, backend, nk_dots_pack_size_e5m2_apple9,
+                    nk_dots_packed_e5m2_apple9, nk_dots_symmetric_e5m2_apple9);
     run_kernel_case("nk_dots_symmetric_e5m2_apple9", test_dots_symmetric<e5m2_t, metal_backend_t>, apple9, backend,
                     nk_dots_symmetric_e5m2_apple9);
     run_kernel_case("nk_dots_packed_e3m2_apple9", test_dots_packed<e3m2_t, metal_backend_t>, apple9, backend,
                     nk_dots_pack_size_e3m2_apple9, nk_dots_pack_e3m2_apple9, nk_dots_packed_e3m2_apple9);
-    run_kernel_case("nk_dots_pack_e3m2_apple9",
-                    test_dots_pack_layout<e3m2_t, metal_backend_t, nk_dots_pack_size_e3m2_apple9,
-                                          nk_dots_packed_shape_e3m2_apple9, nk_dots_pack_e3m2_apple9>,
-                    apple9, backend);
-    run_kernel_case("test_dots_launch_contract<e3m2_t, metal_backend_t, nk_dots_pack_size_e3m2_apple9, " //
-                    "nk_dots_packed_e3m2_apple9, nk_dots_symmetric_e3m2_apple9>(backend)",
-                    test_dots_launch_contract<e3m2_t, metal_backend_t, nk_dots_pack_size_e3m2_apple9,
-                                              nk_dots_packed_e3m2_apple9, nk_dots_symmetric_e3m2_apple9>,
-                    apple9, backend);
+    run_kernel_case("nk_dots_pack_e3m2_apple9", test_dots_pack_layout<e3m2_t, metal_backend_t>, apple9, backend,
+                    nk_dots_pack_size_e3m2_apple9, nk_dots_packed_shape_e3m2_apple9, nk_dots_pack_e3m2_apple9);
+    run_kernel_case("test_dots_launch_contract<e3m2_t, metal_backend_t>(nk_dots_packed_e3m2_apple9)",
+                    test_dots_launch_contract<e3m2_t, metal_backend_t>, apple9, backend, nk_dots_pack_size_e3m2_apple9,
+                    nk_dots_packed_e3m2_apple9, nk_dots_symmetric_e3m2_apple9);
     run_kernel_case("nk_dots_symmetric_e3m2_apple9", test_dots_symmetric<e3m2_t, metal_backend_t>, apple9, backend,
                     nk_dots_symmetric_e3m2_apple9);
     run_kernel_case("nk_dots_packed_e2m3_apple9", test_dots_packed<e2m3_t, metal_backend_t>, apple9, backend,
                     nk_dots_pack_size_e2m3_apple9, nk_dots_pack_e2m3_apple9, nk_dots_packed_e2m3_apple9);
-    run_kernel_case("nk_dots_pack_e2m3_apple9",
-                    test_dots_pack_layout<e2m3_t, metal_backend_t, nk_dots_pack_size_e2m3_apple9,
-                                          nk_dots_packed_shape_e2m3_apple9, nk_dots_pack_e2m3_apple9>,
-                    apple9, backend);
-    run_kernel_case("test_dots_launch_contract<e2m3_t, metal_backend_t, nk_dots_pack_size_e2m3_apple9, " //
-                    "nk_dots_packed_e2m3_apple9, nk_dots_symmetric_e2m3_apple9>(backend)",
-                    test_dots_launch_contract<e2m3_t, metal_backend_t, nk_dots_pack_size_e2m3_apple9,
-                                              nk_dots_packed_e2m3_apple9, nk_dots_symmetric_e2m3_apple9>,
-                    apple9, backend);
+    run_kernel_case("nk_dots_pack_e2m3_apple9", test_dots_pack_layout<e2m3_t, metal_backend_t>, apple9, backend,
+                    nk_dots_pack_size_e2m3_apple9, nk_dots_packed_shape_e2m3_apple9, nk_dots_pack_e2m3_apple9);
+    run_kernel_case("test_dots_launch_contract<e2m3_t, metal_backend_t>(nk_dots_packed_e2m3_apple9)",
+                    test_dots_launch_contract<e2m3_t, metal_backend_t>, apple9, backend, nk_dots_pack_size_e2m3_apple9,
+                    nk_dots_packed_e2m3_apple9, nk_dots_symmetric_e2m3_apple9);
     run_kernel_case("nk_dots_symmetric_e2m3_apple9", test_dots_symmetric<e2m3_t, metal_backend_t>, apple9, backend,
                     nk_dots_symmetric_e2m3_apple9);
     run_kernel_case("nk_dots_packed_e2m1_apple9", test_dots_packed<e2m1x2_t, metal_backend_t>, apple9, backend,
                     nk_dots_pack_size_e2m1_apple9, nk_dots_pack_e2m1_apple9, nk_dots_packed_e2m1_apple9);
-    run_kernel_case("nk_dots_pack_e2m1_apple9",
-                    test_dots_pack_layout<e2m1x2_t, metal_backend_t, nk_dots_pack_size_e2m1_apple9,
-                                          nk_dots_packed_shape_e2m1_apple9, nk_dots_pack_e2m1_apple9>,
-                    apple9, backend);
-    run_kernel_case("test_dots_launch_contract<e2m1x2_t, metal_backend_t, nk_dots_pack_size_e2m1_apple9, " //
-                    "nk_dots_packed_e2m1_apple9, nk_dots_symmetric_e2m1_apple9>(backend)",
-                    test_dots_launch_contract<e2m1x2_t, metal_backend_t, nk_dots_pack_size_e2m1_apple9,
-                                              nk_dots_packed_e2m1_apple9, nk_dots_symmetric_e2m1_apple9>,
-                    apple9, backend);
+    run_kernel_case("nk_dots_pack_e2m1_apple9", test_dots_pack_layout<e2m1x2_t, metal_backend_t>, apple9, backend,
+                    nk_dots_pack_size_e2m1_apple9, nk_dots_packed_shape_e2m1_apple9, nk_dots_pack_e2m1_apple9);
+    run_kernel_case("test_dots_launch_contract<e2m1x2_t, metal_backend_t>(nk_dots_packed_e2m1_apple9)",
+                    test_dots_launch_contract<e2m1x2_t, metal_backend_t>, apple9, backend,
+                    nk_dots_pack_size_e2m1_apple9, nk_dots_packed_e2m1_apple9, nk_dots_symmetric_e2m1_apple9);
     run_kernel_case("nk_dots_symmetric_e2m1_apple9", test_dots_symmetric<e2m1x2_t, metal_backend_t>, apple9, backend,
                     nk_dots_symmetric_e2m1_apple9);
     run_kernel_case("nk_angulars_packed_f16_apple9", test_angulars_packed<f16_t, metal_backend_t>, apple9,
@@ -759,28 +687,20 @@ static void run_cross_apple10_cases() {
                     nk_euclideans_symmetric_mxfp8e5m2_apple10);
     run_kernel_case("nk_dots_packed_i4_apple10", test_dots_packed<i4x2_t, metal_backend_t>, apple10, backend,
                     nk_dots_pack_size_i4_apple10, nk_dots_pack_i4_apple10, nk_dots_packed_i4_apple10);
-    run_kernel_case("nk_dots_pack_i4_apple10",
-                    test_dots_pack_layout<i4x2_t, metal_backend_t, nk_dots_pack_size_i4_apple10,
-                                          nk_dots_packed_shape_i4_apple10, nk_dots_pack_i4_apple10>,
-                    apple10, backend);
-    run_kernel_case("test_dots_launch_contract<i4x2_t, metal_backend_t, nk_dots_pack_size_i4_apple10, " //
-                    "nk_dots_packed_i4_apple10, nk_dots_symmetric_i4_apple10>(backend)",
-                    test_dots_launch_contract<i4x2_t, metal_backend_t, nk_dots_pack_size_i4_apple10,
-                                              nk_dots_packed_i4_apple10, nk_dots_symmetric_i4_apple10>,
-                    apple10, backend);
+    run_kernel_case("nk_dots_pack_i4_apple10", test_dots_pack_layout<i4x2_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_i4_apple10, nk_dots_packed_shape_i4_apple10, nk_dots_pack_i4_apple10);
+    run_kernel_case("test_dots_launch_contract<i4x2_t, metal_backend_t>(nk_dots_packed_i4_apple10)",
+                    test_dots_launch_contract<i4x2_t, metal_backend_t>, apple10, backend, nk_dots_pack_size_i4_apple10,
+                    nk_dots_packed_i4_apple10, nk_dots_symmetric_i4_apple10);
     run_kernel_case("nk_dots_symmetric_i4_apple10", test_dots_symmetric<i4x2_t, metal_backend_t>, apple10, backend,
                     nk_dots_symmetric_i4_apple10);
     run_kernel_case("nk_dots_packed_u4_apple10", test_dots_packed<u4x2_t, metal_backend_t>, apple10, backend,
                     nk_dots_pack_size_u4_apple10, nk_dots_pack_u4_apple10, nk_dots_packed_u4_apple10);
-    run_kernel_case("nk_dots_pack_u4_apple10",
-                    test_dots_pack_layout<u4x2_t, metal_backend_t, nk_dots_pack_size_u4_apple10,
-                                          nk_dots_packed_shape_u4_apple10, nk_dots_pack_u4_apple10>,
-                    apple10, backend);
-    run_kernel_case("test_dots_launch_contract<u4x2_t, metal_backend_t, nk_dots_pack_size_u4_apple10, " //
-                    "nk_dots_packed_u4_apple10, nk_dots_symmetric_u4_apple10>(backend)",
-                    test_dots_launch_contract<u4x2_t, metal_backend_t, nk_dots_pack_size_u4_apple10,
-                                              nk_dots_packed_u4_apple10, nk_dots_symmetric_u4_apple10>,
-                    apple10, backend);
+    run_kernel_case("nk_dots_pack_u4_apple10", test_dots_pack_layout<u4x2_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_u4_apple10, nk_dots_packed_shape_u4_apple10, nk_dots_pack_u4_apple10);
+    run_kernel_case("test_dots_launch_contract<u4x2_t, metal_backend_t>(nk_dots_packed_u4_apple10)",
+                    test_dots_launch_contract<u4x2_t, metal_backend_t>, apple10, backend, nk_dots_pack_size_u4_apple10,
+                    nk_dots_packed_u4_apple10, nk_dots_symmetric_u4_apple10);
     run_kernel_case("nk_dots_symmetric_u4_apple10", test_dots_symmetric<u4x2_t, metal_backend_t>, apple10, backend,
                     nk_dots_symmetric_u4_apple10);
     run_kernel_case("nk_angulars_packed_i4_apple10", test_angulars_packed<i4x2_t, metal_backend_t>, apple10,
@@ -801,119 +721,83 @@ static void run_cross_apple10_cases() {
                     nk_euclideans_symmetric_u4_apple10);
     run_kernel_case("nk_dots_packed_i8_apple10", test_dots_packed<i8_t, metal_backend_t>, apple10, backend,
                     nk_dots_pack_size_i8_apple10, nk_dots_pack_i8_apple10, nk_dots_packed_i8_apple10);
-    run_kernel_case("nk_dots_pack_i8_apple10",
-                    test_dots_pack_layout<i8_t, metal_backend_t, nk_dots_pack_size_i8_apple10,
-                                          nk_dots_packed_shape_i8_apple10, nk_dots_pack_i8_apple10>,
-                    apple10, backend);
-    run_kernel_case("test_dots_launch_contract<i8_t, metal_backend_t, nk_dots_pack_size_i8_apple10, " //
-                    "nk_dots_packed_i8_apple10, nk_dots_symmetric_i8_apple10>(backend)",
-                    test_dots_launch_contract<i8_t, metal_backend_t, nk_dots_pack_size_i8_apple10,
-                                              nk_dots_packed_i8_apple10, nk_dots_symmetric_i8_apple10>,
-                    apple10, backend);
+    run_kernel_case("nk_dots_pack_i8_apple10", test_dots_pack_layout<i8_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_i8_apple10, nk_dots_packed_shape_i8_apple10, nk_dots_pack_i8_apple10);
+    run_kernel_case("test_dots_launch_contract<i8_t, metal_backend_t>(nk_dots_packed_i8_apple10)",
+                    test_dots_launch_contract<i8_t, metal_backend_t>, apple10, backend, nk_dots_pack_size_i8_apple10,
+                    nk_dots_packed_i8_apple10, nk_dots_symmetric_i8_apple10);
     run_kernel_case("nk_dots_symmetric_i8_apple10", test_dots_symmetric<i8_t, metal_backend_t>, apple10, backend,
                     nk_dots_symmetric_i8_apple10);
     run_kernel_case("nk_dots_packed_u8_apple10", test_dots_packed<u8_t, metal_backend_t>, apple10, backend,
                     nk_dots_pack_size_u8_apple10, nk_dots_pack_u8_apple10, nk_dots_packed_u8_apple10);
-    run_kernel_case("nk_dots_pack_u8_apple10",
-                    test_dots_pack_layout<u8_t, metal_backend_t, nk_dots_pack_size_u8_apple10,
-                                          nk_dots_packed_shape_u8_apple10, nk_dots_pack_u8_apple10>,
-                    apple10, backend);
-    run_kernel_case("test_dots_launch_contract<u8_t, metal_backend_t, nk_dots_pack_size_u8_apple10, " //
-                    "nk_dots_packed_u8_apple10, nk_dots_symmetric_u8_apple10>(backend)",
-                    test_dots_launch_contract<u8_t, metal_backend_t, nk_dots_pack_size_u8_apple10,
-                                              nk_dots_packed_u8_apple10, nk_dots_symmetric_u8_apple10>,
-                    apple10, backend);
+    run_kernel_case("nk_dots_pack_u8_apple10", test_dots_pack_layout<u8_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_u8_apple10, nk_dots_packed_shape_u8_apple10, nk_dots_pack_u8_apple10);
+    run_kernel_case("test_dots_launch_contract<u8_t, metal_backend_t>(nk_dots_packed_u8_apple10)",
+                    test_dots_launch_contract<u8_t, metal_backend_t>, apple10, backend, nk_dots_pack_size_u8_apple10,
+                    nk_dots_packed_u8_apple10, nk_dots_symmetric_u8_apple10);
     run_kernel_case("nk_dots_symmetric_u8_apple10", test_dots_symmetric<u8_t, metal_backend_t>, apple10, backend,
                     nk_dots_symmetric_u8_apple10);
     run_kernel_case("nk_dots_packed_f16_apple10", test_dots_packed<f16_t, metal_backend_t>, apple10, backend,
                     nk_dots_pack_size_f16_apple10, nk_dots_pack_f16_apple10, nk_dots_packed_f16_apple10);
-    run_kernel_case("nk_dots_pack_f16_apple10",
-                    test_dots_pack_layout<f16_t, metal_backend_t, nk_dots_pack_size_f16_apple10,
-                                          nk_dots_packed_shape_f16_apple10, nk_dots_pack_f16_apple10>,
-                    apple10, backend);
-    run_kernel_case("test_dots_launch_contract<f16_t, metal_backend_t, nk_dots_pack_size_f16_apple10, " //
-                    "nk_dots_packed_f16_apple10, nk_dots_symmetric_f16_apple10>(backend)",
-                    test_dots_launch_contract<f16_t, metal_backend_t, nk_dots_pack_size_f16_apple10,
-                                              nk_dots_packed_f16_apple10, nk_dots_symmetric_f16_apple10>,
-                    apple10, backend);
+    run_kernel_case("nk_dots_pack_f16_apple10", test_dots_pack_layout<f16_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_f16_apple10, nk_dots_packed_shape_f16_apple10, nk_dots_pack_f16_apple10);
+    run_kernel_case("test_dots_launch_contract<f16_t, metal_backend_t>(nk_dots_packed_f16_apple10)",
+                    test_dots_launch_contract<f16_t, metal_backend_t>, apple10, backend, nk_dots_pack_size_f16_apple10,
+                    nk_dots_packed_f16_apple10, nk_dots_symmetric_f16_apple10);
     run_kernel_case("nk_dots_symmetric_f16_apple10", test_dots_symmetric<f16_t, metal_backend_t>, apple10, backend,
                     nk_dots_symmetric_f16_apple10);
     run_kernel_case("nk_dots_packed_bf16_apple10", test_dots_packed<bf16_t, metal_backend_t>, apple10, backend,
                     nk_dots_pack_size_bf16_apple10, nk_dots_pack_bf16_apple10, nk_dots_packed_bf16_apple10);
-    run_kernel_case("nk_dots_pack_bf16_apple10",
-                    test_dots_pack_layout<bf16_t, metal_backend_t, nk_dots_pack_size_bf16_apple10,
-                                          nk_dots_packed_shape_bf16_apple10, nk_dots_pack_bf16_apple10>,
-                    apple10, backend);
-    run_kernel_case("test_dots_launch_contract<bf16_t, metal_backend_t, nk_dots_pack_size_bf16_apple10, " //
-                    "nk_dots_packed_bf16_apple10, nk_dots_symmetric_bf16_apple10>(backend)",
-                    test_dots_launch_contract<bf16_t, metal_backend_t, nk_dots_pack_size_bf16_apple10,
-                                              nk_dots_packed_bf16_apple10, nk_dots_symmetric_bf16_apple10>,
-                    apple10, backend);
+    run_kernel_case("nk_dots_pack_bf16_apple10", test_dots_pack_layout<bf16_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_bf16_apple10, nk_dots_packed_shape_bf16_apple10, nk_dots_pack_bf16_apple10);
+    run_kernel_case("test_dots_launch_contract<bf16_t, metal_backend_t>(nk_dots_packed_bf16_apple10)",
+                    test_dots_launch_contract<bf16_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_bf16_apple10, nk_dots_packed_bf16_apple10, nk_dots_symmetric_bf16_apple10);
     run_kernel_case("nk_dots_symmetric_bf16_apple10", test_dots_symmetric<bf16_t, metal_backend_t>, apple10, backend,
                     nk_dots_symmetric_bf16_apple10);
     run_kernel_case("nk_dots_packed_e4m3_apple10", test_dots_packed<e4m3_t, metal_backend_t>, apple10, backend,
                     nk_dots_pack_size_e4m3_apple10, nk_dots_pack_e4m3_apple10, nk_dots_packed_e4m3_apple10);
-    run_kernel_case("nk_dots_pack_e4m3_apple10",
-                    test_dots_pack_layout<e4m3_t, metal_backend_t, nk_dots_pack_size_e4m3_apple10,
-                                          nk_dots_packed_shape_e4m3_apple10, nk_dots_pack_e4m3_apple10>,
-                    apple10, backend);
-    run_kernel_case("test_dots_launch_contract<e4m3_t, metal_backend_t, nk_dots_pack_size_e4m3_apple10, " //
-                    "nk_dots_packed_e4m3_apple10, nk_dots_symmetric_e4m3_apple10>(backend)",
-                    test_dots_launch_contract<e4m3_t, metal_backend_t, nk_dots_pack_size_e4m3_apple10,
-                                              nk_dots_packed_e4m3_apple10, nk_dots_symmetric_e4m3_apple10>,
-                    apple10, backend);
+    run_kernel_case("nk_dots_pack_e4m3_apple10", test_dots_pack_layout<e4m3_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_e4m3_apple10, nk_dots_packed_shape_e4m3_apple10, nk_dots_pack_e4m3_apple10);
+    run_kernel_case("test_dots_launch_contract<e4m3_t, metal_backend_t>(nk_dots_packed_e4m3_apple10)",
+                    test_dots_launch_contract<e4m3_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_e4m3_apple10, nk_dots_packed_e4m3_apple10, nk_dots_symmetric_e4m3_apple10);
     run_kernel_case("nk_dots_symmetric_e4m3_apple10", test_dots_symmetric<e4m3_t, metal_backend_t>, apple10, backend,
                     nk_dots_symmetric_e4m3_apple10);
     run_kernel_case("nk_dots_packed_e5m2_apple10", test_dots_packed<e5m2_t, metal_backend_t>, apple10, backend,
                     nk_dots_pack_size_e5m2_apple10, nk_dots_pack_e5m2_apple10, nk_dots_packed_e5m2_apple10);
-    run_kernel_case("nk_dots_pack_e5m2_apple10",
-                    test_dots_pack_layout<e5m2_t, metal_backend_t, nk_dots_pack_size_e5m2_apple10,
-                                          nk_dots_packed_shape_e5m2_apple10, nk_dots_pack_e5m2_apple10>,
-                    apple10, backend);
-    run_kernel_case("test_dots_launch_contract<e5m2_t, metal_backend_t, nk_dots_pack_size_e5m2_apple10, " //
-                    "nk_dots_packed_e5m2_apple10, nk_dots_symmetric_e5m2_apple10>(backend)",
-                    test_dots_launch_contract<e5m2_t, metal_backend_t, nk_dots_pack_size_e5m2_apple10,
-                                              nk_dots_packed_e5m2_apple10, nk_dots_symmetric_e5m2_apple10>,
-                    apple10, backend);
+    run_kernel_case("nk_dots_pack_e5m2_apple10", test_dots_pack_layout<e5m2_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_e5m2_apple10, nk_dots_packed_shape_e5m2_apple10, nk_dots_pack_e5m2_apple10);
+    run_kernel_case("test_dots_launch_contract<e5m2_t, metal_backend_t>(nk_dots_packed_e5m2_apple10)",
+                    test_dots_launch_contract<e5m2_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_e5m2_apple10, nk_dots_packed_e5m2_apple10, nk_dots_symmetric_e5m2_apple10);
     run_kernel_case("nk_dots_symmetric_e5m2_apple10", test_dots_symmetric<e5m2_t, metal_backend_t>, apple10, backend,
                     nk_dots_symmetric_e5m2_apple10);
     run_kernel_case("nk_dots_packed_e3m2_apple10", test_dots_packed<e3m2_t, metal_backend_t>, apple10, backend,
                     nk_dots_pack_size_e3m2_apple10, nk_dots_pack_e3m2_apple10, nk_dots_packed_e3m2_apple10);
-    run_kernel_case("nk_dots_pack_e3m2_apple10",
-                    test_dots_pack_layout<e3m2_t, metal_backend_t, nk_dots_pack_size_e3m2_apple10,
-                                          nk_dots_packed_shape_e3m2_apple10, nk_dots_pack_e3m2_apple10>,
-                    apple10, backend);
-    run_kernel_case("test_dots_launch_contract<e3m2_t, metal_backend_t, nk_dots_pack_size_e3m2_apple10, " //
-                    "nk_dots_packed_e3m2_apple10, nk_dots_symmetric_e3m2_apple10>(backend)",
-                    test_dots_launch_contract<e3m2_t, metal_backend_t, nk_dots_pack_size_e3m2_apple10,
-                                              nk_dots_packed_e3m2_apple10, nk_dots_symmetric_e3m2_apple10>,
-                    apple10, backend);
+    run_kernel_case("nk_dots_pack_e3m2_apple10", test_dots_pack_layout<e3m2_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_e3m2_apple10, nk_dots_packed_shape_e3m2_apple10, nk_dots_pack_e3m2_apple10);
+    run_kernel_case("test_dots_launch_contract<e3m2_t, metal_backend_t>(nk_dots_packed_e3m2_apple10)",
+                    test_dots_launch_contract<e3m2_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_e3m2_apple10, nk_dots_packed_e3m2_apple10, nk_dots_symmetric_e3m2_apple10);
     run_kernel_case("nk_dots_symmetric_e3m2_apple10", test_dots_symmetric<e3m2_t, metal_backend_t>, apple10, backend,
                     nk_dots_symmetric_e3m2_apple10);
     run_kernel_case("nk_dots_packed_e2m3_apple10", test_dots_packed<e2m3_t, metal_backend_t>, apple10, backend,
                     nk_dots_pack_size_e2m3_apple10, nk_dots_pack_e2m3_apple10, nk_dots_packed_e2m3_apple10);
-    run_kernel_case("nk_dots_pack_e2m3_apple10",
-                    test_dots_pack_layout<e2m3_t, metal_backend_t, nk_dots_pack_size_e2m3_apple10,
-                                          nk_dots_packed_shape_e2m3_apple10, nk_dots_pack_e2m3_apple10>,
-                    apple10, backend);
-    run_kernel_case("test_dots_launch_contract<e2m3_t, metal_backend_t, nk_dots_pack_size_e2m3_apple10, " //
-                    "nk_dots_packed_e2m3_apple10, nk_dots_symmetric_e2m3_apple10>(backend)",
-                    test_dots_launch_contract<e2m3_t, metal_backend_t, nk_dots_pack_size_e2m3_apple10,
-                                              nk_dots_packed_e2m3_apple10, nk_dots_symmetric_e2m3_apple10>,
-                    apple10, backend);
+    run_kernel_case("nk_dots_pack_e2m3_apple10", test_dots_pack_layout<e2m3_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_e2m3_apple10, nk_dots_packed_shape_e2m3_apple10, nk_dots_pack_e2m3_apple10);
+    run_kernel_case("test_dots_launch_contract<e2m3_t, metal_backend_t>(nk_dots_packed_e2m3_apple10)",
+                    test_dots_launch_contract<e2m3_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_e2m3_apple10, nk_dots_packed_e2m3_apple10, nk_dots_symmetric_e2m3_apple10);
     run_kernel_case("nk_dots_symmetric_e2m3_apple10", test_dots_symmetric<e2m3_t, metal_backend_t>, apple10, backend,
                     nk_dots_symmetric_e2m3_apple10);
     run_kernel_case("nk_dots_packed_e2m1_apple10", test_dots_packed<e2m1x2_t, metal_backend_t>, apple10, backend,
                     nk_dots_pack_size_e2m1_apple10, nk_dots_pack_e2m1_apple10, nk_dots_packed_e2m1_apple10);
-    run_kernel_case("nk_dots_pack_e2m1_apple10",
-                    test_dots_pack_layout<e2m1x2_t, metal_backend_t, nk_dots_pack_size_e2m1_apple10,
-                                          nk_dots_packed_shape_e2m1_apple10, nk_dots_pack_e2m1_apple10>,
-                    apple10, backend);
-    run_kernel_case("test_dots_launch_contract<e2m1x2_t, metal_backend_t, nk_dots_pack_size_e2m1_apple10, " //
-                    "nk_dots_packed_e2m1_apple10, nk_dots_symmetric_e2m1_apple10>(backend)",
-                    test_dots_launch_contract<e2m1x2_t, metal_backend_t, nk_dots_pack_size_e2m1_apple10,
-                                              nk_dots_packed_e2m1_apple10, nk_dots_symmetric_e2m1_apple10>,
-                    apple10, backend);
+    run_kernel_case("nk_dots_pack_e2m1_apple10", test_dots_pack_layout<e2m1x2_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_e2m1_apple10, nk_dots_packed_shape_e2m1_apple10, nk_dots_pack_e2m1_apple10);
+    run_kernel_case("test_dots_launch_contract<e2m1x2_t, metal_backend_t>(nk_dots_packed_e2m1_apple10)",
+                    test_dots_launch_contract<e2m1x2_t, metal_backend_t>, apple10, backend,
+                    nk_dots_pack_size_e2m1_apple10, nk_dots_packed_e2m1_apple10, nk_dots_symmetric_e2m1_apple10);
     run_kernel_case("nk_dots_symmetric_e2m1_apple10", test_dots_symmetric<e2m1x2_t, metal_backend_t>, apple10, backend,
                     nk_dots_symmetric_e2m1_apple10);
     run_kernel_case("nk_angulars_packed_i8_apple10", test_angulars_packed<i8_t, metal_backend_t>, apple10,

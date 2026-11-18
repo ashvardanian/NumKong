@@ -205,9 +205,8 @@ The `test-oracles` group adds the references the suite compares against when the
 Tests that require a missing optional dependency are skipped automatically.
 
 ```sh
-NUMKONG_FILTER=dot python -m pytest               # node ids matching a regex, or else a substring
-NUMKONG_FILTER="dot|spatial" python -m pytest
-python -m pytest -k "dot or spatial"              # pytest's own filter still applies on top
+python -m pytest -k dot                           # only the tests whose names mention "dot"
+python -m pytest -k "dot or spatial"
 ```
 
 ### Environment Variables
@@ -216,7 +215,6 @@ python -m pytest -k "dot or spatial"              # pytest's own filter still ap
 | :------------------------ | ------------: | :----------------------------------------------------------------- |
 | `NUMKONG_SEED`            |          `42` | Any unsigned 64-bit seed, or `random` to draw one                  |
 | `NUMKONG_SCALE`           |           `1` | Randomized tests repeat `round(10·scale)` times, `0.3` under QEMU  |
-| `NUMKONG_FILTER`          |         unset | Regex searched in test node ids; an invalid one is a substring     |
 | `NUMKONG_DIMS`            | `1,2,...,128` | Comma-separated vector dimensions, 19 sizes around powers of two   |
 | `NUMKONG_CURVED_DIMS`     |     5 sampled | Dimensions for curved-space tests, drawn from the dense ones       |
 | `NUMKONG_DIMS_HEIGHT`     |     6 sampled | GEMM M dimensions, drawn from the dense ones                       |

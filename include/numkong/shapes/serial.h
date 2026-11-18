@@ -1383,7 +1383,11 @@ nk_define_shapes_workspace_(f64)
  *  tolerance, where an f32 one would stop short of near-ties. A tile is @c tile consecutive columns
  *  of @c row from @c column, in row-major order from a cursor that survives pivots, and a block of
  *  √(n × m) arcs, at least 10, may span tiles. Pricing keeps the first least reduced cost across
- *  tiles in @c entering_cost, which also carries the arc's coordinates. */
+ *  tiles in @c entering_cost, which also carries the arc's coordinates. A block that found one is
+ *  priced again from @c block_row and @c block_column up to it, below @c tie_cost, its cost plus
+ *  the tolerance, so the first arc within the tolerance of the block's least enters, as in every
+ *  solver, and no rounding orders tied arcs. @c ties counts the second pass's stages: by tiles,
+ *  then arc by arc through a tile that held a tied arc. */
 typedef struct nk_shapes_simplex_serial_t {
     nk_u32_t *tree;
     nk_f64_t *potential;
@@ -1392,6 +1396,9 @@ typedef struct nk_shapes_simplex_serial_t {
     nk_size_t row, column, tile;
     nk_f64_t tolerance, entering_cost;
     nk_size_t entering_row, entering_column;
+    nk_size_t block_row, block_column, resume_row, resume_column;
+    nk_f64_t least_cost, tie_cost;
+    int ties;
 } nk_shapes_simplex_serial_t;
 
 /** Walks a tree from its root, turning each node's @p potential entry from the cost of its arc to
@@ -1426,7 +1433,7 @@ NUMKONG_INLINE void nk_shapes_simplex_start_serial_(nk_shapes_simplex_serial_t *
     simplex->block = block, simplex->block_remaining = 0, simplex->scanned = 0;
     simplex->row = 0, simplex->column = 0, simplex->tile = 0;
     simplex->tolerance = cost_scale * 1e-12, simplex->entering_cost = -simplex->tolerance;
-    simplex->entering_row = 0, simplex->entering_column = 0;
+    simplex->entering_row = 0, simplex->entering_column = 0, simplex->ties = 0;
 }
 
 /** Brings the priced entering arc into the tree, cuts the blocking one and updates the depths and
@@ -1488,22 +1495,43 @@ NUMKONG_INLINE void nk_shapes_simplex_pivot_serial_(nk_shapes_simplex_serial_t c
     }
 }
 
-/** Moves past the last tile and hands out the next one, pivoting at the end of any block that
- *  found an entering arc. Returns 0 at optimality, once a sweep of every arc finds none. */
+/** Moves past the last tile and hands out the next one, pricing any block that found an entering
+ *  arc again before it pivots. Returns 0 at optimality, once a sweep of every arc finds none. */
 NUMKONG_INLINE int nk_shapes_simplex_next_tile_serial_(nk_shapes_simplex_serial_t *simplex) {
     nk_size_t const columns = simplex->columns, arcs = simplex->rows * columns;
+    if (simplex->ties == 1 && simplex->entering_cost < simplex->tie_cost)
+        simplex->ties = 2, simplex->tile = 0, simplex->entering_cost = simplex->tie_cost;
     simplex->column += simplex->tile;
     if (simplex->column == columns)
         simplex->column = 0, simplex->row = simplex->row + 1 == simplex->rows ? 0 : simplex->row + 1;
-    if (!simplex->block_remaining) {
-        if (simplex->entering_cost < -simplex->tolerance) {
-            nk_shapes_simplex_pivot_serial_(simplex);
-            simplex->entering_cost = -simplex->tolerance, simplex->scanned = 0;
+    if (!simplex->ties && !simplex->block_remaining && simplex->entering_cost < -simplex->tolerance) {
+        simplex->least_cost = simplex->entering_cost, simplex->tie_cost = simplex->entering_cost + simplex->tolerance;
+        simplex->entering_cost = simplex->tie_cost, simplex->ties = 1;
+        simplex->resume_row = simplex->row, simplex->resume_column = simplex->column;
+        simplex->row = simplex->block_row, simplex->column = simplex->block_column;
+    }
+    if (simplex->ties) {
+        int const tied = simplex->entering_cost < simplex->tie_cost;
+        int const on_least_row = simplex->ties == 1 && simplex->row == simplex->entering_row;
+        if (!tied && !(on_least_row && simplex->column == simplex->entering_column)) {
+            nk_size_t tile = columns - simplex->column;
+            if (simplex->ties == 2) tile = 1;
+            else if (on_least_row && simplex->column < simplex->entering_column)
+                tile = simplex->entering_column - simplex->column;
+            simplex->tile = tile;
+            return 1;
         }
+        if (!tied) simplex->entering_cost = simplex->least_cost;
+        nk_shapes_simplex_pivot_serial_(simplex);
+        simplex->row = simplex->resume_row, simplex->column = simplex->resume_column, simplex->ties = 0;
+        simplex->entering_cost = -simplex->tolerance, simplex->scanned = 0;
+    }
+    if (!simplex->block_remaining) {
         if (simplex->scanned == arcs) return 0;
         nk_size_t const unscanned = arcs - simplex->scanned;
         simplex->block_remaining = unscanned > simplex->block ? simplex->block : unscanned;
         simplex->scanned += simplex->block_remaining;
+        simplex->block_row = simplex->row, simplex->block_column = simplex->column;
     }
     nk_size_t const row_remaining = columns - simplex->column;
     simplex->tile = row_remaining < simplex->block_remaining ? row_remaining : simplex->block_remaining;
@@ -2496,9 +2524,7 @@ nk_define_shapes_transport_(f64, f64, nk_assign_from_to_)
  *  every capability shares. */
 #define nk_define_shapes_(input_type, math_type)                                                                      \
     NUMKONG_API nk_status_t nk_shapes_pack_size_##input_type##_serial(nk_size_t points, nk_size_t *bytes) {           \
-        *bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_##math_type##_t),                       \
-                                               nk_shapes_alignment_k) +                                               \
-                 3 * nk_size_round_up_to_multiple_(points * sizeof(nk_##input_type##_t), nk_shapes_alignment_k);      \
+        *bytes = nk_shapes_packed_bytes_##input_type##_serial_(points);                                               \
         return nk_success_k;                                                                                          \
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_shapes_pack_##input_type##_serial(nk_##input_type##_t const *points, nk_size_t count,  \
@@ -2543,21 +2569,17 @@ nk_define_shapes_transport_(f64, f64, nk_assign_from_to_)
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_chamfers_workspace_size_##input_type##_serial(                                         \
         nk_size_t row_points, nk_size_t column_points, nk_size_t *bytes) {                                            \
-        nk_size_t const shorter = row_points < column_points ? row_points : column_points;                            \
-        *bytes = 11 * nk_size_round_up_to_multiple_(shorter * sizeof(nk_##math_type##_t), nk_shapes_alignment_k);     \
+        *bytes = nk_chamfers_workspace_bytes_##input_type##_serial_(row_points, column_points);                       \
         return nk_success_k;                                                                                          \
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_wassersteinprocrustes_workspace_size_##input_type##_serial(                            \
         nk_size_t row_points, nk_size_t column_points, nk_size_t *bytes) {                                            \
-        nk_shapes_workspace_##math_type##_serial_t views;                                                             \
-        *bytes = nk_shapes_workspace_##math_type##_serial_(row_points, column_points, NUMKONG_NULL, &views);          \
+        *bytes = nk_wassersteinprocrustes_workspace_bytes_##input_type##_serial_(row_points, column_points);          \
         return nk_success_k;                                                                                          \
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_gromovwassersteins_workspace_size_##input_type##_serial(                               \
         nk_size_t row_points, nk_size_t column_points, nk_size_t *bytes) {                                            \
-        nk_shapes_workspace_##math_type##_serial_t views;                                                             \
-        *bytes = nk_shapes_workspace_##math_type##_serial_(row_points, column_points, NUMKONG_NULL, &views) +         \
-                 views.gromov_bytes;                                                                                  \
+        *bytes = nk_gromovwassersteins_workspace_bytes_##input_type##_serial_(row_points, column_points);             \
         return nk_success_k;                                                                                          \
     }
 
@@ -3109,6 +3131,34 @@ NUMKONG_INLINE nk_f64_t nk_rmsds_pair_f64_serial_(void const *row_packed, void c
         }
     return nk_sqrt_f64_serial_(nk_f64_compensated_sum_(sum, compensation) / (nk_f64_t)count);
 }
+
+/** The bytes a pack and each transport's workspace take for one input type, the sizing rule every
+ *  capability's size export shares. */
+#define nk_define_shapes_sizes_(input_type, math_type)                                                                 \
+    NUMKONG_INLINE nk_size_t nk_shapes_packed_bytes_##input_type##_serial_(nk_size_t points) {                         \
+        return nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_##math_type##_t), nk_shapes_alignment_k) + \
+               3 * nk_size_round_up_to_multiple_(points * sizeof(nk_##input_type##_t), nk_shapes_alignment_k);         \
+    }                                                                                                                  \
+    NUMKONG_INLINE nk_size_t nk_chamfers_workspace_bytes_##input_type##_serial_(nk_size_t row_points,                  \
+                                                                                nk_size_t column_points) {             \
+        nk_size_t const shorter = row_points < column_points ? row_points : column_points;                             \
+        return 11 * nk_size_round_up_to_multiple_(shorter * sizeof(nk_##math_type##_t), nk_shapes_alignment_k);        \
+    }                                                                                                                  \
+    NUMKONG_INLINE nk_size_t nk_wassersteinprocrustes_workspace_bytes_##input_type##_serial_(                          \
+        nk_size_t row_points, nk_size_t column_points) {                                                               \
+        nk_shapes_workspace_##math_type##_serial_t views;                                                              \
+        return nk_shapes_workspace_##math_type##_serial_(row_points, column_points, NUMKONG_NULL, &views);             \
+    }                                                                                                                  \
+    NUMKONG_INLINE nk_size_t nk_gromovwassersteins_workspace_bytes_##input_type##_serial_(nk_size_t row_points,        \
+                                                                                          nk_size_t column_points) {   \
+        nk_shapes_workspace_##math_type##_serial_t views;                                                              \
+        return nk_shapes_workspace_##math_type##_serial_(row_points, column_points, NUMKONG_NULL, &views) +            \
+               views.gromov_bytes;                                                                                     \
+    }
+
+nk_define_shapes_sizes_(f64, f64)
+nk_define_shapes_sizes_(f32, f64)
+nk_define_shapes_sizes_(f16, f32)
 
 #if NUMKONG_TARGET_SERIAL
 NUMKONG_API nk_status_t nk_chamfers_packed_f64_serial(void const *const *a_packed, nk_size_t rows,

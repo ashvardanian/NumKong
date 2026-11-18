@@ -5,6 +5,8 @@
  *  @brief Trigonometry benchmarks, sin, cos, atan.
  */
 
+#include <fmt/format.h> // `fmt::format`
+
 #include "numkong/trigonometry.h"
 
 #include "harness.hpp"
@@ -68,8 +70,8 @@ void measure_trigonometry(loop_t &loop, bench_settings_t const &env, kernel_type
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
 void run_trigonometry(bench_settings_t const &env, std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(env.batch_per_core) + ">";
-    run_benchmark(env, bench_name, measure_trigonometry<input_dtype_, kernel_type_ *>, kernel, env.batch_per_core);
+    run_benchmark(env, fmt::format("{}<{}>", name, env.batch_per_core),
+                  measure_trigonometry<input_dtype_, kernel_type_ *>, kernel, env.batch_per_core);
 }
 
 void bench_trigonometry(bench_settings_t const &env) {

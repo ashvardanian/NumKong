@@ -367,7 +367,8 @@ A run prints the library and the machine, then its settings, one verdict line pe
 NumKong 8.0.0
 - Compiled for: serial,haswell,skylake,icelake,genoa,sapphire
 - This machine: serial,haswell,skylake,icelake
-- Seed: 42, scale: 1, filter: none
+- Seed: 42, scale: 1
+- Filter: none
 - nk_dots_packed_f64_haswell ... ok (0.12 s)
 - nk_dots_packed_f64_sapphire ... skipped: needs nk_cap_sapphire_k
 3120 passed, 0 failed, 412 skipped, seed 42
@@ -400,7 +401,7 @@ pip install -e . --group test --group test-oracles
 python -X faulthandler -m pytest -x
 ```
 
-The header pytest prints names the module it imported, `NumKong <version> from <path>`, then the same `- Seed: 42, scale: 1, filter: none` line as the C++ runner, then every other setting the run uses.
+The header pytest prints names the module it imported, `NumKong <version> from <path>`, then the same `- Seed: 42, scale: 1` line as the C++ runner, then every other setting the run uses.
 The Rust tests run as `cargo test`, with the default features, `--features std` and `--features parallel`, as the [Rust](#rust) section shows.
 
 ### Environment
@@ -411,7 +412,7 @@ Each setting is an environment variable, and in the C++ runner a `--name` flag o
 | :---------------------------- | :---------------------- | :---------- | :-------------------------------------------------------------------------------------------- |
 | `NUMKONG_SEED`                | `--seed`                | `42`        | Any unsigned 64-bit seed, or `random` to draw one, which a run prints                         |
 | `NUMKONG_SCALE`               | `--scale`               | `1`         | Multiplier for the work of every randomized case; Python repeats each `round(10·scale)` times |
-| `NUMKONG_FILTER`              | `--filter`              | unset       | Regex searched in C++ case labels or pytest node ids, else a substring                        |
+| `NUMKONG_FILTER`              | `--filter`              | unset       | C++ only: regex searched in case labels and benchmark rows                                    |
 | `NUMKONG_DEVICES`             | `--devices`             | auto        | C++ only: comma-separated `backend:ordinal` devices, for example `cuda:0,rocm:1`              |
 | `NUMKONG_TRAP_ON_FAILURE`     | `--trap-on-failure`     | `0`         | C++ only: raises `SIGTRAP` at the first failed check, to stop there under a debugger          |
 | `NUMKONG_NO_SKIPS`            | `--no-skips`            | `0`         | C++ only: exits with 3 when any case skipped, for runners that must cover everything          |
@@ -444,7 +445,7 @@ A case's inputs therefore never depend on which cases ran before it, so `NUMKONG
 NUMKONG_SEED=random build_debug/numkong_cpu_test                                   # A fresh seed, which the run prints
 NUMKONG_FILTER='^nk_dots_packed_' build_debug/numkong_cpu_test                    # One family across every capability
 NUMKONG_FILTER='_haswell$' NUMKONG_TIME_LIMIT=5s build_debug/numkong_cpu_test      # One capability, longer per case
-NUMKONG_FILTER=dot NUMKONG_SCALE=0.1 python -X faulthandler -m pytest -x           # A filter over pytest node ids
+NUMKONG_SCALE=0.1 python -X faulthandler -m pytest -x -k dot                       # pytest selects through -k
 ```
 
 ### Writing a Test
@@ -462,7 +463,7 @@ Outside the statistics, a case checks with the functions of `test/harness.hpp`, 
 - `expect_true(held)`, for any condition;
 - `expect_equal(actual, wanted)`, which prints both operands when they differ;
 - `expect_near(actual, wanted, tolerance)`, holding when `|actual - wanted| <= tolerance * max(1, |actual|, |wanted|)`;
-- `expect_device_success(status)`, in CUDA units from `test/harness_cuda.hpp`, which prints the vendor's error string.
+- `expect_device_success(status)`, in CUDA units from `test/backend_cuda.hpp`, which prints the vendor's error string.
 
 A message trails the operands as a format string and its arguments, `expect_true(held, "row {} of {}", row, rows)`, never folded into the condition as `held && "text"`.
 Where the step after a failed check would be unsafe, the case stops on the check's answer, as in `if (!expect_device_success(cudaMalloc(...))) return {};`.

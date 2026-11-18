@@ -8,7 +8,7 @@
 #include "numkong/each.h" // `nk_each_*_cuda`, `nk_each_*_ampere`, `nk_each_*_ada`
 
 #include "cross.hpp"
-#include "harness_cuda.hpp"
+#include "backend_cuda.hpp"
 
 namespace ashvardanian::numkong::bench {
 

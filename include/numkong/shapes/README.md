@@ -189,6 +189,7 @@ Pack tables, packs and outputs are unified memory, and a shared buffer's host ad
 
 Uniform weights become integer masses, $m$ units per row point and $n$ per column point, so plans stay exact.
 The solver starts from the northwest-corner staircase, prices arcs in blocks of $\sqrt{nm}$, picks the leaving arc by Cunningham's strongly feasible rule against cycling, and keeps parent, child and sibling links so a pivot only revisits the moved subtree.
+A block holding an improving arc enters its first arc within the tolerance of the block's least, so every math type and capability orders tied arcs alike, and Gromov-Wasserstein lands in one local optimum on symmetric clouds.
 Arc costs come from the coordinates on the fly, so Wasserstein-Procrustes needs $\Theta(n + m)$ workspace.
 Each alternation round warm-starts from the previous basis, which stays primal feasible under the new rotation.
 

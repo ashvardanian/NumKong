@@ -11,7 +11,7 @@
  */
 
 #include "cross.hpp"
-#include "harness_metal.hpp"
+#include "backend_metal.hpp"
 
 namespace ashvardanian::numkong::bench {
 

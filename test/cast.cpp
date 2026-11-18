@@ -7,7 +7,7 @@
 #undef NDEBUG // ! A test's oracle must stay live in every build
 
 #include "harness.hpp"
-#include "cast.hpp" // `test_cast`, `test_cast_block_scaled`
+#include "cast.hpp" // `test_cast`, `test_cast_pairs`, `test_cast_block_scaled`
 
 namespace ashvardanian::numkong::test {
 
@@ -39,9 +39,11 @@ void run_cast_cases() {
     run_kernel_case("test_cast<u8_t, f32_t>(nk_cast_serial)", test_cast<u8_t, f32_t>, serial, nk_cast_serial);
     run_kernel_case("test_cast<f32_t, i4x2_t>(nk_cast_serial)", test_cast<f32_t, i4x2_t>, serial, nk_cast_serial);
     run_kernel_case("test_cast<f32_t, u4x2_t>(nk_cast_serial)", test_cast<f32_t, u4x2_t>, serial, nk_cast_serial);
+    run_kernel_case("test_cast_pairs<>(nk_cast_serial)", test_cast_pairs<>, serial, nk_cast_serial);
     run_kernel_case("test_cast_block_scaled<>(nk_cast_serial)", test_cast_block_scaled<>, serial, nk_cast_serial);
 
 #if !NUMKONG_HEADER_ONLY
+    run_kernel_case("test_cast_pairs<>(cpu_best<nk_cast_best>)", test_cast_pairs<>, serial, cpu_best<nk_cast_best>);
     run_kernel_case("test_cast<f32_t, f16_t>(cpu_best<nk_cast_best>)", test_cast<f32_t, f16_t>, serial,
                     cpu_best<nk_cast_best>);
     run_kernel_case("test_cast<f16_t, f32_t>(cpu_best<nk_cast_best>)", test_cast<f16_t, f32_t>, serial,

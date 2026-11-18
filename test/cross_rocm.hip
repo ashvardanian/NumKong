@@ -10,7 +10,7 @@
 #undef NDEBUG // ! A test's oracle must stay live in every build
 
 #include "cross_device.hpp"
-#include "geospatial.hpp" // `test_geodesics_packed`, `test_terrain_packed`
+#include "geospatial.hpp" // `test_geodesics_pack`, `test_geodesics_packed`, `test_terrain_packed`
 #include "reduce.hpp"     // `test_reduce_moments`, `test_reduce_minmax`
 
 namespace ashvardanian::numkong::test {
@@ -21,171 +21,119 @@ void run_cross_rocm_cases() {
     auto const rocm = nk_cap_rocm_k;
     run_kernel_case("nk_dots_packed_f64_rocm", test_dots_packed<f64_t, rocm_backend_t>, rocm,
                     nk_dots_pack_size_f64_rocm, nk_dots_pack_f64_rocm, nk_dots_packed_f64_rocm);
-    run_kernel_case("nk_dots_pack_f64_rocm",
-                    test_dots_pack_layout<f64_t, rocm_backend_t, nk_dots_pack_size_f64_rocm,
-                                          nk_dots_packed_shape_f64_rocm, nk_dots_pack_f64_rocm>,
-                    rocm);
-    run_kernel_case("test_dots_launch_contract<f64_t, rocm_backend_t, nk_dots_pack_size_f64_rocm, " //
-                    "nk_dots_packed_f64_rocm, nk_dots_symmetric_f64_rocm>",
-                    test_dots_launch_contract<f64_t, rocm_backend_t, nk_dots_pack_size_f64_rocm,
-                                              nk_dots_packed_f64_rocm, nk_dots_symmetric_f64_rocm>,
-                    rocm);
+    run_kernel_case("nk_dots_pack_f64_rocm", test_dots_pack_layout<f64_t, rocm_backend_t>, rocm,
+                    nk_dots_pack_size_f64_rocm, nk_dots_packed_shape_f64_rocm, nk_dots_pack_f64_rocm);
+    run_kernel_case("test_dots_launch_contract<f64_t, rocm_backend_t>(nk_dots_packed_f64_rocm)",
+                    test_dots_launch_contract<f64_t, rocm_backend_t>, rocm, nk_dots_pack_size_f64_rocm,
+                    nk_dots_packed_f64_rocm, nk_dots_symmetric_f64_rocm);
     run_kernel_case("nk_dots_symmetric_f64_rocm", test_dots_symmetric<f64_t, rocm_backend_t>, rocm,
                     nk_dots_symmetric_f64_rocm);
     run_kernel_case("nk_dots_packed_f32_rocm", test_dots_packed<f32_t, rocm_backend_t>, rocm,
                     nk_dots_pack_size_f32_rocm, nk_dots_pack_f32_rocm, nk_dots_packed_f32_rocm);
-    run_kernel_case("nk_dots_pack_f32_rocm",
-                    test_dots_pack_layout<f32_t, rocm_backend_t, nk_dots_pack_size_f32_rocm,
-                                          nk_dots_packed_shape_f32_rocm, nk_dots_pack_f32_rocm>,
-                    rocm);
-    run_kernel_case("test_dots_launch_contract<f32_t, rocm_backend_t, nk_dots_pack_size_f32_rocm, " //
-                    "nk_dots_packed_f32_rocm, nk_dots_symmetric_f32_rocm>",
-                    test_dots_launch_contract<f32_t, rocm_backend_t, nk_dots_pack_size_f32_rocm,
-                                              nk_dots_packed_f32_rocm, nk_dots_symmetric_f32_rocm>,
-                    rocm);
+    run_kernel_case("nk_dots_pack_f32_rocm", test_dots_pack_layout<f32_t, rocm_backend_t>, rocm,
+                    nk_dots_pack_size_f32_rocm, nk_dots_packed_shape_f32_rocm, nk_dots_pack_f32_rocm);
+    run_kernel_case("test_dots_launch_contract<f32_t, rocm_backend_t>(nk_dots_packed_f32_rocm)",
+                    test_dots_launch_contract<f32_t, rocm_backend_t>, rocm, nk_dots_pack_size_f32_rocm,
+                    nk_dots_packed_f32_rocm, nk_dots_symmetric_f32_rocm);
     run_kernel_case("nk_dots_symmetric_f32_rocm", test_dots_symmetric<f32_t, rocm_backend_t>, rocm,
                     nk_dots_symmetric_f32_rocm);
     run_kernel_case("nk_dots_packed_bf16_rocm", test_dots_packed<bf16_t, rocm_backend_t>, rocm,
                     nk_dots_pack_size_bf16_rocm, nk_dots_pack_bf16_rocm, nk_dots_packed_bf16_rocm);
-    run_kernel_case("nk_dots_pack_bf16_rocm",
-                    test_dots_pack_layout<bf16_t, rocm_backend_t, nk_dots_pack_size_bf16_rocm,
-                                          nk_dots_packed_shape_bf16_rocm, nk_dots_pack_bf16_rocm>,
-                    rocm);
-    run_kernel_case("test_dots_launch_contract<bf16_t, rocm_backend_t, nk_dots_pack_size_bf16_rocm, " //
-                    "nk_dots_packed_bf16_rocm, nk_dots_symmetric_bf16_rocm>",
-                    test_dots_launch_contract<bf16_t, rocm_backend_t, nk_dots_pack_size_bf16_rocm,
-                                              nk_dots_packed_bf16_rocm, nk_dots_symmetric_bf16_rocm>,
-                    rocm);
+    run_kernel_case("nk_dots_pack_bf16_rocm", test_dots_pack_layout<bf16_t, rocm_backend_t>, rocm,
+                    nk_dots_pack_size_bf16_rocm, nk_dots_packed_shape_bf16_rocm, nk_dots_pack_bf16_rocm);
+    run_kernel_case("test_dots_launch_contract<bf16_t, rocm_backend_t>(nk_dots_packed_bf16_rocm)",
+                    test_dots_launch_contract<bf16_t, rocm_backend_t>, rocm, nk_dots_pack_size_bf16_rocm,
+                    nk_dots_packed_bf16_rocm, nk_dots_symmetric_bf16_rocm);
     run_kernel_case("nk_dots_symmetric_bf16_rocm", test_dots_symmetric<bf16_t, rocm_backend_t>, rocm,
                     nk_dots_symmetric_bf16_rocm);
     run_kernel_case("nk_dots_packed_f16_rocm", test_dots_packed<f16_t, rocm_backend_t>, rocm,
                     nk_dots_pack_size_f16_rocm, nk_dots_pack_f16_rocm, nk_dots_packed_f16_rocm);
-    run_kernel_case("nk_dots_pack_f16_rocm",
-                    test_dots_pack_layout<f16_t, rocm_backend_t, nk_dots_pack_size_f16_rocm,
-                                          nk_dots_packed_shape_f16_rocm, nk_dots_pack_f16_rocm>,
-                    rocm);
-    run_kernel_case("test_dots_launch_contract<f16_t, rocm_backend_t, nk_dots_pack_size_f16_rocm, " //
-                    "nk_dots_packed_f16_rocm, nk_dots_symmetric_f16_rocm>",
-                    test_dots_launch_contract<f16_t, rocm_backend_t, nk_dots_pack_size_f16_rocm,
-                                              nk_dots_packed_f16_rocm, nk_dots_symmetric_f16_rocm>,
-                    rocm);
+    run_kernel_case("nk_dots_pack_f16_rocm", test_dots_pack_layout<f16_t, rocm_backend_t>, rocm,
+                    nk_dots_pack_size_f16_rocm, nk_dots_packed_shape_f16_rocm, nk_dots_pack_f16_rocm);
+    run_kernel_case("test_dots_launch_contract<f16_t, rocm_backend_t>(nk_dots_packed_f16_rocm)",
+                    test_dots_launch_contract<f16_t, rocm_backend_t>, rocm, nk_dots_pack_size_f16_rocm,
+                    nk_dots_packed_f16_rocm, nk_dots_symmetric_f16_rocm);
     run_kernel_case("nk_dots_symmetric_f16_rocm", test_dots_symmetric<f16_t, rocm_backend_t>, rocm,
                     nk_dots_symmetric_f16_rocm);
     run_kernel_case("nk_dots_packed_e5m2_rocm", test_dots_packed<e5m2_t, rocm_backend_t>, rocm,
                     nk_dots_pack_size_e5m2_rocm, nk_dots_pack_e5m2_rocm, nk_dots_packed_e5m2_rocm);
-    run_kernel_case("nk_dots_pack_e5m2_rocm",
-                    test_dots_pack_layout<e5m2_t, rocm_backend_t, nk_dots_pack_size_e5m2_rocm,
-                                          nk_dots_packed_shape_e5m2_rocm, nk_dots_pack_e5m2_rocm>,
-                    rocm);
-    run_kernel_case("test_dots_launch_contract<e5m2_t, rocm_backend_t, nk_dots_pack_size_e5m2_rocm, " //
-                    "nk_dots_packed_e5m2_rocm, nk_dots_symmetric_e5m2_rocm>",
-                    test_dots_launch_contract<e5m2_t, rocm_backend_t, nk_dots_pack_size_e5m2_rocm,
-                                              nk_dots_packed_e5m2_rocm, nk_dots_symmetric_e5m2_rocm>,
-                    rocm);
+    run_kernel_case("nk_dots_pack_e5m2_rocm", test_dots_pack_layout<e5m2_t, rocm_backend_t>, rocm,
+                    nk_dots_pack_size_e5m2_rocm, nk_dots_packed_shape_e5m2_rocm, nk_dots_pack_e5m2_rocm);
+    run_kernel_case("test_dots_launch_contract<e5m2_t, rocm_backend_t>(nk_dots_packed_e5m2_rocm)",
+                    test_dots_launch_contract<e5m2_t, rocm_backend_t>, rocm, nk_dots_pack_size_e5m2_rocm,
+                    nk_dots_packed_e5m2_rocm, nk_dots_symmetric_e5m2_rocm);
     run_kernel_case("nk_dots_symmetric_e5m2_rocm", test_dots_symmetric<e5m2_t, rocm_backend_t>, rocm,
                     nk_dots_symmetric_e5m2_rocm);
     run_kernel_case("nk_dots_packed_e4m3_rocm", test_dots_packed<e4m3_t, rocm_backend_t>, rocm,
                     nk_dots_pack_size_e4m3_rocm, nk_dots_pack_e4m3_rocm, nk_dots_packed_e4m3_rocm);
-    run_kernel_case("nk_dots_pack_e4m3_rocm",
-                    test_dots_pack_layout<e4m3_t, rocm_backend_t, nk_dots_pack_size_e4m3_rocm,
-                                          nk_dots_packed_shape_e4m3_rocm, nk_dots_pack_e4m3_rocm>,
-                    rocm);
-    run_kernel_case("test_dots_launch_contract<e4m3_t, rocm_backend_t, nk_dots_pack_size_e4m3_rocm, " //
-                    "nk_dots_packed_e4m3_rocm, nk_dots_symmetric_e4m3_rocm>",
-                    test_dots_launch_contract<e4m3_t, rocm_backend_t, nk_dots_pack_size_e4m3_rocm,
-                                              nk_dots_packed_e4m3_rocm, nk_dots_symmetric_e4m3_rocm>,
-                    rocm);
+    run_kernel_case("nk_dots_pack_e4m3_rocm", test_dots_pack_layout<e4m3_t, rocm_backend_t>, rocm,
+                    nk_dots_pack_size_e4m3_rocm, nk_dots_packed_shape_e4m3_rocm, nk_dots_pack_e4m3_rocm);
+    run_kernel_case("test_dots_launch_contract<e4m3_t, rocm_backend_t>(nk_dots_packed_e4m3_rocm)",
+                    test_dots_launch_contract<e4m3_t, rocm_backend_t>, rocm, nk_dots_pack_size_e4m3_rocm,
+                    nk_dots_packed_e4m3_rocm, nk_dots_symmetric_e4m3_rocm);
     run_kernel_case("nk_dots_symmetric_e4m3_rocm", test_dots_symmetric<e4m3_t, rocm_backend_t>, rocm,
                     nk_dots_symmetric_e4m3_rocm);
     run_kernel_case("nk_dots_packed_e3m2_rocm", test_dots_packed<e3m2_t, rocm_backend_t>, rocm,
                     nk_dots_pack_size_e3m2_rocm, nk_dots_pack_e3m2_rocm, nk_dots_packed_e3m2_rocm);
-    run_kernel_case("nk_dots_pack_e3m2_rocm",
-                    test_dots_pack_layout<e3m2_t, rocm_backend_t, nk_dots_pack_size_e3m2_rocm,
-                                          nk_dots_packed_shape_e3m2_rocm, nk_dots_pack_e3m2_rocm>,
-                    rocm);
-    run_kernel_case("test_dots_launch_contract<e3m2_t, rocm_backend_t, nk_dots_pack_size_e3m2_rocm, " //
-                    "nk_dots_packed_e3m2_rocm, nk_dots_symmetric_e3m2_rocm>",
-                    test_dots_launch_contract<e3m2_t, rocm_backend_t, nk_dots_pack_size_e3m2_rocm,
-                                              nk_dots_packed_e3m2_rocm, nk_dots_symmetric_e3m2_rocm>,
-                    rocm);
+    run_kernel_case("nk_dots_pack_e3m2_rocm", test_dots_pack_layout<e3m2_t, rocm_backend_t>, rocm,
+                    nk_dots_pack_size_e3m2_rocm, nk_dots_packed_shape_e3m2_rocm, nk_dots_pack_e3m2_rocm);
+    run_kernel_case("test_dots_launch_contract<e3m2_t, rocm_backend_t>(nk_dots_packed_e3m2_rocm)",
+                    test_dots_launch_contract<e3m2_t, rocm_backend_t>, rocm, nk_dots_pack_size_e3m2_rocm,
+                    nk_dots_packed_e3m2_rocm, nk_dots_symmetric_e3m2_rocm);
     run_kernel_case("nk_dots_symmetric_e3m2_rocm", test_dots_symmetric<e3m2_t, rocm_backend_t>, rocm,
                     nk_dots_symmetric_e3m2_rocm);
     run_kernel_case("nk_dots_packed_e2m3_rocm", test_dots_packed<e2m3_t, rocm_backend_t>, rocm,
                     nk_dots_pack_size_e2m3_rocm, nk_dots_pack_e2m3_rocm, nk_dots_packed_e2m3_rocm);
-    run_kernel_case("nk_dots_pack_e2m3_rocm",
-                    test_dots_pack_layout<e2m3_t, rocm_backend_t, nk_dots_pack_size_e2m3_rocm,
-                                          nk_dots_packed_shape_e2m3_rocm, nk_dots_pack_e2m3_rocm>,
-                    rocm);
-    run_kernel_case("test_dots_launch_contract<e2m3_t, rocm_backend_t, nk_dots_pack_size_e2m3_rocm, " //
-                    "nk_dots_packed_e2m3_rocm, nk_dots_symmetric_e2m3_rocm>",
-                    test_dots_launch_contract<e2m3_t, rocm_backend_t, nk_dots_pack_size_e2m3_rocm,
-                                              nk_dots_packed_e2m3_rocm, nk_dots_symmetric_e2m3_rocm>,
-                    rocm);
+    run_kernel_case("nk_dots_pack_e2m3_rocm", test_dots_pack_layout<e2m3_t, rocm_backend_t>, rocm,
+                    nk_dots_pack_size_e2m3_rocm, nk_dots_packed_shape_e2m3_rocm, nk_dots_pack_e2m3_rocm);
+    run_kernel_case("test_dots_launch_contract<e2m3_t, rocm_backend_t>(nk_dots_packed_e2m3_rocm)",
+                    test_dots_launch_contract<e2m3_t, rocm_backend_t>, rocm, nk_dots_pack_size_e2m3_rocm,
+                    nk_dots_packed_e2m3_rocm, nk_dots_symmetric_e2m3_rocm);
     run_kernel_case("nk_dots_symmetric_e2m3_rocm", test_dots_symmetric<e2m3_t, rocm_backend_t>, rocm,
                     nk_dots_symmetric_e2m3_rocm);
     run_kernel_case("nk_dots_packed_e2m1_rocm", test_dots_packed<e2m1x2_t, rocm_backend_t>, rocm,
                     nk_dots_pack_size_e2m1_rocm, nk_dots_pack_e2m1_rocm, nk_dots_packed_e2m1_rocm);
-    run_kernel_case("nk_dots_pack_e2m1_rocm",
-                    test_dots_pack_layout<e2m1x2_t, rocm_backend_t, nk_dots_pack_size_e2m1_rocm,
-                                          nk_dots_packed_shape_e2m1_rocm, nk_dots_pack_e2m1_rocm>,
-                    rocm);
-    run_kernel_case("test_dots_launch_contract<e2m1x2_t, rocm_backend_t, nk_dots_pack_size_e2m1_rocm, " //
-                    "nk_dots_packed_e2m1_rocm, nk_dots_symmetric_e2m1_rocm>",
-                    test_dots_launch_contract<e2m1x2_t, rocm_backend_t, nk_dots_pack_size_e2m1_rocm,
-                                              nk_dots_packed_e2m1_rocm, nk_dots_symmetric_e2m1_rocm>,
-                    rocm);
+    run_kernel_case("nk_dots_pack_e2m1_rocm", test_dots_pack_layout<e2m1x2_t, rocm_backend_t>, rocm,
+                    nk_dots_pack_size_e2m1_rocm, nk_dots_packed_shape_e2m1_rocm, nk_dots_pack_e2m1_rocm);
+    run_kernel_case("test_dots_launch_contract<e2m1x2_t, rocm_backend_t>(nk_dots_packed_e2m1_rocm)",
+                    test_dots_launch_contract<e2m1x2_t, rocm_backend_t>, rocm, nk_dots_pack_size_e2m1_rocm,
+                    nk_dots_packed_e2m1_rocm, nk_dots_symmetric_e2m1_rocm);
     run_kernel_case("nk_dots_symmetric_e2m1_rocm", test_dots_symmetric<e2m1x2_t, rocm_backend_t>, rocm,
                     nk_dots_symmetric_e2m1_rocm);
     run_kernel_case("nk_dots_packed_i8_rocm", test_dots_packed<i8_t, rocm_backend_t>, rocm, nk_dots_pack_size_i8_rocm,
                     nk_dots_pack_i8_rocm, nk_dots_packed_i8_rocm);
-    run_kernel_case("nk_dots_pack_i8_rocm",
-                    test_dots_pack_layout<i8_t, rocm_backend_t, nk_dots_pack_size_i8_rocm, nk_dots_packed_shape_i8_rocm,
-                                          nk_dots_pack_i8_rocm>,
-                    rocm);
-    run_kernel_case("test_dots_launch_contract<i8_t, rocm_backend_t, nk_dots_pack_size_i8_rocm, " //
-                    "nk_dots_packed_i8_rocm, nk_dots_symmetric_i8_rocm>",
-                    test_dots_launch_contract<i8_t, rocm_backend_t, nk_dots_pack_size_i8_rocm, nk_dots_packed_i8_rocm,
-                                              nk_dots_symmetric_i8_rocm>,
-                    rocm);
+    run_kernel_case("nk_dots_pack_i8_rocm", test_dots_pack_layout<i8_t, rocm_backend_t>, rocm,
+                    nk_dots_pack_size_i8_rocm, nk_dots_packed_shape_i8_rocm, nk_dots_pack_i8_rocm);
+    run_kernel_case("test_dots_launch_contract<i8_t, rocm_backend_t>(nk_dots_packed_i8_rocm)",
+                    test_dots_launch_contract<i8_t, rocm_backend_t>, rocm, nk_dots_pack_size_i8_rocm,
+                    nk_dots_packed_i8_rocm, nk_dots_symmetric_i8_rocm);
     run_kernel_case("nk_dots_symmetric_i8_rocm", test_dots_symmetric<i8_t, rocm_backend_t>, rocm,
                     nk_dots_symmetric_i8_rocm);
     run_kernel_case("nk_dots_packed_u8_rocm", test_dots_packed<u8_t, rocm_backend_t>, rocm, nk_dots_pack_size_u8_rocm,
                     nk_dots_pack_u8_rocm, nk_dots_packed_u8_rocm);
-    run_kernel_case("nk_dots_pack_u8_rocm",
-                    test_dots_pack_layout<u8_t, rocm_backend_t, nk_dots_pack_size_u8_rocm, nk_dots_packed_shape_u8_rocm,
-                                          nk_dots_pack_u8_rocm>,
-                    rocm);
-    run_kernel_case("test_dots_launch_contract<u8_t, rocm_backend_t, nk_dots_pack_size_u8_rocm, " //
-                    "nk_dots_packed_u8_rocm, nk_dots_symmetric_u8_rocm>",
-                    test_dots_launch_contract<u8_t, rocm_backend_t, nk_dots_pack_size_u8_rocm, nk_dots_packed_u8_rocm,
-                                              nk_dots_symmetric_u8_rocm>,
-                    rocm);
+    run_kernel_case("nk_dots_pack_u8_rocm", test_dots_pack_layout<u8_t, rocm_backend_t>, rocm,
+                    nk_dots_pack_size_u8_rocm, nk_dots_packed_shape_u8_rocm, nk_dots_pack_u8_rocm);
+    run_kernel_case("test_dots_launch_contract<u8_t, rocm_backend_t>(nk_dots_packed_u8_rocm)",
+                    test_dots_launch_contract<u8_t, rocm_backend_t>, rocm, nk_dots_pack_size_u8_rocm,
+                    nk_dots_packed_u8_rocm, nk_dots_symmetric_u8_rocm);
     run_kernel_case("nk_dots_symmetric_u8_rocm", test_dots_symmetric<u8_t, rocm_backend_t>, rocm,
                     nk_dots_symmetric_u8_rocm);
     run_kernel_case("nk_dots_packed_i4_rocm", test_dots_packed<i4x2_t, rocm_backend_t>, rocm, nk_dots_pack_size_i4_rocm,
                     nk_dots_pack_i4_rocm, nk_dots_packed_i4_rocm);
-    run_kernel_case("nk_dots_pack_i4_rocm",
-                    test_dots_pack_layout<i4x2_t, rocm_backend_t, nk_dots_pack_size_i4_rocm,
-                                          nk_dots_packed_shape_i4_rocm, nk_dots_pack_i4_rocm>,
-                    rocm);
-    run_kernel_case("test_dots_launch_contract<i4x2_t, rocm_backend_t, nk_dots_pack_size_i4_rocm, " //
-                    "nk_dots_packed_i4_rocm, nk_dots_symmetric_i4_rocm>",
-                    test_dots_launch_contract<i4x2_t, rocm_backend_t, nk_dots_pack_size_i4_rocm, nk_dots_packed_i4_rocm,
-                                              nk_dots_symmetric_i4_rocm>,
-                    rocm);
+    run_kernel_case("nk_dots_pack_i4_rocm", test_dots_pack_layout<i4x2_t, rocm_backend_t>, rocm,
+                    nk_dots_pack_size_i4_rocm, nk_dots_packed_shape_i4_rocm, nk_dots_pack_i4_rocm);
+    run_kernel_case("test_dots_launch_contract<i4x2_t, rocm_backend_t>(nk_dots_packed_i4_rocm)",
+                    test_dots_launch_contract<i4x2_t, rocm_backend_t>, rocm, nk_dots_pack_size_i4_rocm,
+                    nk_dots_packed_i4_rocm, nk_dots_symmetric_i4_rocm);
     run_kernel_case("nk_dots_symmetric_i4_rocm", test_dots_symmetric<i4x2_t, rocm_backend_t>, rocm,
                     nk_dots_symmetric_i4_rocm);
     run_kernel_case("nk_dots_packed_u4_rocm", test_dots_packed<u4x2_t, rocm_backend_t>, rocm, nk_dots_pack_size_u4_rocm,
                     nk_dots_pack_u4_rocm, nk_dots_packed_u4_rocm);
-    run_kernel_case("nk_dots_pack_u4_rocm",
-                    test_dots_pack_layout<u4x2_t, rocm_backend_t, nk_dots_pack_size_u4_rocm,
-                                          nk_dots_packed_shape_u4_rocm, nk_dots_pack_u4_rocm>,
-                    rocm);
-    run_kernel_case("test_dots_launch_contract<u4x2_t, rocm_backend_t, nk_dots_pack_size_u4_rocm, " //
-                    "nk_dots_packed_u4_rocm, nk_dots_symmetric_u4_rocm>",
-                    test_dots_launch_contract<u4x2_t, rocm_backend_t, nk_dots_pack_size_u4_rocm, nk_dots_packed_u4_rocm,
-                                              nk_dots_symmetric_u4_rocm>,
-                    rocm);
+    run_kernel_case("nk_dots_pack_u4_rocm", test_dots_pack_layout<u4x2_t, rocm_backend_t>, rocm,
+                    nk_dots_pack_size_u4_rocm, nk_dots_packed_shape_u4_rocm, nk_dots_pack_u4_rocm);
+    run_kernel_case("test_dots_launch_contract<u4x2_t, rocm_backend_t>(nk_dots_packed_u4_rocm)",
+                    test_dots_launch_contract<u4x2_t, rocm_backend_t>, rocm, nk_dots_pack_size_u4_rocm,
+                    nk_dots_packed_u4_rocm, nk_dots_symmetric_u4_rocm);
     run_kernel_case("nk_dots_symmetric_u4_rocm", test_dots_symmetric<u4x2_t, rocm_backend_t>, rocm,
                     nk_dots_symmetric_u4_rocm);
     run_kernel_case("nk_angulars_packed_f64_rocm", test_angulars_packed<f64_t, rocm_backend_t>, rocm,
@@ -310,12 +258,18 @@ void run_cross_rocm_cases() {
                     nk_attention_rope_bf16_rocm);
     run_kernel_case("nk_attention_rope_e4m3_rocm", test_attention_rope<e4m3_t, rocm_backend_t>, rocm,
                     nk_attention_rope_e4m3_rocm);
+    run_kernel_case("nk_haversines_pack_f64_rocm",
+                    test_geodesics_pack<f64_t, nk_kernel_haversines_pack_k, rocm_backend_t>, rocm,
+                    nk_haversines_pack_size_f64_rocm, nk_haversines_pack_f64_rocm);
+    run_kernel_case("nk_vincentys_pack_f64_rocm",
+                    test_geodesics_pack<f64_t, nk_kernel_vincentys_pack_k, rocm_backend_t>, rocm,
+                    nk_vincentys_pack_size_f64_rocm, nk_vincentys_pack_f64_rocm);
     run_kernel_case("nk_haversines_packed_f64_rocm",
                     test_geodesics_packed<f64_t, nk_kernel_haversines_packed_k, rocm_backend_t>, rocm,
-                    nk_haversines_pack_size_f64_rocm, nk_haversines_pack_f64_rocm, nk_haversines_packed_f64_rocm);
+                    nk_haversines_packed_f64_rocm);
     run_kernel_case("nk_vincentys_packed_f64_rocm",
                     test_geodesics_packed<f64_t, nk_kernel_vincentys_packed_k, rocm_backend_t>, rocm,
-                    nk_vincentys_pack_size_f64_rocm, nk_vincentys_pack_f64_rocm, nk_vincentys_packed_f64_rocm);
+                    nk_vincentys_packed_f64_rocm);
     run_kernel_case("nk_clearances_packed_f32_rocm", test_terrain_packed<f32_t, rocm_backend_t>, rocm,
                     nk_terrain_pack_size_f32_rocm, nk_terrain_pack_f32_rocm, nk_terrain_heights_packed_f32_rocm,
                     nk_clearances_packed_f32_rocm);
@@ -415,145 +369,101 @@ void run_cross_rocm_cases() {
     auto const cdna3 = nk_cap_cdna3_k;
     run_kernel_case("nk_dots_packed_bf16_cdna3", test_dots_packed<bf16_t, rocm_backend_t>, cdna3,
                     nk_dots_pack_size_bf16_cdna3, nk_dots_pack_bf16_cdna3, nk_dots_packed_bf16_cdna3);
-    run_kernel_case("nk_dots_pack_bf16_cdna3",
-                    test_dots_pack_layout<bf16_t, rocm_backend_t, nk_dots_pack_size_bf16_cdna3,
-                                          nk_dots_packed_shape_bf16_cdna3, nk_dots_pack_bf16_cdna3>,
-                    cdna3);
-    run_kernel_case("test_dots_launch_contract<bf16_t, rocm_backend_t, nk_dots_pack_size_bf16_cdna3, " //
-                    "nk_dots_packed_bf16_cdna3, nk_dots_symmetric_bf16_cdna3>",
-                    test_dots_launch_contract<bf16_t, rocm_backend_t, nk_dots_pack_size_bf16_cdna3,
-                                              nk_dots_packed_bf16_cdna3, nk_dots_symmetric_bf16_cdna3>,
-                    cdna3);
+    run_kernel_case("nk_dots_pack_bf16_cdna3", test_dots_pack_layout<bf16_t, rocm_backend_t>, cdna3,
+                    nk_dots_pack_size_bf16_cdna3, nk_dots_packed_shape_bf16_cdna3, nk_dots_pack_bf16_cdna3);
+    run_kernel_case("test_dots_launch_contract<bf16_t, rocm_backend_t>(nk_dots_packed_bf16_cdna3)",
+                    test_dots_launch_contract<bf16_t, rocm_backend_t>, cdna3, nk_dots_pack_size_bf16_cdna3,
+                    nk_dots_packed_bf16_cdna3, nk_dots_symmetric_bf16_cdna3);
     run_kernel_case("nk_dots_symmetric_bf16_cdna3", test_dots_symmetric<bf16_t, rocm_backend_t>, cdna3,
                     nk_dots_symmetric_bf16_cdna3);
     run_kernel_case("nk_dots_packed_f16_cdna3", test_dots_packed<f16_t, rocm_backend_t>, cdna3,
                     nk_dots_pack_size_f16_cdna3, nk_dots_pack_f16_cdna3, nk_dots_packed_f16_cdna3);
-    run_kernel_case("nk_dots_pack_f16_cdna3",
-                    test_dots_pack_layout<f16_t, rocm_backend_t, nk_dots_pack_size_f16_cdna3,
-                                          nk_dots_packed_shape_f16_cdna3, nk_dots_pack_f16_cdna3>,
-                    cdna3);
-    run_kernel_case("test_dots_launch_contract<f16_t, rocm_backend_t, nk_dots_pack_size_f16_cdna3, " //
-                    "nk_dots_packed_f16_cdna3, nk_dots_symmetric_f16_cdna3>",
-                    test_dots_launch_contract<f16_t, rocm_backend_t, nk_dots_pack_size_f16_cdna3,
-                                              nk_dots_packed_f16_cdna3, nk_dots_symmetric_f16_cdna3>,
-                    cdna3);
+    run_kernel_case("nk_dots_pack_f16_cdna3", test_dots_pack_layout<f16_t, rocm_backend_t>, cdna3,
+                    nk_dots_pack_size_f16_cdna3, nk_dots_packed_shape_f16_cdna3, nk_dots_pack_f16_cdna3);
+    run_kernel_case("test_dots_launch_contract<f16_t, rocm_backend_t>(nk_dots_packed_f16_cdna3)",
+                    test_dots_launch_contract<f16_t, rocm_backend_t>, cdna3, nk_dots_pack_size_f16_cdna3,
+                    nk_dots_packed_f16_cdna3, nk_dots_symmetric_f16_cdna3);
     run_kernel_case("nk_dots_symmetric_f16_cdna3", test_dots_symmetric<f16_t, rocm_backend_t>, cdna3,
                     nk_dots_symmetric_f16_cdna3);
     run_kernel_case("nk_dots_packed_e5m2_cdna3", test_dots_packed<e5m2_t, rocm_backend_t>, cdna3,
                     nk_dots_pack_size_e5m2_cdna3, nk_dots_pack_e5m2_cdna3, nk_dots_packed_e5m2_cdna3);
-    run_kernel_case("nk_dots_pack_e5m2_cdna3",
-                    test_dots_pack_layout<e5m2_t, rocm_backend_t, nk_dots_pack_size_e5m2_cdna3,
-                                          nk_dots_packed_shape_e5m2_cdna3, nk_dots_pack_e5m2_cdna3>,
-                    cdna3);
-    run_kernel_case("test_dots_launch_contract<e5m2_t, rocm_backend_t, nk_dots_pack_size_e5m2_cdna3, " //
-                    "nk_dots_packed_e5m2_cdna3, nk_dots_symmetric_e5m2_cdna3>",
-                    test_dots_launch_contract<e5m2_t, rocm_backend_t, nk_dots_pack_size_e5m2_cdna3,
-                                              nk_dots_packed_e5m2_cdna3, nk_dots_symmetric_e5m2_cdna3>,
-                    cdna3);
+    run_kernel_case("nk_dots_pack_e5m2_cdna3", test_dots_pack_layout<e5m2_t, rocm_backend_t>, cdna3,
+                    nk_dots_pack_size_e5m2_cdna3, nk_dots_packed_shape_e5m2_cdna3, nk_dots_pack_e5m2_cdna3);
+    run_kernel_case("test_dots_launch_contract<e5m2_t, rocm_backend_t>(nk_dots_packed_e5m2_cdna3)",
+                    test_dots_launch_contract<e5m2_t, rocm_backend_t>, cdna3, nk_dots_pack_size_e5m2_cdna3,
+                    nk_dots_packed_e5m2_cdna3, nk_dots_symmetric_e5m2_cdna3);
     run_kernel_case("nk_dots_symmetric_e5m2_cdna3", test_dots_symmetric<e5m2_t, rocm_backend_t>, cdna3,
                     nk_dots_symmetric_e5m2_cdna3);
     run_kernel_case("nk_dots_packed_e4m3_cdna3", test_dots_packed<e4m3_t, rocm_backend_t>, cdna3,
                     nk_dots_pack_size_e4m3_cdna3, nk_dots_pack_e4m3_cdna3, nk_dots_packed_e4m3_cdna3);
-    run_kernel_case("nk_dots_pack_e4m3_cdna3",
-                    test_dots_pack_layout<e4m3_t, rocm_backend_t, nk_dots_pack_size_e4m3_cdna3,
-                                          nk_dots_packed_shape_e4m3_cdna3, nk_dots_pack_e4m3_cdna3>,
-                    cdna3);
-    run_kernel_case("test_dots_launch_contract<e4m3_t, rocm_backend_t, nk_dots_pack_size_e4m3_cdna3, " //
-                    "nk_dots_packed_e4m3_cdna3, nk_dots_symmetric_e4m3_cdna3>",
-                    test_dots_launch_contract<e4m3_t, rocm_backend_t, nk_dots_pack_size_e4m3_cdna3,
-                                              nk_dots_packed_e4m3_cdna3, nk_dots_symmetric_e4m3_cdna3>,
-                    cdna3);
+    run_kernel_case("nk_dots_pack_e4m3_cdna3", test_dots_pack_layout<e4m3_t, rocm_backend_t>, cdna3,
+                    nk_dots_pack_size_e4m3_cdna3, nk_dots_packed_shape_e4m3_cdna3, nk_dots_pack_e4m3_cdna3);
+    run_kernel_case("test_dots_launch_contract<e4m3_t, rocm_backend_t>(nk_dots_packed_e4m3_cdna3)",
+                    test_dots_launch_contract<e4m3_t, rocm_backend_t>, cdna3, nk_dots_pack_size_e4m3_cdna3,
+                    nk_dots_packed_e4m3_cdna3, nk_dots_symmetric_e4m3_cdna3);
     run_kernel_case("nk_dots_symmetric_e4m3_cdna3", test_dots_symmetric<e4m3_t, rocm_backend_t>, cdna3,
                     nk_dots_symmetric_e4m3_cdna3);
     run_kernel_case("nk_dots_packed_e3m2_cdna3", test_dots_packed<e3m2_t, rocm_backend_t>, cdna3,
                     nk_dots_pack_size_e3m2_cdna3, nk_dots_pack_e3m2_cdna3, nk_dots_packed_e3m2_cdna3);
-    run_kernel_case("nk_dots_pack_e3m2_cdna3",
-                    test_dots_pack_layout<e3m2_t, rocm_backend_t, nk_dots_pack_size_e3m2_cdna3,
-                                          nk_dots_packed_shape_e3m2_cdna3, nk_dots_pack_e3m2_cdna3>,
-                    cdna3);
-    run_kernel_case("test_dots_launch_contract<e3m2_t, rocm_backend_t, nk_dots_pack_size_e3m2_cdna3, " //
-                    "nk_dots_packed_e3m2_cdna3, nk_dots_symmetric_e3m2_cdna3>",
-                    test_dots_launch_contract<e3m2_t, rocm_backend_t, nk_dots_pack_size_e3m2_cdna3,
-                                              nk_dots_packed_e3m2_cdna3, nk_dots_symmetric_e3m2_cdna3>,
-                    cdna3);
+    run_kernel_case("nk_dots_pack_e3m2_cdna3", test_dots_pack_layout<e3m2_t, rocm_backend_t>, cdna3,
+                    nk_dots_pack_size_e3m2_cdna3, nk_dots_packed_shape_e3m2_cdna3, nk_dots_pack_e3m2_cdna3);
+    run_kernel_case("test_dots_launch_contract<e3m2_t, rocm_backend_t>(nk_dots_packed_e3m2_cdna3)",
+                    test_dots_launch_contract<e3m2_t, rocm_backend_t>, cdna3, nk_dots_pack_size_e3m2_cdna3,
+                    nk_dots_packed_e3m2_cdna3, nk_dots_symmetric_e3m2_cdna3);
     run_kernel_case("nk_dots_symmetric_e3m2_cdna3", test_dots_symmetric<e3m2_t, rocm_backend_t>, cdna3,
                     nk_dots_symmetric_e3m2_cdna3);
     run_kernel_case("nk_dots_packed_e2m3_cdna3", test_dots_packed<e2m3_t, rocm_backend_t>, cdna3,
                     nk_dots_pack_size_e2m3_cdna3, nk_dots_pack_e2m3_cdna3, nk_dots_packed_e2m3_cdna3);
-    run_kernel_case("nk_dots_pack_e2m3_cdna3",
-                    test_dots_pack_layout<e2m3_t, rocm_backend_t, nk_dots_pack_size_e2m3_cdna3,
-                                          nk_dots_packed_shape_e2m3_cdna3, nk_dots_pack_e2m3_cdna3>,
-                    cdna3);
-    run_kernel_case("test_dots_launch_contract<e2m3_t, rocm_backend_t, nk_dots_pack_size_e2m3_cdna3, " //
-                    "nk_dots_packed_e2m3_cdna3, nk_dots_symmetric_e2m3_cdna3>",
-                    test_dots_launch_contract<e2m3_t, rocm_backend_t, nk_dots_pack_size_e2m3_cdna3,
-                                              nk_dots_packed_e2m3_cdna3, nk_dots_symmetric_e2m3_cdna3>,
-                    cdna3);
+    run_kernel_case("nk_dots_pack_e2m3_cdna3", test_dots_pack_layout<e2m3_t, rocm_backend_t>, cdna3,
+                    nk_dots_pack_size_e2m3_cdna3, nk_dots_packed_shape_e2m3_cdna3, nk_dots_pack_e2m3_cdna3);
+    run_kernel_case("test_dots_launch_contract<e2m3_t, rocm_backend_t>(nk_dots_packed_e2m3_cdna3)",
+                    test_dots_launch_contract<e2m3_t, rocm_backend_t>, cdna3, nk_dots_pack_size_e2m3_cdna3,
+                    nk_dots_packed_e2m3_cdna3, nk_dots_symmetric_e2m3_cdna3);
     run_kernel_case("nk_dots_symmetric_e2m3_cdna3", test_dots_symmetric<e2m3_t, rocm_backend_t>, cdna3,
                     nk_dots_symmetric_e2m3_cdna3);
     run_kernel_case("nk_dots_packed_e2m1_cdna3", test_dots_packed<e2m1x2_t, rocm_backend_t>, cdna3,
                     nk_dots_pack_size_e2m1_cdna3, nk_dots_pack_e2m1_cdna3, nk_dots_packed_e2m1_cdna3);
-    run_kernel_case("nk_dots_pack_e2m1_cdna3",
-                    test_dots_pack_layout<e2m1x2_t, rocm_backend_t, nk_dots_pack_size_e2m1_cdna3,
-                                          nk_dots_packed_shape_e2m1_cdna3, nk_dots_pack_e2m1_cdna3>,
-                    cdna3);
-    run_kernel_case("test_dots_launch_contract<e2m1x2_t, rocm_backend_t, nk_dots_pack_size_e2m1_cdna3, " //
-                    "nk_dots_packed_e2m1_cdna3, nk_dots_symmetric_e2m1_cdna3>",
-                    test_dots_launch_contract<e2m1x2_t, rocm_backend_t, nk_dots_pack_size_e2m1_cdna3,
-                                              nk_dots_packed_e2m1_cdna3, nk_dots_symmetric_e2m1_cdna3>,
-                    cdna3);
+    run_kernel_case("nk_dots_pack_e2m1_cdna3", test_dots_pack_layout<e2m1x2_t, rocm_backend_t>, cdna3,
+                    nk_dots_pack_size_e2m1_cdna3, nk_dots_packed_shape_e2m1_cdna3, nk_dots_pack_e2m1_cdna3);
+    run_kernel_case("test_dots_launch_contract<e2m1x2_t, rocm_backend_t>(nk_dots_packed_e2m1_cdna3)",
+                    test_dots_launch_contract<e2m1x2_t, rocm_backend_t>, cdna3, nk_dots_pack_size_e2m1_cdna3,
+                    nk_dots_packed_e2m1_cdna3, nk_dots_symmetric_e2m1_cdna3);
     run_kernel_case("nk_dots_symmetric_e2m1_cdna3", test_dots_symmetric<e2m1x2_t, rocm_backend_t>, cdna3,
                     nk_dots_symmetric_e2m1_cdna3);
     run_kernel_case("nk_dots_packed_i8_cdna3", test_dots_packed<i8_t, rocm_backend_t>, cdna3,
                     nk_dots_pack_size_i8_cdna3, nk_dots_pack_i8_cdna3, nk_dots_packed_i8_cdna3);
-    run_kernel_case("nk_dots_pack_i8_cdna3",
-                    test_dots_pack_layout<i8_t, rocm_backend_t, nk_dots_pack_size_i8_cdna3,
-                                          nk_dots_packed_shape_i8_cdna3, nk_dots_pack_i8_cdna3>,
-                    cdna3);
-    run_kernel_case("test_dots_launch_contract<i8_t, rocm_backend_t, nk_dots_pack_size_i8_cdna3, " //
-                    "nk_dots_packed_i8_cdna3, nk_dots_symmetric_i8_cdna3>",
-                    test_dots_launch_contract<i8_t, rocm_backend_t, nk_dots_pack_size_i8_cdna3, nk_dots_packed_i8_cdna3,
-                                              nk_dots_symmetric_i8_cdna3>,
-                    cdna3);
+    run_kernel_case("nk_dots_pack_i8_cdna3", test_dots_pack_layout<i8_t, rocm_backend_t>, cdna3,
+                    nk_dots_pack_size_i8_cdna3, nk_dots_packed_shape_i8_cdna3, nk_dots_pack_i8_cdna3);
+    run_kernel_case("test_dots_launch_contract<i8_t, rocm_backend_t>(nk_dots_packed_i8_cdna3)",
+                    test_dots_launch_contract<i8_t, rocm_backend_t>, cdna3, nk_dots_pack_size_i8_cdna3,
+                    nk_dots_packed_i8_cdna3, nk_dots_symmetric_i8_cdna3);
     run_kernel_case("nk_dots_symmetric_i8_cdna3", test_dots_symmetric<i8_t, rocm_backend_t>, cdna3,
                     nk_dots_symmetric_i8_cdna3);
     run_kernel_case("nk_dots_packed_i4_cdna3", test_dots_packed<i4x2_t, rocm_backend_t>, cdna3,
                     nk_dots_pack_size_i4_cdna3, nk_dots_pack_i4_cdna3, nk_dots_packed_i4_cdna3);
-    run_kernel_case("nk_dots_pack_i4_cdna3",
-                    test_dots_pack_layout<i4x2_t, rocm_backend_t, nk_dots_pack_size_i4_cdna3,
-                                          nk_dots_packed_shape_i4_cdna3, nk_dots_pack_i4_cdna3>,
-                    cdna3);
-    run_kernel_case("test_dots_launch_contract<i4x2_t, rocm_backend_t, nk_dots_pack_size_i4_cdna3, " //
-                    "nk_dots_packed_i4_cdna3, nk_dots_symmetric_i4_cdna3>",
-                    test_dots_launch_contract<i4x2_t, rocm_backend_t, nk_dots_pack_size_i4_cdna3,
-                                              nk_dots_packed_i4_cdna3, nk_dots_symmetric_i4_cdna3>,
-                    cdna3);
+    run_kernel_case("nk_dots_pack_i4_cdna3", test_dots_pack_layout<i4x2_t, rocm_backend_t>, cdna3,
+                    nk_dots_pack_size_i4_cdna3, nk_dots_packed_shape_i4_cdna3, nk_dots_pack_i4_cdna3);
+    run_kernel_case("test_dots_launch_contract<i4x2_t, rocm_backend_t>(nk_dots_packed_i4_cdna3)",
+                    test_dots_launch_contract<i4x2_t, rocm_backend_t>, cdna3, nk_dots_pack_size_i4_cdna3,
+                    nk_dots_packed_i4_cdna3, nk_dots_symmetric_i4_cdna3);
     run_kernel_case("nk_dots_symmetric_i4_cdna3", test_dots_symmetric<i4x2_t, rocm_backend_t>, cdna3,
                     nk_dots_symmetric_i4_cdna3);
     run_kernel_case("nk_dots_packed_u8_cdna3", test_dots_packed<u8_t, rocm_backend_t>, cdna3,
                     nk_dots_pack_size_u8_cdna3, nk_dots_pack_u8_cdna3, nk_dots_packed_u8_cdna3);
-    run_kernel_case("nk_dots_pack_u8_cdna3",
-                    test_dots_pack_layout<u8_t, rocm_backend_t, nk_dots_pack_size_u8_cdna3,
-                                          nk_dots_packed_shape_u8_cdna3, nk_dots_pack_u8_cdna3>,
-                    cdna3);
-    run_kernel_case("test_dots_launch_contract<u8_t, rocm_backend_t, nk_dots_pack_size_u8_cdna3, " //
-                    "nk_dots_packed_u8_cdna3, nk_dots_symmetric_u8_cdna3>",
-                    test_dots_launch_contract<u8_t, rocm_backend_t, nk_dots_pack_size_u8_cdna3, nk_dots_packed_u8_cdna3,
-                                              nk_dots_symmetric_u8_cdna3>,
-                    cdna3);
+    run_kernel_case("nk_dots_pack_u8_cdna3", test_dots_pack_layout<u8_t, rocm_backend_t>, cdna3,
+                    nk_dots_pack_size_u8_cdna3, nk_dots_packed_shape_u8_cdna3, nk_dots_pack_u8_cdna3);
+    run_kernel_case("test_dots_launch_contract<u8_t, rocm_backend_t>(nk_dots_packed_u8_cdna3)",
+                    test_dots_launch_contract<u8_t, rocm_backend_t>, cdna3, nk_dots_pack_size_u8_cdna3,
+                    nk_dots_packed_u8_cdna3, nk_dots_symmetric_u8_cdna3);
     run_kernel_case("nk_dots_symmetric_u8_cdna3", test_dots_symmetric<u8_t, rocm_backend_t>, cdna3,
                     nk_dots_symmetric_u8_cdna3);
     run_kernel_case("nk_dots_packed_u4_cdna3", test_dots_packed<u4x2_t, rocm_backend_t>, cdna3,
                     nk_dots_pack_size_u4_cdna3, nk_dots_pack_u4_cdna3, nk_dots_packed_u4_cdna3);
-    run_kernel_case("nk_dots_pack_u4_cdna3",
-                    test_dots_pack_layout<u4x2_t, rocm_backend_t, nk_dots_pack_size_u4_cdna3,
-                                          nk_dots_packed_shape_u4_cdna3, nk_dots_pack_u4_cdna3>,
-                    cdna3);
-    run_kernel_case("test_dots_launch_contract<u4x2_t, rocm_backend_t, nk_dots_pack_size_u4_cdna3, " //
-                    "nk_dots_packed_u4_cdna3, nk_dots_symmetric_u4_cdna3>",
-                    test_dots_launch_contract<u4x2_t, rocm_backend_t, nk_dots_pack_size_u4_cdna3,
-                                              nk_dots_packed_u4_cdna3, nk_dots_symmetric_u4_cdna3>,
-                    cdna3);
+    run_kernel_case("nk_dots_pack_u4_cdna3", test_dots_pack_layout<u4x2_t, rocm_backend_t>, cdna3,
+                    nk_dots_pack_size_u4_cdna3, nk_dots_packed_shape_u4_cdna3, nk_dots_pack_u4_cdna3);
+    run_kernel_case("test_dots_launch_contract<u4x2_t, rocm_backend_t>(nk_dots_packed_u4_cdna3)",
+                    test_dots_launch_contract<u4x2_t, rocm_backend_t>, cdna3, nk_dots_pack_size_u4_cdna3,
+                    nk_dots_packed_u4_cdna3, nk_dots_symmetric_u4_cdna3);
     run_kernel_case("nk_dots_symmetric_u4_cdna3", test_dots_symmetric<u4x2_t, rocm_backend_t>, cdna3,
                     nk_dots_symmetric_u4_cdna3);
     run_kernel_case("nk_angulars_packed_bf16_cdna3", test_angulars_packed<bf16_t, rocm_backend_t>, cdna3,
@@ -659,145 +569,101 @@ void run_cross_rocm_cases() {
     auto const cdna4 = nk_cap_cdna4_k;
     run_kernel_case("nk_dots_packed_bf16_cdna4", test_dots_packed<bf16_t, rocm_backend_t>, cdna4,
                     nk_dots_pack_size_bf16_cdna4, nk_dots_pack_bf16_cdna4, nk_dots_packed_bf16_cdna4);
-    run_kernel_case("nk_dots_pack_bf16_cdna4",
-                    test_dots_pack_layout<bf16_t, rocm_backend_t, nk_dots_pack_size_bf16_cdna4,
-                                          nk_dots_packed_shape_bf16_cdna4, nk_dots_pack_bf16_cdna4>,
-                    cdna4);
-    run_kernel_case("test_dots_launch_contract<bf16_t, rocm_backend_t, nk_dots_pack_size_bf16_cdna4, " //
-                    "nk_dots_packed_bf16_cdna4, nk_dots_symmetric_bf16_cdna4>",
-                    test_dots_launch_contract<bf16_t, rocm_backend_t, nk_dots_pack_size_bf16_cdna4,
-                                              nk_dots_packed_bf16_cdna4, nk_dots_symmetric_bf16_cdna4>,
-                    cdna4);
+    run_kernel_case("nk_dots_pack_bf16_cdna4", test_dots_pack_layout<bf16_t, rocm_backend_t>, cdna4,
+                    nk_dots_pack_size_bf16_cdna4, nk_dots_packed_shape_bf16_cdna4, nk_dots_pack_bf16_cdna4);
+    run_kernel_case("test_dots_launch_contract<bf16_t, rocm_backend_t>(nk_dots_packed_bf16_cdna4)",
+                    test_dots_launch_contract<bf16_t, rocm_backend_t>, cdna4, nk_dots_pack_size_bf16_cdna4,
+                    nk_dots_packed_bf16_cdna4, nk_dots_symmetric_bf16_cdna4);
     run_kernel_case("nk_dots_symmetric_bf16_cdna4", test_dots_symmetric<bf16_t, rocm_backend_t>, cdna4,
                     nk_dots_symmetric_bf16_cdna4);
     run_kernel_case("nk_dots_packed_f16_cdna4", test_dots_packed<f16_t, rocm_backend_t>, cdna4,
                     nk_dots_pack_size_f16_cdna4, nk_dots_pack_f16_cdna4, nk_dots_packed_f16_cdna4);
-    run_kernel_case("nk_dots_pack_f16_cdna4",
-                    test_dots_pack_layout<f16_t, rocm_backend_t, nk_dots_pack_size_f16_cdna4,
-                                          nk_dots_packed_shape_f16_cdna4, nk_dots_pack_f16_cdna4>,
-                    cdna4);
-    run_kernel_case("test_dots_launch_contract<f16_t, rocm_backend_t, nk_dots_pack_size_f16_cdna4, " //
-                    "nk_dots_packed_f16_cdna4, nk_dots_symmetric_f16_cdna4>",
-                    test_dots_launch_contract<f16_t, rocm_backend_t, nk_dots_pack_size_f16_cdna4,
-                                              nk_dots_packed_f16_cdna4, nk_dots_symmetric_f16_cdna4>,
-                    cdna4);
+    run_kernel_case("nk_dots_pack_f16_cdna4", test_dots_pack_layout<f16_t, rocm_backend_t>, cdna4,
+                    nk_dots_pack_size_f16_cdna4, nk_dots_packed_shape_f16_cdna4, nk_dots_pack_f16_cdna4);
+    run_kernel_case("test_dots_launch_contract<f16_t, rocm_backend_t>(nk_dots_packed_f16_cdna4)",
+                    test_dots_launch_contract<f16_t, rocm_backend_t>, cdna4, nk_dots_pack_size_f16_cdna4,
+                    nk_dots_packed_f16_cdna4, nk_dots_symmetric_f16_cdna4);
     run_kernel_case("nk_dots_symmetric_f16_cdna4", test_dots_symmetric<f16_t, rocm_backend_t>, cdna4,
                     nk_dots_symmetric_f16_cdna4);
     run_kernel_case("nk_dots_packed_e5m2_cdna4", test_dots_packed<e5m2_t, rocm_backend_t>, cdna4,
                     nk_dots_pack_size_e5m2_cdna4, nk_dots_pack_e5m2_cdna4, nk_dots_packed_e5m2_cdna4);
-    run_kernel_case("nk_dots_pack_e5m2_cdna4",
-                    test_dots_pack_layout<e5m2_t, rocm_backend_t, nk_dots_pack_size_e5m2_cdna4,
-                                          nk_dots_packed_shape_e5m2_cdna4, nk_dots_pack_e5m2_cdna4>,
-                    cdna4);
-    run_kernel_case("test_dots_launch_contract<e5m2_t, rocm_backend_t, nk_dots_pack_size_e5m2_cdna4, " //
-                    "nk_dots_packed_e5m2_cdna4, nk_dots_symmetric_e5m2_cdna4>",
-                    test_dots_launch_contract<e5m2_t, rocm_backend_t, nk_dots_pack_size_e5m2_cdna4,
-                                              nk_dots_packed_e5m2_cdna4, nk_dots_symmetric_e5m2_cdna4>,
-                    cdna4);
+    run_kernel_case("nk_dots_pack_e5m2_cdna4", test_dots_pack_layout<e5m2_t, rocm_backend_t>, cdna4,
+                    nk_dots_pack_size_e5m2_cdna4, nk_dots_packed_shape_e5m2_cdna4, nk_dots_pack_e5m2_cdna4);
+    run_kernel_case("test_dots_launch_contract<e5m2_t, rocm_backend_t>(nk_dots_packed_e5m2_cdna4)",
+                    test_dots_launch_contract<e5m2_t, rocm_backend_t>, cdna4, nk_dots_pack_size_e5m2_cdna4,
+                    nk_dots_packed_e5m2_cdna4, nk_dots_symmetric_e5m2_cdna4);
     run_kernel_case("nk_dots_symmetric_e5m2_cdna4", test_dots_symmetric<e5m2_t, rocm_backend_t>, cdna4,
                     nk_dots_symmetric_e5m2_cdna4);
     run_kernel_case("nk_dots_packed_e4m3_cdna4", test_dots_packed<e4m3_t, rocm_backend_t>, cdna4,
                     nk_dots_pack_size_e4m3_cdna4, nk_dots_pack_e4m3_cdna4, nk_dots_packed_e4m3_cdna4);
-    run_kernel_case("nk_dots_pack_e4m3_cdna4",
-                    test_dots_pack_layout<e4m3_t, rocm_backend_t, nk_dots_pack_size_e4m3_cdna4,
-                                          nk_dots_packed_shape_e4m3_cdna4, nk_dots_pack_e4m3_cdna4>,
-                    cdna4);
-    run_kernel_case("test_dots_launch_contract<e4m3_t, rocm_backend_t, nk_dots_pack_size_e4m3_cdna4, " //
-                    "nk_dots_packed_e4m3_cdna4, nk_dots_symmetric_e4m3_cdna4>",
-                    test_dots_launch_contract<e4m3_t, rocm_backend_t, nk_dots_pack_size_e4m3_cdna4,
-                                              nk_dots_packed_e4m3_cdna4, nk_dots_symmetric_e4m3_cdna4>,
-                    cdna4);
+    run_kernel_case("nk_dots_pack_e4m3_cdna4", test_dots_pack_layout<e4m3_t, rocm_backend_t>, cdna4,
+                    nk_dots_pack_size_e4m3_cdna4, nk_dots_packed_shape_e4m3_cdna4, nk_dots_pack_e4m3_cdna4);
+    run_kernel_case("test_dots_launch_contract<e4m3_t, rocm_backend_t>(nk_dots_packed_e4m3_cdna4)",
+                    test_dots_launch_contract<e4m3_t, rocm_backend_t>, cdna4, nk_dots_pack_size_e4m3_cdna4,
+                    nk_dots_packed_e4m3_cdna4, nk_dots_symmetric_e4m3_cdna4);
     run_kernel_case("nk_dots_symmetric_e4m3_cdna4", test_dots_symmetric<e4m3_t, rocm_backend_t>, cdna4,
                     nk_dots_symmetric_e4m3_cdna4);
     run_kernel_case("nk_dots_packed_e3m2_cdna4", test_dots_packed<e3m2_t, rocm_backend_t>, cdna4,
                     nk_dots_pack_size_e3m2_cdna4, nk_dots_pack_e3m2_cdna4, nk_dots_packed_e3m2_cdna4);
-    run_kernel_case("nk_dots_pack_e3m2_cdna4",
-                    test_dots_pack_layout<e3m2_t, rocm_backend_t, nk_dots_pack_size_e3m2_cdna4,
-                                          nk_dots_packed_shape_e3m2_cdna4, nk_dots_pack_e3m2_cdna4>,
-                    cdna4);
-    run_kernel_case("test_dots_launch_contract<e3m2_t, rocm_backend_t, nk_dots_pack_size_e3m2_cdna4, " //
-                    "nk_dots_packed_e3m2_cdna4, nk_dots_symmetric_e3m2_cdna4>",
-                    test_dots_launch_contract<e3m2_t, rocm_backend_t, nk_dots_pack_size_e3m2_cdna4,
-                                              nk_dots_packed_e3m2_cdna4, nk_dots_symmetric_e3m2_cdna4>,
-                    cdna4);
+    run_kernel_case("nk_dots_pack_e3m2_cdna4", test_dots_pack_layout<e3m2_t, rocm_backend_t>, cdna4,
+                    nk_dots_pack_size_e3m2_cdna4, nk_dots_packed_shape_e3m2_cdna4, nk_dots_pack_e3m2_cdna4);
+    run_kernel_case("test_dots_launch_contract<e3m2_t, rocm_backend_t>(nk_dots_packed_e3m2_cdna4)",
+                    test_dots_launch_contract<e3m2_t, rocm_backend_t>, cdna4, nk_dots_pack_size_e3m2_cdna4,
+                    nk_dots_packed_e3m2_cdna4, nk_dots_symmetric_e3m2_cdna4);
     run_kernel_case("nk_dots_symmetric_e3m2_cdna4", test_dots_symmetric<e3m2_t, rocm_backend_t>, cdna4,
                     nk_dots_symmetric_e3m2_cdna4);
     run_kernel_case("nk_dots_packed_e2m3_cdna4", test_dots_packed<e2m3_t, rocm_backend_t>, cdna4,
                     nk_dots_pack_size_e2m3_cdna4, nk_dots_pack_e2m3_cdna4, nk_dots_packed_e2m3_cdna4);
-    run_kernel_case("nk_dots_pack_e2m3_cdna4",
-                    test_dots_pack_layout<e2m3_t, rocm_backend_t, nk_dots_pack_size_e2m3_cdna4,
-                                          nk_dots_packed_shape_e2m3_cdna4, nk_dots_pack_e2m3_cdna4>,
-                    cdna4);
-    run_kernel_case("test_dots_launch_contract<e2m3_t, rocm_backend_t, nk_dots_pack_size_e2m3_cdna4, " //
-                    "nk_dots_packed_e2m3_cdna4, nk_dots_symmetric_e2m3_cdna4>",
-                    test_dots_launch_contract<e2m3_t, rocm_backend_t, nk_dots_pack_size_e2m3_cdna4,
-                                              nk_dots_packed_e2m3_cdna4, nk_dots_symmetric_e2m3_cdna4>,
-                    cdna4);
+    run_kernel_case("nk_dots_pack_e2m3_cdna4", test_dots_pack_layout<e2m3_t, rocm_backend_t>, cdna4,
+                    nk_dots_pack_size_e2m3_cdna4, nk_dots_packed_shape_e2m3_cdna4, nk_dots_pack_e2m3_cdna4);
+    run_kernel_case("test_dots_launch_contract<e2m3_t, rocm_backend_t>(nk_dots_packed_e2m3_cdna4)",
+                    test_dots_launch_contract<e2m3_t, rocm_backend_t>, cdna4, nk_dots_pack_size_e2m3_cdna4,
+                    nk_dots_packed_e2m3_cdna4, nk_dots_symmetric_e2m3_cdna4);
     run_kernel_case("nk_dots_symmetric_e2m3_cdna4", test_dots_symmetric<e2m3_t, rocm_backend_t>, cdna4,
                     nk_dots_symmetric_e2m3_cdna4);
     run_kernel_case("nk_dots_packed_e2m1_cdna4", test_dots_packed<e2m1x2_t, rocm_backend_t>, cdna4,
                     nk_dots_pack_size_e2m1_cdna4, nk_dots_pack_e2m1_cdna4, nk_dots_packed_e2m1_cdna4);
-    run_kernel_case("nk_dots_pack_e2m1_cdna4",
-                    test_dots_pack_layout<e2m1x2_t, rocm_backend_t, nk_dots_pack_size_e2m1_cdna4,
-                                          nk_dots_packed_shape_e2m1_cdna4, nk_dots_pack_e2m1_cdna4>,
-                    cdna4);
-    run_kernel_case("test_dots_launch_contract<e2m1x2_t, rocm_backend_t, nk_dots_pack_size_e2m1_cdna4, " //
-                    "nk_dots_packed_e2m1_cdna4, nk_dots_symmetric_e2m1_cdna4>",
-                    test_dots_launch_contract<e2m1x2_t, rocm_backend_t, nk_dots_pack_size_e2m1_cdna4,
-                                              nk_dots_packed_e2m1_cdna4, nk_dots_symmetric_e2m1_cdna4>,
-                    cdna4);
+    run_kernel_case("nk_dots_pack_e2m1_cdna4", test_dots_pack_layout<e2m1x2_t, rocm_backend_t>, cdna4,
+                    nk_dots_pack_size_e2m1_cdna4, nk_dots_packed_shape_e2m1_cdna4, nk_dots_pack_e2m1_cdna4);
+    run_kernel_case("test_dots_launch_contract<e2m1x2_t, rocm_backend_t>(nk_dots_packed_e2m1_cdna4)",
+                    test_dots_launch_contract<e2m1x2_t, rocm_backend_t>, cdna4, nk_dots_pack_size_e2m1_cdna4,
+                    nk_dots_packed_e2m1_cdna4, nk_dots_symmetric_e2m1_cdna4);
     run_kernel_case("nk_dots_symmetric_e2m1_cdna4", test_dots_symmetric<e2m1x2_t, rocm_backend_t>, cdna4,
                     nk_dots_symmetric_e2m1_cdna4);
     run_kernel_case("nk_dots_packed_i8_cdna4", test_dots_packed<i8_t, rocm_backend_t>, cdna4,
                     nk_dots_pack_size_i8_cdna4, nk_dots_pack_i8_cdna4, nk_dots_packed_i8_cdna4);
-    run_kernel_case("nk_dots_pack_i8_cdna4",
-                    test_dots_pack_layout<i8_t, rocm_backend_t, nk_dots_pack_size_i8_cdna4,
-                                          nk_dots_packed_shape_i8_cdna4, nk_dots_pack_i8_cdna4>,
-                    cdna4);
-    run_kernel_case("test_dots_launch_contract<i8_t, rocm_backend_t, nk_dots_pack_size_i8_cdna4, " //
-                    "nk_dots_packed_i8_cdna4, nk_dots_symmetric_i8_cdna4>",
-                    test_dots_launch_contract<i8_t, rocm_backend_t, nk_dots_pack_size_i8_cdna4, nk_dots_packed_i8_cdna4,
-                                              nk_dots_symmetric_i8_cdna4>,
-                    cdna4);
+    run_kernel_case("nk_dots_pack_i8_cdna4", test_dots_pack_layout<i8_t, rocm_backend_t>, cdna4,
+                    nk_dots_pack_size_i8_cdna4, nk_dots_packed_shape_i8_cdna4, nk_dots_pack_i8_cdna4);
+    run_kernel_case("test_dots_launch_contract<i8_t, rocm_backend_t>(nk_dots_packed_i8_cdna4)",
+                    test_dots_launch_contract<i8_t, rocm_backend_t>, cdna4, nk_dots_pack_size_i8_cdna4,
+                    nk_dots_packed_i8_cdna4, nk_dots_symmetric_i8_cdna4);
     run_kernel_case("nk_dots_symmetric_i8_cdna4", test_dots_symmetric<i8_t, rocm_backend_t>, cdna4,
                     nk_dots_symmetric_i8_cdna4);
     run_kernel_case("nk_dots_packed_u8_cdna4", test_dots_packed<u8_t, rocm_backend_t>, cdna4,
                     nk_dots_pack_size_u8_cdna4, nk_dots_pack_u8_cdna4, nk_dots_packed_u8_cdna4);
-    run_kernel_case("nk_dots_pack_u8_cdna4",
-                    test_dots_pack_layout<u8_t, rocm_backend_t, nk_dots_pack_size_u8_cdna4,
-                                          nk_dots_packed_shape_u8_cdna4, nk_dots_pack_u8_cdna4>,
-                    cdna4);
-    run_kernel_case("test_dots_launch_contract<u8_t, rocm_backend_t, nk_dots_pack_size_u8_cdna4, " //
-                    "nk_dots_packed_u8_cdna4, nk_dots_symmetric_u8_cdna4>",
-                    test_dots_launch_contract<u8_t, rocm_backend_t, nk_dots_pack_size_u8_cdna4, nk_dots_packed_u8_cdna4,
-                                              nk_dots_symmetric_u8_cdna4>,
-                    cdna4);
+    run_kernel_case("nk_dots_pack_u8_cdna4", test_dots_pack_layout<u8_t, rocm_backend_t>, cdna4,
+                    nk_dots_pack_size_u8_cdna4, nk_dots_packed_shape_u8_cdna4, nk_dots_pack_u8_cdna4);
+    run_kernel_case("test_dots_launch_contract<u8_t, rocm_backend_t>(nk_dots_packed_u8_cdna4)",
+                    test_dots_launch_contract<u8_t, rocm_backend_t>, cdna4, nk_dots_pack_size_u8_cdna4,
+                    nk_dots_packed_u8_cdna4, nk_dots_symmetric_u8_cdna4);
     run_kernel_case("nk_dots_symmetric_u8_cdna4", test_dots_symmetric<u8_t, rocm_backend_t>, cdna4,
                     nk_dots_symmetric_u8_cdna4);
     run_kernel_case("nk_dots_packed_i4_cdna4", test_dots_packed<i4x2_t, rocm_backend_t>, cdna4,
                     nk_dots_pack_size_i4_cdna4, nk_dots_pack_i4_cdna4, nk_dots_packed_i4_cdna4);
-    run_kernel_case("nk_dots_pack_i4_cdna4",
-                    test_dots_pack_layout<i4x2_t, rocm_backend_t, nk_dots_pack_size_i4_cdna4,
-                                          nk_dots_packed_shape_i4_cdna4, nk_dots_pack_i4_cdna4>,
-                    cdna4);
-    run_kernel_case("test_dots_launch_contract<i4x2_t, rocm_backend_t, nk_dots_pack_size_i4_cdna4, " //
-                    "nk_dots_packed_i4_cdna4, nk_dots_symmetric_i4_cdna4>",
-                    test_dots_launch_contract<i4x2_t, rocm_backend_t, nk_dots_pack_size_i4_cdna4,
-                                              nk_dots_packed_i4_cdna4, nk_dots_symmetric_i4_cdna4>,
-                    cdna4);
+    run_kernel_case("nk_dots_pack_i4_cdna4", test_dots_pack_layout<i4x2_t, rocm_backend_t>, cdna4,
+                    nk_dots_pack_size_i4_cdna4, nk_dots_packed_shape_i4_cdna4, nk_dots_pack_i4_cdna4);
+    run_kernel_case("test_dots_launch_contract<i4x2_t, rocm_backend_t>(nk_dots_packed_i4_cdna4)",
+                    test_dots_launch_contract<i4x2_t, rocm_backend_t>, cdna4, nk_dots_pack_size_i4_cdna4,
+                    nk_dots_packed_i4_cdna4, nk_dots_symmetric_i4_cdna4);
     run_kernel_case("nk_dots_symmetric_i4_cdna4", test_dots_symmetric<i4x2_t, rocm_backend_t>, cdna4,
                     nk_dots_symmetric_i4_cdna4);
     run_kernel_case("nk_dots_packed_u4_cdna4", test_dots_packed<u4x2_t, rocm_backend_t>, cdna4,
                     nk_dots_pack_size_u4_cdna4, nk_dots_pack_u4_cdna4, nk_dots_packed_u4_cdna4);
-    run_kernel_case("nk_dots_pack_u4_cdna4",
-                    test_dots_pack_layout<u4x2_t, rocm_backend_t, nk_dots_pack_size_u4_cdna4,
-                                          nk_dots_packed_shape_u4_cdna4, nk_dots_pack_u4_cdna4>,
-                    cdna4);
-    run_kernel_case("test_dots_launch_contract<u4x2_t, rocm_backend_t, nk_dots_pack_size_u4_cdna4, " //
-                    "nk_dots_packed_u4_cdna4, nk_dots_symmetric_u4_cdna4>",
-                    test_dots_launch_contract<u4x2_t, rocm_backend_t, nk_dots_pack_size_u4_cdna4,
-                                              nk_dots_packed_u4_cdna4, nk_dots_symmetric_u4_cdna4>,
-                    cdna4);
+    run_kernel_case("nk_dots_pack_u4_cdna4", test_dots_pack_layout<u4x2_t, rocm_backend_t>, cdna4,
+                    nk_dots_pack_size_u4_cdna4, nk_dots_packed_shape_u4_cdna4, nk_dots_pack_u4_cdna4);
+    run_kernel_case("test_dots_launch_contract<u4x2_t, rocm_backend_t>(nk_dots_packed_u4_cdna4)",
+                    test_dots_launch_contract<u4x2_t, rocm_backend_t>, cdna4, nk_dots_pack_size_u4_cdna4,
+                    nk_dots_packed_u4_cdna4, nk_dots_symmetric_u4_cdna4);
     run_kernel_case("nk_dots_symmetric_u4_cdna4", test_dots_symmetric<u4x2_t, rocm_backend_t>, cdna4,
                     nk_dots_symmetric_u4_cdna4);
     run_kernel_case("nk_angulars_packed_bf16_cdna4", test_angulars_packed<bf16_t, rocm_backend_t>, cdna4,
@@ -906,145 +772,101 @@ void run_cross_rocm_cases() {
     auto const cdna5 = nk_cap_cdna5_k;
     run_kernel_case("nk_dots_packed_bf16_cdna5", test_dots_packed<bf16_t, rocm_backend_t>, cdna5,
                     nk_dots_pack_size_bf16_cdna5, nk_dots_pack_bf16_cdna5, nk_dots_packed_bf16_cdna5);
-    run_kernel_case("nk_dots_pack_bf16_cdna5",
-                    test_dots_pack_layout<bf16_t, rocm_backend_t, nk_dots_pack_size_bf16_cdna5,
-                                          nk_dots_packed_shape_bf16_cdna5, nk_dots_pack_bf16_cdna5>,
-                    cdna5);
-    run_kernel_case("test_dots_launch_contract<bf16_t, rocm_backend_t, nk_dots_pack_size_bf16_cdna5, " //
-                    "nk_dots_packed_bf16_cdna5, nk_dots_symmetric_bf16_cdna5>",
-                    test_dots_launch_contract<bf16_t, rocm_backend_t, nk_dots_pack_size_bf16_cdna5,
-                                              nk_dots_packed_bf16_cdna5, nk_dots_symmetric_bf16_cdna5>,
-                    cdna5);
+    run_kernel_case("nk_dots_pack_bf16_cdna5", test_dots_pack_layout<bf16_t, rocm_backend_t>, cdna5,
+                    nk_dots_pack_size_bf16_cdna5, nk_dots_packed_shape_bf16_cdna5, nk_dots_pack_bf16_cdna5);
+    run_kernel_case("test_dots_launch_contract<bf16_t, rocm_backend_t>(nk_dots_packed_bf16_cdna5)",
+                    test_dots_launch_contract<bf16_t, rocm_backend_t>, cdna5, nk_dots_pack_size_bf16_cdna5,
+                    nk_dots_packed_bf16_cdna5, nk_dots_symmetric_bf16_cdna5);
     run_kernel_case("nk_dots_symmetric_bf16_cdna5", test_dots_symmetric<bf16_t, rocm_backend_t>, cdna5,
                     nk_dots_symmetric_bf16_cdna5);
     run_kernel_case("nk_dots_packed_f16_cdna5", test_dots_packed<f16_t, rocm_backend_t>, cdna5,
                     nk_dots_pack_size_f16_cdna5, nk_dots_pack_f16_cdna5, nk_dots_packed_f16_cdna5);
-    run_kernel_case("nk_dots_pack_f16_cdna5",
-                    test_dots_pack_layout<f16_t, rocm_backend_t, nk_dots_pack_size_f16_cdna5,
-                                          nk_dots_packed_shape_f16_cdna5, nk_dots_pack_f16_cdna5>,
-                    cdna5);
-    run_kernel_case("test_dots_launch_contract<f16_t, rocm_backend_t, nk_dots_pack_size_f16_cdna5, " //
-                    "nk_dots_packed_f16_cdna5, nk_dots_symmetric_f16_cdna5>",
-                    test_dots_launch_contract<f16_t, rocm_backend_t, nk_dots_pack_size_f16_cdna5,
-                                              nk_dots_packed_f16_cdna5, nk_dots_symmetric_f16_cdna5>,
-                    cdna5);
+    run_kernel_case("nk_dots_pack_f16_cdna5", test_dots_pack_layout<f16_t, rocm_backend_t>, cdna5,
+                    nk_dots_pack_size_f16_cdna5, nk_dots_packed_shape_f16_cdna5, nk_dots_pack_f16_cdna5);
+    run_kernel_case("test_dots_launch_contract<f16_t, rocm_backend_t>(nk_dots_packed_f16_cdna5)",
+                    test_dots_launch_contract<f16_t, rocm_backend_t>, cdna5, nk_dots_pack_size_f16_cdna5,
+                    nk_dots_packed_f16_cdna5, nk_dots_symmetric_f16_cdna5);
     run_kernel_case("nk_dots_symmetric_f16_cdna5", test_dots_symmetric<f16_t, rocm_backend_t>, cdna5,
                     nk_dots_symmetric_f16_cdna5);
     run_kernel_case("nk_dots_packed_e5m2_cdna5", test_dots_packed<e5m2_t, rocm_backend_t>, cdna5,
                     nk_dots_pack_size_e5m2_cdna5, nk_dots_pack_e5m2_cdna5, nk_dots_packed_e5m2_cdna5);
-    run_kernel_case("nk_dots_pack_e5m2_cdna5",
-                    test_dots_pack_layout<e5m2_t, rocm_backend_t, nk_dots_pack_size_e5m2_cdna5,
-                                          nk_dots_packed_shape_e5m2_cdna5, nk_dots_pack_e5m2_cdna5>,
-                    cdna5);
-    run_kernel_case("test_dots_launch_contract<e5m2_t, rocm_backend_t, nk_dots_pack_size_e5m2_cdna5, " //
-                    "nk_dots_packed_e5m2_cdna5, nk_dots_symmetric_e5m2_cdna5>",
-                    test_dots_launch_contract<e5m2_t, rocm_backend_t, nk_dots_pack_size_e5m2_cdna5,
-                                              nk_dots_packed_e5m2_cdna5, nk_dots_symmetric_e5m2_cdna5>,
-                    cdna5);
+    run_kernel_case("nk_dots_pack_e5m2_cdna5", test_dots_pack_layout<e5m2_t, rocm_backend_t>, cdna5,
+                    nk_dots_pack_size_e5m2_cdna5, nk_dots_packed_shape_e5m2_cdna5, nk_dots_pack_e5m2_cdna5);
+    run_kernel_case("test_dots_launch_contract<e5m2_t, rocm_backend_t>(nk_dots_packed_e5m2_cdna5)",
+                    test_dots_launch_contract<e5m2_t, rocm_backend_t>, cdna5, nk_dots_pack_size_e5m2_cdna5,
+                    nk_dots_packed_e5m2_cdna5, nk_dots_symmetric_e5m2_cdna5);
     run_kernel_case("nk_dots_symmetric_e5m2_cdna5", test_dots_symmetric<e5m2_t, rocm_backend_t>, cdna5,
                     nk_dots_symmetric_e5m2_cdna5);
     run_kernel_case("nk_dots_packed_e4m3_cdna5", test_dots_packed<e4m3_t, rocm_backend_t>, cdna5,
                     nk_dots_pack_size_e4m3_cdna5, nk_dots_pack_e4m3_cdna5, nk_dots_packed_e4m3_cdna5);
-    run_kernel_case("nk_dots_pack_e4m3_cdna5",
-                    test_dots_pack_layout<e4m3_t, rocm_backend_t, nk_dots_pack_size_e4m3_cdna5,
-                                          nk_dots_packed_shape_e4m3_cdna5, nk_dots_pack_e4m3_cdna5>,
-                    cdna5);
-    run_kernel_case("test_dots_launch_contract<e4m3_t, rocm_backend_t, nk_dots_pack_size_e4m3_cdna5, " //
-                    "nk_dots_packed_e4m3_cdna5, nk_dots_symmetric_e4m3_cdna5>",
-                    test_dots_launch_contract<e4m3_t, rocm_backend_t, nk_dots_pack_size_e4m3_cdna5,
-                                              nk_dots_packed_e4m3_cdna5, nk_dots_symmetric_e4m3_cdna5>,
-                    cdna5);
+    run_kernel_case("nk_dots_pack_e4m3_cdna5", test_dots_pack_layout<e4m3_t, rocm_backend_t>, cdna5,
+                    nk_dots_pack_size_e4m3_cdna5, nk_dots_packed_shape_e4m3_cdna5, nk_dots_pack_e4m3_cdna5);
+    run_kernel_case("test_dots_launch_contract<e4m3_t, rocm_backend_t>(nk_dots_packed_e4m3_cdna5)",
+                    test_dots_launch_contract<e4m3_t, rocm_backend_t>, cdna5, nk_dots_pack_size_e4m3_cdna5,
+                    nk_dots_packed_e4m3_cdna5, nk_dots_symmetric_e4m3_cdna5);
     run_kernel_case("nk_dots_symmetric_e4m3_cdna5", test_dots_symmetric<e4m3_t, rocm_backend_t>, cdna5,
                     nk_dots_symmetric_e4m3_cdna5);
     run_kernel_case("nk_dots_packed_e3m2_cdna5", test_dots_packed<e3m2_t, rocm_backend_t>, cdna5,
                     nk_dots_pack_size_e3m2_cdna5, nk_dots_pack_e3m2_cdna5, nk_dots_packed_e3m2_cdna5);
-    run_kernel_case("nk_dots_pack_e3m2_cdna5",
-                    test_dots_pack_layout<e3m2_t, rocm_backend_t, nk_dots_pack_size_e3m2_cdna5,
-                                          nk_dots_packed_shape_e3m2_cdna5, nk_dots_pack_e3m2_cdna5>,
-                    cdna5);
-    run_kernel_case("test_dots_launch_contract<e3m2_t, rocm_backend_t, nk_dots_pack_size_e3m2_cdna5, " //
-                    "nk_dots_packed_e3m2_cdna5, nk_dots_symmetric_e3m2_cdna5>",
-                    test_dots_launch_contract<e3m2_t, rocm_backend_t, nk_dots_pack_size_e3m2_cdna5,
-                                              nk_dots_packed_e3m2_cdna5, nk_dots_symmetric_e3m2_cdna5>,
-                    cdna5);
+    run_kernel_case("nk_dots_pack_e3m2_cdna5", test_dots_pack_layout<e3m2_t, rocm_backend_t>, cdna5,
+                    nk_dots_pack_size_e3m2_cdna5, nk_dots_packed_shape_e3m2_cdna5, nk_dots_pack_e3m2_cdna5);
+    run_kernel_case("test_dots_launch_contract<e3m2_t, rocm_backend_t>(nk_dots_packed_e3m2_cdna5)",
+                    test_dots_launch_contract<e3m2_t, rocm_backend_t>, cdna5, nk_dots_pack_size_e3m2_cdna5,
+                    nk_dots_packed_e3m2_cdna5, nk_dots_symmetric_e3m2_cdna5);
     run_kernel_case("nk_dots_symmetric_e3m2_cdna5", test_dots_symmetric<e3m2_t, rocm_backend_t>, cdna5,
                     nk_dots_symmetric_e3m2_cdna5);
     run_kernel_case("nk_dots_packed_e2m3_cdna5", test_dots_packed<e2m3_t, rocm_backend_t>, cdna5,
                     nk_dots_pack_size_e2m3_cdna5, nk_dots_pack_e2m3_cdna5, nk_dots_packed_e2m3_cdna5);
-    run_kernel_case("nk_dots_pack_e2m3_cdna5",
-                    test_dots_pack_layout<e2m3_t, rocm_backend_t, nk_dots_pack_size_e2m3_cdna5,
-                                          nk_dots_packed_shape_e2m3_cdna5, nk_dots_pack_e2m3_cdna5>,
-                    cdna5);
-    run_kernel_case("test_dots_launch_contract<e2m3_t, rocm_backend_t, nk_dots_pack_size_e2m3_cdna5, " //
-                    "nk_dots_packed_e2m3_cdna5, nk_dots_symmetric_e2m3_cdna5>",
-                    test_dots_launch_contract<e2m3_t, rocm_backend_t, nk_dots_pack_size_e2m3_cdna5,
-                                              nk_dots_packed_e2m3_cdna5, nk_dots_symmetric_e2m3_cdna5>,
-                    cdna5);
+    run_kernel_case("nk_dots_pack_e2m3_cdna5", test_dots_pack_layout<e2m3_t, rocm_backend_t>, cdna5,
+                    nk_dots_pack_size_e2m3_cdna5, nk_dots_packed_shape_e2m3_cdna5, nk_dots_pack_e2m3_cdna5);
+    run_kernel_case("test_dots_launch_contract<e2m3_t, rocm_backend_t>(nk_dots_packed_e2m3_cdna5)",
+                    test_dots_launch_contract<e2m3_t, rocm_backend_t>, cdna5, nk_dots_pack_size_e2m3_cdna5,
+                    nk_dots_packed_e2m3_cdna5, nk_dots_symmetric_e2m3_cdna5);
     run_kernel_case("nk_dots_symmetric_e2m3_cdna5", test_dots_symmetric<e2m3_t, rocm_backend_t>, cdna5,
                     nk_dots_symmetric_e2m3_cdna5);
     run_kernel_case("nk_dots_packed_e2m1_cdna5", test_dots_packed<e2m1x2_t, rocm_backend_t>, cdna5,
                     nk_dots_pack_size_e2m1_cdna5, nk_dots_pack_e2m1_cdna5, nk_dots_packed_e2m1_cdna5);
-    run_kernel_case("nk_dots_pack_e2m1_cdna5",
-                    test_dots_pack_layout<e2m1x2_t, rocm_backend_t, nk_dots_pack_size_e2m1_cdna5,
-                                          nk_dots_packed_shape_e2m1_cdna5, nk_dots_pack_e2m1_cdna5>,
-                    cdna5);
-    run_kernel_case("test_dots_launch_contract<e2m1x2_t, rocm_backend_t, nk_dots_pack_size_e2m1_cdna5, " //
-                    "nk_dots_packed_e2m1_cdna5, nk_dots_symmetric_e2m1_cdna5>",
-                    test_dots_launch_contract<e2m1x2_t, rocm_backend_t, nk_dots_pack_size_e2m1_cdna5,
-                                              nk_dots_packed_e2m1_cdna5, nk_dots_symmetric_e2m1_cdna5>,
-                    cdna5);
+    run_kernel_case("nk_dots_pack_e2m1_cdna5", test_dots_pack_layout<e2m1x2_t, rocm_backend_t>, cdna5,
+                    nk_dots_pack_size_e2m1_cdna5, nk_dots_packed_shape_e2m1_cdna5, nk_dots_pack_e2m1_cdna5);
+    run_kernel_case("test_dots_launch_contract<e2m1x2_t, rocm_backend_t>(nk_dots_packed_e2m1_cdna5)",
+                    test_dots_launch_contract<e2m1x2_t, rocm_backend_t>, cdna5, nk_dots_pack_size_e2m1_cdna5,
+                    nk_dots_packed_e2m1_cdna5, nk_dots_symmetric_e2m1_cdna5);
     run_kernel_case("nk_dots_symmetric_e2m1_cdna5", test_dots_symmetric<e2m1x2_t, rocm_backend_t>, cdna5,
                     nk_dots_symmetric_e2m1_cdna5);
     run_kernel_case("nk_dots_packed_i8_cdna5", test_dots_packed<i8_t, rocm_backend_t>, cdna5,
                     nk_dots_pack_size_i8_cdna5, nk_dots_pack_i8_cdna5, nk_dots_packed_i8_cdna5);
-    run_kernel_case("nk_dots_pack_i8_cdna5",
-                    test_dots_pack_layout<i8_t, rocm_backend_t, nk_dots_pack_size_i8_cdna5,
-                                          nk_dots_packed_shape_i8_cdna5, nk_dots_pack_i8_cdna5>,
-                    cdna5);
-    run_kernel_case("test_dots_launch_contract<i8_t, rocm_backend_t, nk_dots_pack_size_i8_cdna5, " //
-                    "nk_dots_packed_i8_cdna5, nk_dots_symmetric_i8_cdna5>",
-                    test_dots_launch_contract<i8_t, rocm_backend_t, nk_dots_pack_size_i8_cdna5, nk_dots_packed_i8_cdna5,
-                                              nk_dots_symmetric_i8_cdna5>,
-                    cdna5);
+    run_kernel_case("nk_dots_pack_i8_cdna5", test_dots_pack_layout<i8_t, rocm_backend_t>, cdna5,
+                    nk_dots_pack_size_i8_cdna5, nk_dots_packed_shape_i8_cdna5, nk_dots_pack_i8_cdna5);
+    run_kernel_case("test_dots_launch_contract<i8_t, rocm_backend_t>(nk_dots_packed_i8_cdna5)",
+                    test_dots_launch_contract<i8_t, rocm_backend_t>, cdna5, nk_dots_pack_size_i8_cdna5,
+                    nk_dots_packed_i8_cdna5, nk_dots_symmetric_i8_cdna5);
     run_kernel_case("nk_dots_symmetric_i8_cdna5", test_dots_symmetric<i8_t, rocm_backend_t>, cdna5,
                     nk_dots_symmetric_i8_cdna5);
     run_kernel_case("nk_dots_packed_u8_cdna5", test_dots_packed<u8_t, rocm_backend_t>, cdna5,
                     nk_dots_pack_size_u8_cdna5, nk_dots_pack_u8_cdna5, nk_dots_packed_u8_cdna5);
-    run_kernel_case("nk_dots_pack_u8_cdna5",
-                    test_dots_pack_layout<u8_t, rocm_backend_t, nk_dots_pack_size_u8_cdna5,
-                                          nk_dots_packed_shape_u8_cdna5, nk_dots_pack_u8_cdna5>,
-                    cdna5);
-    run_kernel_case("test_dots_launch_contract<u8_t, rocm_backend_t, nk_dots_pack_size_u8_cdna5, " //
-                    "nk_dots_packed_u8_cdna5, nk_dots_symmetric_u8_cdna5>",
-                    test_dots_launch_contract<u8_t, rocm_backend_t, nk_dots_pack_size_u8_cdna5, nk_dots_packed_u8_cdna5,
-                                              nk_dots_symmetric_u8_cdna5>,
-                    cdna5);
+    run_kernel_case("nk_dots_pack_u8_cdna5", test_dots_pack_layout<u8_t, rocm_backend_t>, cdna5,
+                    nk_dots_pack_size_u8_cdna5, nk_dots_packed_shape_u8_cdna5, nk_dots_pack_u8_cdna5);
+    run_kernel_case("test_dots_launch_contract<u8_t, rocm_backend_t>(nk_dots_packed_u8_cdna5)",
+                    test_dots_launch_contract<u8_t, rocm_backend_t>, cdna5, nk_dots_pack_size_u8_cdna5,
+                    nk_dots_packed_u8_cdna5, nk_dots_symmetric_u8_cdna5);
     run_kernel_case("nk_dots_symmetric_u8_cdna5", test_dots_symmetric<u8_t, rocm_backend_t>, cdna5,
                     nk_dots_symmetric_u8_cdna5);
     run_kernel_case("nk_dots_packed_i4_cdna5", test_dots_packed<i4x2_t, rocm_backend_t>, cdna5,
                     nk_dots_pack_size_i4_cdna5, nk_dots_pack_i4_cdna5, nk_dots_packed_i4_cdna5);
-    run_kernel_case("nk_dots_pack_i4_cdna5",
-                    test_dots_pack_layout<i4x2_t, rocm_backend_t, nk_dots_pack_size_i4_cdna5,
-                                          nk_dots_packed_shape_i4_cdna5, nk_dots_pack_i4_cdna5>,
-                    cdna5);
-    run_kernel_case("test_dots_launch_contract<i4x2_t, rocm_backend_t, nk_dots_pack_size_i4_cdna5, " //
-                    "nk_dots_packed_i4_cdna5, nk_dots_symmetric_i4_cdna5>",
-                    test_dots_launch_contract<i4x2_t, rocm_backend_t, nk_dots_pack_size_i4_cdna5,
-                                              nk_dots_packed_i4_cdna5, nk_dots_symmetric_i4_cdna5>,
-                    cdna5);
+    run_kernel_case("nk_dots_pack_i4_cdna5", test_dots_pack_layout<i4x2_t, rocm_backend_t>, cdna5,
+                    nk_dots_pack_size_i4_cdna5, nk_dots_packed_shape_i4_cdna5, nk_dots_pack_i4_cdna5);
+    run_kernel_case("test_dots_launch_contract<i4x2_t, rocm_backend_t>(nk_dots_packed_i4_cdna5)",
+                    test_dots_launch_contract<i4x2_t, rocm_backend_t>, cdna5, nk_dots_pack_size_i4_cdna5,
+                    nk_dots_packed_i4_cdna5, nk_dots_symmetric_i4_cdna5);
     run_kernel_case("nk_dots_symmetric_i4_cdna5", test_dots_symmetric<i4x2_t, rocm_backend_t>, cdna5,
                     nk_dots_symmetric_i4_cdna5);
     run_kernel_case("nk_dots_packed_u4_cdna5", test_dots_packed<u4x2_t, rocm_backend_t>, cdna5,
                     nk_dots_pack_size_u4_cdna5, nk_dots_pack_u4_cdna5, nk_dots_packed_u4_cdna5);
-    run_kernel_case("nk_dots_pack_u4_cdna5",
-                    test_dots_pack_layout<u4x2_t, rocm_backend_t, nk_dots_pack_size_u4_cdna5,
-                                          nk_dots_packed_shape_u4_cdna5, nk_dots_pack_u4_cdna5>,
-                    cdna5);
-    run_kernel_case("test_dots_launch_contract<u4x2_t, rocm_backend_t, nk_dots_pack_size_u4_cdna5, " //
-                    "nk_dots_packed_u4_cdna5, nk_dots_symmetric_u4_cdna5>",
-                    test_dots_launch_contract<u4x2_t, rocm_backend_t, nk_dots_pack_size_u4_cdna5,
-                                              nk_dots_packed_u4_cdna5, nk_dots_symmetric_u4_cdna5>,
-                    cdna5);
+    run_kernel_case("nk_dots_pack_u4_cdna5", test_dots_pack_layout<u4x2_t, rocm_backend_t>, cdna5,
+                    nk_dots_pack_size_u4_cdna5, nk_dots_packed_shape_u4_cdna5, nk_dots_pack_u4_cdna5);
+    run_kernel_case("test_dots_launch_contract<u4x2_t, rocm_backend_t>(nk_dots_packed_u4_cdna5)",
+                    test_dots_launch_contract<u4x2_t, rocm_backend_t>, cdna5, nk_dots_pack_size_u4_cdna5,
+                    nk_dots_packed_u4_cdna5, nk_dots_symmetric_u4_cdna5);
     run_kernel_case("nk_dots_symmetric_u4_cdna5", test_dots_symmetric<u4x2_t, rocm_backend_t>, cdna5,
                     nk_dots_symmetric_u4_cdna5);
     run_kernel_case("nk_angulars_packed_bf16_cdna5", test_angulars_packed<bf16_t, rocm_backend_t>, cdna5,

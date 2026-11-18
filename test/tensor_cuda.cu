@@ -6,7 +6,7 @@
  */
 #undef NDEBUG // ! A test's oracle must stay live in every build
 
-#include "harness_cuda.hpp"
+#include "backend_cuda.hpp"
 
 namespace ashvardanian::numkong::test {
 

@@ -7,7 +7,7 @@
 
 #include "numkong/numkong.h"
 #include "cross.hpp"
-#include "harness_rocm.hpp"
+#include "backend_rocm.hpp"
 
 #if NUMKONG_ARCH_ROCM_
 

@@ -117,6 +117,10 @@
 #include "numkong/scalar.h"
 #include "numkong/cast.h"
 
+#if __has_include(<format>)
+#include <format> // `std::formatter`, `std::format_parse_context`
+#endif
+
 #if defined(__cpp_lib_constexpr_cmath) && __cpp_lib_constexpr_cmath >= 202202L
 #define NUMKONG_CMATH_CONSTEXPR_ constexpr
 #else
@@ -7306,8 +7310,6 @@ template <>
 struct std::numeric_limits<ashvardanian::numkong::u8_t>
     : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::u8_t> {};
 
-#if __has_include(<format>)
-#include <format>
 #if defined(__cpp_lib_format) && __cpp_lib_format >= 202110L
 
 namespace ashvardanian::numkong {
@@ -7666,6 +7668,5 @@ struct std::formatter<ashvardanian::numkong::bf16c_t> {
 };
 
 #endif // __cpp_lib_format
-#endif // __has_include(<format>)
 
 #endif // NUMKONG_TYPES_HPP

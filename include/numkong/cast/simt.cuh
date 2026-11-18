@@ -513,7 +513,10 @@ NUMKONG_DEVICE void nk_cast_store_simt_(nk_cast_hub_t hub, nk_scalar_buffer_t co
 NUMKONG_DEVICE nk_u32_t nk_cast_code_simt_(nk_cast_hub_t hub, nk_scalar_buffer_t const *value, nk_dtype_t dtype) {
     switch (hub) {
     case nk_cast_hub_u64_k: return dtype == nk_u1_k ? value->u64 != 0 : (nk_u32_t)(value->u64 > 15 ? 15 : value->u64);
-    case nk_cast_hub_i64_k: return (nk_u32_t)(value->i64 > 7 ? 7 : value->i64 < -8 ? -8 : value->i64) & 0x0Fu;
+    case nk_cast_hub_i64_k:
+        if (dtype == nk_u1_k) return value->i64 != 0;
+        if (dtype == nk_u4_k) return (nk_u32_t)(value->i64 > 15 ? 15 : value->i64 < 0 ? 0 : value->i64);
+        return (nk_u32_t)(value->i64 > 7 ? 7 : value->i64 < -8 ? -8 : value->i64) & 0x0Fu;
     case nk_cast_hub_f32c_k: return nk_cast_code_f32c_simt_(&value->f32c, dtype);
     default: return nk_cast_code_f64c_simt_(&value->f64c, dtype);
     }

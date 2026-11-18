@@ -92,13 +92,6 @@ inline bool nk_f32_is_nan_metal_(uint bits) { return (bits & 0x7FFFFFFFu) > 0x7F
 /** Sets the quiet bit of an F32 NaN, as the round trip of a CPU through F64 does. */
 inline uint nk_f32_quiet_metal_(uint bits) { return nk_f32_is_nan_metal_(bits) ? bits | 0x00400000u : bits; }
 
-/** The F32 bits of @p integer times 2 to the power of @p exponent, a normal number or zero. */
-inline uint nk_f32_from_scaled_integer_metal_(uint integer, int exponent) {
-    if (!integer) return 0;
-    uint const top = 31 - clz(integer);
-    return (uint(int(top) + exponent + 127) << 23) | ((integer << (23 - top)) & 0x7FFFFFu);
-}
-
 /** The F64 bits nearest @p magnitude, ties to even, with the sign bit @p sign. */
 inline ulong nk_f64_from_magnitude_metal_(ulong magnitude, ulong sign) {
     if (!magnitude) return sign;
@@ -181,53 +174,6 @@ inline ulong nk_f64_to_integer_metal_(ulong bits, ulong2 limits) {
     }
     return nk_cast_saturate_metal_(magnitude, bits >> 63, limits);
 }
-
-/** Widens one F16 code to F32 bits, exactly, keeping NaN payloads. */
-inline uint nk_f32_from_f16_metal_(uint code) {
-    uint const sign = (code & 0x8000u) << 16, exponent = (code >> 10) & 0x1Fu, mantissa = code & 0x3FFu;
-    if (exponent == 0x1F) return sign | 0x7F800000u | (mantissa << 13);
-    if (exponent) return sign | ((exponent + 112) << 23) | (mantissa << 13);
-    return sign | nk_f32_from_scaled_integer_metal_(mantissa, -24);
-}
-
-/** Widens one E4M3FN code to F32 bits, its NaN to the quiet NaN of its sign. */
-inline uint nk_f32_from_e4m3_metal_(uint code) {
-    uint const sign = (code & 0x80u) << 24, exponent = (code >> 3) & 0xFu, mantissa = code & 7u;
-    if (exponent == 0xF && mantissa == 7) return sign | 0x7FC00000u;
-    if (exponent) return sign | ((exponent + 120) << 23) | (mantissa << 20);
-    return sign | nk_f32_from_scaled_integer_metal_(mantissa, -9);
-}
-
-/** Widens one E5M2 code to F32 bits, a NaN to the quiet NaN of its sign. */
-inline uint nk_f32_from_e5m2_metal_(uint code) {
-    return (code & 0x7Fu) > 0x7Cu ? ((code & 0x80u) << 24) | 0x7FC00000u : nk_f32_from_f16_metal_(code << 8);
-}
-
-/** Widens one E2M3FN code, its low 6 bits, to F32 bits. */
-inline uint nk_f32_from_e2m3_metal_(uint code) {
-    uint const exponent = (code >> 3) & 3u, mantissa = code & 7u;
-    uint const magnitude = exponent ? ((exponent + 126) << 23) | (mantissa << 20)
-                                    : nk_f32_from_scaled_integer_metal_(mantissa, -3);
-    return ((code & 0x20u) << 26) | magnitude;
-}
-
-/** Widens one E3M2FN code, its low 6 bits, to F32 bits. */
-inline uint nk_f32_from_e3m2_metal_(uint code) {
-    uint const exponent = (code >> 2) & 7u, mantissa = code & 3u;
-    uint const magnitude = exponent ? ((exponent + 124) << 23) | (mantissa << 21)
-                                    : nk_f32_from_scaled_integer_metal_(mantissa, -4);
-    return ((code & 0x20u) << 26) | magnitude;
-}
-
-/** Widens the E2M1 code in the low 4 bits of @p nibble to F32 bits, keeping a signed zero. */
-inline uint nk_f32_from_e2m1_metal_(uint nibble) {
-    uint const exponent = (nibble >> 1) & 3u, mantissa = nibble & 1u;
-    uint const magnitude = exponent ? ((exponent + 126) << 23) | (mantissa << 22) : mantissa * 0x3F000000u;
-    return ((nibble & 8u) << 28) | magnitude;
-}
-
-/** Widens one UE8M0 scale to F32 bits: 0x00 to zero and 0xFF to a NaN. */
-inline uint nk_f32_from_ue8m0_metal_(uint code) { return (code << 23) | (uint(code == 0xFF) << 22); }
 
 /** Narrows the F32 of @p bits to F16, ties to even, keeping NaN payloads like the serial cast. */
 inline ushort nk_f32_to_f16_metal_(uint bits) {
@@ -548,7 +494,10 @@ inline void nk_cast_store_metal_(uint hub, ulong2 value, device uchar *bytes, ui
 inline uint nk_cast_code_metal_(uint hub, ulong2 value, uint dtype) {
     switch (hub) {
     case nk_cast_hub_u64_metal_k: return dtype == nk_u1_k ? uint(value.x != 0) : uint(min(value.x, 15ul));
-    case nk_cast_hub_i64_metal_k: return uint(clamp(long(value.x), -8l, 7l)) & 0xFu;
+    case nk_cast_hub_i64_metal_k:
+        if (dtype == nk_u1_k) return uint(long(value.x) != 0);
+        if (dtype == nk_u4_k) return uint(clamp(long(value.x), 0l, 15l));
+        return uint(clamp(long(value.x), -8l, 7l)) & 0xFu;
     case nk_cast_hub_f32c_metal_k: return nk_cast_code_f64_metal_(nk_f64_from_f32_metal_(uint(value.x)), dtype);
     default: return nk_cast_code_f64_metal_(value.x, dtype);
     }

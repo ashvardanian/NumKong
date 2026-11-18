@@ -1,12 +1,12 @@
 /**
- *  @file bench/harness_cpu.hpp
+ *  @file bench/backend_cpu.hpp
  *  @author Ash Vardanian
  *  @date October 6, 2026
  *  @brief The host backend that every CPU benchmark times its rows with.
  */
 #pragma once
-#ifndef NUMKONG_BENCH_HARNESS_CPU_HPP
-#define NUMKONG_BENCH_HARNESS_CPU_HPP
+#ifndef NUMKONG_BENCH_BACKEND_CPU_HPP
+#define NUMKONG_BENCH_BACKEND_CPU_HPP
 
 #include <cstring> // `std::memcpy`, `std::memset`
 
@@ -60,4 +60,4 @@ struct host_backend_t {
 
 } // namespace ashvardanian::numkong::bench
 
-#endif // NUMKONG_BENCH_HARNESS_CPU_HPP
+#endif // NUMKONG_BENCH_BACKEND_CPU_HPP

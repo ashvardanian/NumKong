@@ -1292,9 +1292,23 @@ NUMKONG_DEVICE void nk_shapes_tree_potentials_f32_simt_(nk_shapes_network_simt_t
     }
 }
 
+/** The reduced cost of the arc @p offset past @p start in the plan's grid, wrapping at its end. */
+NUMKONG_DEVICE nk_f64_t nk_shapes_reduced_cost_f32_simt_(nk_shapes_network_simt_t const *network,
+                                                         nk_shapes_points_f32_simt_t const *points, nk_size_t start,
+                                                         nk_size_t offset) {
+    nk_u32_t const rows = network->rows, columns = network->columns;
+    nk_size_t const arcs = (nk_size_t)rows * columns;
+    nk_size_t position = start + offset;
+    position = position >= arcs ? position - arcs : position;
+    nk_u32_t const row = (nk_u32_t)(position / columns), column = (nk_u32_t)(position % columns);
+    return nk_shapes_point_cost_f32_simt_(points, row, column) - network->tree_potentials[row] +
+           network->tree_potentials[rows + column];
+}
+
 /** The exact plan by the serial network simplex from the tree in @p network : the team prices each
- *  block of √(n × m) arcs from the cursor at once, taking its first most negative reduced cost, and
- *  one thread pivots. Leaves the plan's arcs in the column lists. */
+ *  block of √(n × m) arcs from the cursor at once, entering the first arc within the tolerance of
+ *  the block's least, as every solver orders ties, and one thread pivots. Leaves the plan's arcs in
+ *  the column lists. */
 NUMKONG_DEVICE void nk_shapes_simplex_f32_simt_(nk_shapes_network_simt_t *network,
                                                 nk_shapes_points_f32_simt_t const *points, unsigned *parity) {
     nk_u32_t const no_node = 0xFFFFFFFFu, rows = network->rows, columns = network->columns;
@@ -1306,34 +1320,40 @@ NUMKONG_DEVICE void nk_shapes_simplex_f32_simt_(nk_shapes_network_simt_t *networ
     if (thread == 0) nk_shapes_tree_potentials_f32_simt_(network, points);
     nk_shapes_team_sync_simt_(network);
     for (;;) {
-        nk_f64_t entering_cost = -tolerance;
         nk_size_t entering = arcs;
         for (nk_size_t scanned = 0; scanned < arcs;) {
             nk_size_t const count = arcs - scanned < block ? arcs - scanned : block;
             nk_f64_t value = -tolerance;
             nk_u32_t index = no_node;
             for (nk_size_t offset = thread; offset < count; offset += team) {
-                nk_size_t position = cursor + offset;
-                position = position >= arcs ? position - arcs : position;
-                nk_u32_t const row = (nk_u32_t)(position / columns), column = (nk_u32_t)(position % columns);
-                nk_f64_t const reduced = nk_shapes_point_cost_f32_simt_(points, row, column) -
-                                         network->tree_potentials[row] + network->tree_potentials[rows + column];
+                nk_f64_t const reduced = nk_shapes_reduced_cost_f32_simt_(network, points, cursor, offset);
                 if (reduced < value) value = reduced, index = (nk_u32_t)offset;
             }
             nk_shapes_team_argmin_simt_(network, &value, &index, parity);
             nk_size_t const block_start = cursor;
             cursor += count, cursor = cursor >= arcs ? cursor - arcs : cursor;
             scanned += count;
-            if (value < -tolerance) {
-                entering_cost = value, entering = block_start + index;
-                entering = entering >= arcs ? entering - arcs : entering;
-                break;
-            }
+            if (!(value < -tolerance)) continue;
+            // Keyed by offset, the least's own standing when no earlier arc ties
+            nk_f64_t const tie_cost = value + tolerance;
+            nk_size_t offset = thread;
+            while (offset < index &&
+                   !(nk_shapes_reduced_cost_f32_simt_(network, points, block_start, offset) < tie_cost))
+                offset += team;
+            nk_f64_t tied_key = offset < index ? (nk_f64_t)offset : NUMKONG_F64_INF;
+            nk_u32_t tied = offset < index ? (nk_u32_t)offset : index;
+            nk_shapes_team_argmin_simt_(network, &tied_key, &tied, parity);
+            entering = block_start + tied;
+            entering = entering >= arcs ? entering - arcs : entering;
+            break;
         }
         if (entering == arcs) break;
-        if (thread == 0)
-            nk_shapes_tree_pivot_simt_(network, (nk_u32_t)(entering / columns), (nk_u32_t)(entering % columns),
-                                       entering_cost);
+        if (thread == 0) {
+            nk_u32_t const row = (nk_u32_t)(entering / columns), column = (nk_u32_t)(entering % columns);
+            nk_shapes_tree_pivot_simt_(network, row, column,
+                                       nk_shapes_point_cost_f32_simt_(points, row, column) -
+                                           network->tree_potentials[row] + network->tree_potentials[rows + column]);
+        }
         nk_shapes_team_sync_simt_(network);
     }
     if (thread == 0) nk_shapes_tree_plan_simt_(network);
@@ -1650,6 +1670,19 @@ NUMKONG_DEVICE void nk_shapes_tree_potentials_f16_simt_(nk_shapes_network_simt_t
     }
 }
 
+/** The reduced cost of the arc @p offset past @p start in the plan's grid, wrapping at its end. */
+NUMKONG_DEVICE nk_f64_t nk_shapes_reduced_cost_f16_simt_(nk_shapes_network_simt_t const *network,
+                                                         nk_shapes_points_f16_simt_t const *points, nk_size_t start,
+                                                         nk_size_t offset) {
+    nk_u32_t const rows = network->rows, columns = network->columns;
+    nk_size_t const arcs = (nk_size_t)rows * columns;
+    nk_size_t position = start + offset;
+    position = position >= arcs ? position - arcs : position;
+    nk_u32_t const row = (nk_u32_t)(position / columns), column = (nk_u32_t)(position % columns);
+    return (nk_f64_t)nk_shapes_point_cost_f16_simt_(points, row, column) - network->tree_potentials[row] +
+           network->tree_potentials[rows + column];
+}
+
 NUMKONG_DEVICE void nk_shapes_simplex_f16_simt_(nk_shapes_network_simt_t *network,
                                                 nk_shapes_points_f16_simt_t const *points, unsigned *parity) {
     nk_u32_t const no_node = 0xFFFFFFFFu, rows = network->rows, columns = network->columns;
@@ -1661,34 +1694,40 @@ NUMKONG_DEVICE void nk_shapes_simplex_f16_simt_(nk_shapes_network_simt_t *networ
     if (thread == 0) nk_shapes_tree_potentials_f16_simt_(network, points);
     nk_shapes_team_sync_simt_(network);
     for (;;) {
-        nk_f64_t entering_cost = -tolerance;
         nk_size_t entering = arcs;
         for (nk_size_t scanned = 0; scanned < arcs;) {
             nk_size_t const count = arcs - scanned < block ? arcs - scanned : block;
             nk_f64_t value = -tolerance;
             nk_u32_t index = no_node;
             for (nk_size_t offset = thread; offset < count; offset += team) {
-                nk_size_t position = cursor + offset;
-                position = position >= arcs ? position - arcs : position;
-                nk_u32_t const row = (nk_u32_t)(position / columns), column = (nk_u32_t)(position % columns);
-                nk_f64_t const reduced = (nk_f64_t)nk_shapes_point_cost_f16_simt_(points, row, column) -
-                                         network->tree_potentials[row] + network->tree_potentials[rows + column];
+                nk_f64_t const reduced = nk_shapes_reduced_cost_f16_simt_(network, points, cursor, offset);
                 if (reduced < value) value = reduced, index = (nk_u32_t)offset;
             }
             nk_shapes_team_argmin_simt_(network, &value, &index, parity);
             nk_size_t const block_start = cursor;
             cursor += count, cursor = cursor >= arcs ? cursor - arcs : cursor;
             scanned += count;
-            if (value < -tolerance) {
-                entering_cost = value, entering = block_start + index;
-                entering = entering >= arcs ? entering - arcs : entering;
-                break;
-            }
+            if (!(value < -tolerance)) continue;
+            // Keyed by offset, the least's own standing when no earlier arc ties
+            nk_f64_t const tie_cost = value + tolerance;
+            nk_size_t offset = thread;
+            while (offset < index &&
+                   !(nk_shapes_reduced_cost_f16_simt_(network, points, block_start, offset) < tie_cost))
+                offset += team;
+            nk_f64_t tied_key = offset < index ? (nk_f64_t)offset : NUMKONG_F64_INF;
+            nk_u32_t tied = offset < index ? (nk_u32_t)offset : index;
+            nk_shapes_team_argmin_simt_(network, &tied_key, &tied, parity);
+            entering = block_start + tied;
+            entering = entering >= arcs ? entering - arcs : entering;
+            break;
         }
         if (entering == arcs) break;
-        if (thread == 0)
-            nk_shapes_tree_pivot_simt_(network, (nk_u32_t)(entering / columns), (nk_u32_t)(entering % columns),
-                                       entering_cost);
+        if (thread == 0) {
+            nk_u32_t const row = (nk_u32_t)(entering / columns), column = (nk_u32_t)(entering % columns);
+            nk_shapes_tree_pivot_simt_(network, row, column,
+                                       (nk_f64_t)nk_shapes_point_cost_f16_simt_(points, row, column) -
+                                           network->tree_potentials[row] + network->tree_potentials[rows + column]);
+        }
         nk_shapes_team_sync_simt_(network);
     }
     if (thread == 0) nk_shapes_tree_plan_simt_(network);
@@ -1946,6 +1985,19 @@ NUMKONG_DEVICE void nk_shapes_tree_potentials_gradient_simt_(nk_shapes_network_s
     }
 }
 
+/** The reduced cost of the gradient arc @p offset past @p start, wrapping at the grid's end. */
+NUMKONG_DEVICE nk_f64_t nk_shapes_reduced_cost_gradient_simt_(nk_shapes_network_simt_t const *network,
+                                                              nk_shapes_gromov_simt_t const *gromov, nk_size_t start,
+                                                              nk_size_t offset) {
+    nk_u32_t const rows = network->rows, columns = network->columns;
+    nk_size_t const arcs = (nk_size_t)rows * columns;
+    nk_size_t position = start + offset;
+    position = position >= arcs ? position - arcs : position;
+    nk_u32_t const row = (nk_u32_t)(position / columns), column = (nk_u32_t)(position % columns);
+    return nk_shapes_gradient_cost_simt_(gromov, columns, row, column) - network->tree_potentials[row] +
+           network->tree_potentials[rows + column];
+}
+
 /** The Frank-Wolfe vertex by the serial network simplex over the costs −G, team-priced. */
 NUMKONG_DEVICE void nk_shapes_simplex_gradient_simt_(nk_shapes_network_simt_t *network,
                                                      nk_shapes_gromov_simt_t const *gromov, unsigned *parity) {
@@ -1958,34 +2010,40 @@ NUMKONG_DEVICE void nk_shapes_simplex_gradient_simt_(nk_shapes_network_simt_t *n
     if (thread == 0) nk_shapes_tree_potentials_gradient_simt_(network, gromov);
     nk_shapes_team_sync_simt_(network);
     for (;;) {
-        nk_f64_t entering_cost = -tolerance;
         nk_size_t entering = arcs;
         for (nk_size_t scanned = 0; scanned < arcs;) {
             nk_size_t const count = arcs - scanned < block ? arcs - scanned : block;
             nk_f64_t value = -tolerance;
             nk_u32_t index = no_node;
             for (nk_size_t offset = thread; offset < count; offset += team) {
-                nk_size_t position = cursor + offset;
-                position = position >= arcs ? position - arcs : position;
-                nk_u32_t const row = (nk_u32_t)(position / columns), column = (nk_u32_t)(position % columns);
-                nk_f64_t const reduced = nk_shapes_gradient_cost_simt_(gromov, columns, row, column) -
-                                         network->tree_potentials[row] + network->tree_potentials[rows + column];
+                nk_f64_t const reduced = nk_shapes_reduced_cost_gradient_simt_(network, gromov, cursor, offset);
                 if (reduced < value) value = reduced, index = (nk_u32_t)offset;
             }
             nk_shapes_team_argmin_simt_(network, &value, &index, parity);
             nk_size_t const block_start = cursor;
             cursor += count, cursor = cursor >= arcs ? cursor - arcs : cursor;
             scanned += count;
-            if (value < -tolerance) {
-                entering_cost = value, entering = block_start + index;
-                entering = entering >= arcs ? entering - arcs : entering;
-                break;
-            }
+            if (!(value < -tolerance)) continue;
+            // Keyed by offset, the least's own standing when no earlier arc ties
+            nk_f64_t const tie_cost = value + tolerance;
+            nk_size_t offset = thread;
+            while (offset < index &&
+                   !(nk_shapes_reduced_cost_gradient_simt_(network, gromov, block_start, offset) < tie_cost))
+                offset += team;
+            nk_f64_t tied_key = offset < index ? (nk_f64_t)offset : NUMKONG_F64_INF;
+            nk_u32_t tied = offset < index ? (nk_u32_t)offset : index;
+            nk_shapes_team_argmin_simt_(network, &tied_key, &tied, parity);
+            entering = block_start + tied;
+            entering = entering >= arcs ? entering - arcs : entering;
+            break;
         }
         if (entering == arcs) break;
-        if (thread == 0)
-            nk_shapes_tree_pivot_simt_(network, (nk_u32_t)(entering / columns), (nk_u32_t)(entering % columns),
-                                       entering_cost);
+        if (thread == 0) {
+            nk_u32_t const row = (nk_u32_t)(entering / columns), column = (nk_u32_t)(entering % columns);
+            nk_shapes_tree_pivot_simt_(network, row, column,
+                                       nk_shapes_gradient_cost_simt_(gromov, columns, row, column) -
+                                           network->tree_potentials[row] + network->tree_potentials[rows + column]);
+        }
         nk_shapes_team_sync_simt_(network);
     }
     if (thread == 0) nk_shapes_tree_plan_simt_(network);

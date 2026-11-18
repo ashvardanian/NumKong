@@ -15,6 +15,11 @@ namespace ashvardanian::numkong::test {
 
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
+/** A BLAS GEMM of @p scalar_type_ rows into @p result_type_ cells, shaped as the tests call it. */
+template <typename scalar_type_, typename result_type_>
+using dots_unpacked_kernel = void (*)(scalar_type_ const *, scalar_type_ const *, result_type_ *, nk_size_t, nk_size_t,
+                                      nk_size_t, nk_size_t, nk_size_t);
+
 /**
  *  @brief Unified template to test unpacked GEMM against high-precision reference.
  *
@@ -23,12 +28,12 @@ namespace ashvardanian::numkong::test {
  *
  *  @tparam scalar_type_ Input element type (e.g., f32_t, bf16_t)
  *  @tparam accumulator_type_ Output type from BLAS kernel (e.g., f32_t for bf16 GEMM)
- *  @tparam kernel_type_ Deduced function pointer type for the BLAS kernel
  *
  *  @param[in] term_error_bound What each term may add in the precision the routine sums in
  */
-template <typename scalar_type_, typename accumulator_type_, typename kernel_type_>
-error_stats_t test_dots_unpacked(kernel_type_ dots_fn, nk_f64_t term_error_bound) {
+template <typename scalar_type_, typename accumulator_type_>
+error_stats_t test_dots_unpacked(dots_unpacked_kernel<scalar_type_, accumulator_type_> dots_fn,
+                                 nk_f64_t term_error_bound) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = accumulator_type_;
@@ -65,8 +70,9 @@ error_stats_t test_dots_unpacked(kernel_type_ dots_fn, nk_f64_t term_error_bound
  *  For complex GEMM, BLAS computes the Hermitian inner product when called with CblasConjTrans. The
  *  reference must also conjugate B to match.
  */
-template <typename scalar_type_, typename accumulator_type_, typename kernel_type_>
-error_stats_t test_dots_unpacked_conjugated(kernel_type_ dots_fn, nk_f64_t term_error_bound) {
+template <typename scalar_type_, typename accumulator_type_>
+error_stats_t test_dots_unpacked_conjugated(dots_unpacked_kernel<scalar_type_, accumulator_type_> dots_fn,
+                                            nk_f64_t term_error_bound) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = accumulator_type_;
@@ -347,20 +353,14 @@ void run_cross_blas_cases() {
                     vdot_f64c_with_blas, in_f64);
 
     // BLAS/MKL/Accelerate GEMM precision comparison
-    run_kernel_case("test_dots_unpacked<f64_t, f64_t, decltype(&dots_f64_with_blas)>(dots_f64_with_blas, in_f64)",
-                    test_dots_unpacked<f64_t, f64_t, decltype(&dots_f64_with_blas)>, nk_cap_serial_k,
-                    dots_f64_with_blas, in_f64);
-    run_kernel_case("test_dots_unpacked<f32_t, f64_t, decltype(&dots_f32_with_blas)>(dots_f32_with_blas, in_f32)",
-                    test_dots_unpacked<f32_t, f64_t, decltype(&dots_f32_with_blas)>, nk_cap_serial_k,
-                    dots_f32_with_blas, in_f32);
-    run_kernel_case(
-        "test_dots_unpacked_conjugated<f32c_t, f32c_t, decltype(&dots_f32c_with_blas)>(dots_f32c_with_blas, in_f32)",
-        test_dots_unpacked_conjugated<f32c_t, f32c_t, decltype(&dots_f32c_with_blas)>, nk_cap_serial_k,
-        dots_f32c_with_blas, in_f32);
-    run_kernel_case(
-        "test_dots_unpacked_conjugated<f64c_t, f64c_t, decltype(&dots_f64c_with_blas)>(dots_f64c_with_blas, in_f64)",
-        test_dots_unpacked_conjugated<f64c_t, f64c_t, decltype(&dots_f64c_with_blas)>, nk_cap_serial_k,
-        dots_f64c_with_blas, in_f64);
+    run_kernel_case("test_dots_unpacked<f64_t, f64_t>(dots_f64_with_blas, in_f64)", test_dots_unpacked<f64_t, f64_t>,
+                    nk_cap_serial_k, dots_f64_with_blas, in_f64);
+    run_kernel_case("test_dots_unpacked<f32_t, f64_t>(dots_f32_with_blas, in_f32)", test_dots_unpacked<f32_t, f64_t>,
+                    nk_cap_serial_k, dots_f32_with_blas, in_f32);
+    run_kernel_case("test_dots_unpacked_conjugated<f32c_t, f32c_t>(dots_f32c_with_blas, in_f32)",
+                    test_dots_unpacked_conjugated<f32c_t, f32c_t>, nk_cap_serial_k, dots_f32c_with_blas, in_f32);
+    run_kernel_case("test_dots_unpacked_conjugated<f64c_t, f64c_t>(dots_f64c_with_blas, in_f64)",
+                    test_dots_unpacked_conjugated<f64c_t, f64c_t>, nk_cap_serial_k, dots_f64c_with_blas, in_f64);
 
     // BLAS SYRK precision comparison (symmetric A x A^T)
     run_kernel_case(
@@ -381,17 +381,14 @@ void run_cross_blas_cases() {
 
 #if NUMKONG_COMPARE_TO_MKL
     // MKL-specific GEMM with widening accumulation
-    run_kernel_case("test_dots_unpacked<bf16_t, f32_t, decltype(&dots_bf16_with_mkl)>(dots_bf16_with_mkl, " //
-                    "nk_accumulation_error_bound(nk_f32_k))",
-                    test_dots_unpacked<bf16_t, f32_t, decltype(&dots_bf16_with_mkl)>, nk_cap_serial_k,
-                    dots_bf16_with_mkl, nk_accumulation_error_bound(nk_f32_k));
-    run_kernel_case("test_dots_unpacked<f16_t, f32_t, decltype(&dots_f16_with_mkl)>(dots_f16_with_mkl, " //
-                    "nk_accumulation_error_bound(nk_f32_k))",
-                    test_dots_unpacked<f16_t, f32_t, decltype(&dots_f16_with_mkl)>, nk_cap_serial_k, dots_f16_with_mkl,
+    run_kernel_case("test_dots_unpacked<bf16_t, f32_t>(dots_bf16_with_mkl, nk_accumulation_error_bound(nk_f32_k))",
+                    test_dots_unpacked<bf16_t, f32_t>, nk_cap_serial_k, dots_bf16_with_mkl,
                     nk_accumulation_error_bound(nk_f32_k));
-    run_kernel_case("test_dots_unpacked<i16_t, i32_t, decltype(&dots_i16_with_mkl)>(dots_i16_with_mkl, " //
-                    "nk_accumulation_error_bound(nk_i32_k))",
-                    test_dots_unpacked<i16_t, i32_t, decltype(&dots_i16_with_mkl)>, nk_cap_serial_k, dots_i16_with_mkl,
+    run_kernel_case("test_dots_unpacked<f16_t, f32_t>(dots_f16_with_mkl, nk_accumulation_error_bound(nk_f32_k))",
+                    test_dots_unpacked<f16_t, f32_t>, nk_cap_serial_k, dots_f16_with_mkl,
+                    nk_accumulation_error_bound(nk_f32_k));
+    run_kernel_case("test_dots_unpacked<i16_t, i32_t>(dots_i16_with_mkl, nk_accumulation_error_bound(nk_i32_k))",
+                    test_dots_unpacked<i16_t, i32_t>, nk_cap_serial_k, dots_i16_with_mkl,
                     nk_accumulation_error_bound(nk_i32_k));
 #endif
 }

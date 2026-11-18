@@ -20,7 +20,20 @@ constexpr nk_kernel_kind_t gromovwassersteins_k = nk_kernel_gromovwassersteins_p
 constexpr nk_kernel_kind_t pack_k = nk_kernel_shapes_pack_k;
 constexpr nk_kernel_kind_t pack_normalized_k = nk_kernel_shapes_pack_normalized_k;
 
-/** Packs a fixed set of clouds through @p pack_size and @p pack for the kernels under test. */
+/** Packs a fixed set of clouds through the public dispatch, plainly or normalized by @p kind_, for
+ *  the kernels under test. */
+template <typename scalar_type_, nk_kernel_kind_t kind_ = pack_k, std::size_t count_>
+nk::shapes_packed<scalar_type_> pack_clouds(nk::vector<scalar_type_> const (&clouds)[count_], error_stats_t &stats) {
+    std::span<scalar_type_ const> spans[count_];
+    for (std::size_t index = 0; index != count_; ++index)
+        spans[index] = {clouds[index].values_data(), clouds[index].size_values()};
+    auto packs = kind_ == pack_k ? nk::shapes_packed<scalar_type_>::make(spans)
+                                 : nk::shapes_packed<scalar_type_>::make_normalized(spans);
+    stats.expect_status(packs.status);
+    return std::move(packs.value);
+}
+
+/** Packs a fixed set of clouds through @p pack_size and @p pack, when the packs are under test. */
 template <typename scalar_type_, std::size_t count_>
 nk::shapes_packed<scalar_type_> pack_clouds(nk::vector<scalar_type_> const (&clouds)[count_],
                                             typename scalar_type_::shapes_pack_size_kernel_t pack_size,
@@ -31,20 +44,6 @@ nk::shapes_packed<scalar_type_> pack_clouds(nk::vector<scalar_type_> const (&clo
     auto packs = nk::shapes_packed<scalar_type_>::make(spans, {}, pack_size, pack);
     stats.expect_status(packs.status);
     return std::move(packs.value);
-}
-
-/** The workspace bytes a CPU Chamfer kernel reads, as every CPU capability sizes it like the serial
- *  one; in a header-only build @c nk::chamfers_workspace_size answers for the templates, which read
- *  none, so the serial sizing stands in. */
-template <typename scalar_type_>
-std::size_t chamfers_workspace_bytes(std::size_t row_points, std::size_t column_points) noexcept {
-    nk_size_t bytes = 0;
-    nk_status_t const status = std::is_same_v<scalar_type_, f64_t>
-                                   ? nk_chamfers_workspace_size_f64_serial(row_points, column_points, &bytes)
-                               : std::is_same_v<scalar_type_, f32_t>
-                                   ? nk_chamfers_workspace_size_f32_serial(row_points, column_points, &bytes)
-                                   : nk_chamfers_workspace_size_f16_serial(row_points, column_points, &bytes);
-    return status == nk_success_k ? bytes : 0;
 }
 
 /** A cloud drawn from the distribution @c NUMKONG_RANDOM_DISTRIBUTION names, moved by @p offset
@@ -241,8 +240,7 @@ nk::status_t shapes_oracle(nk::shapes_packed<scalar_type_> const &rows, nk::shap
  *  translation and point order.
  */
 template <typename scalar_type_, nk_kernel_kind_t kind_, typename call_type_>
-error_stats_t test_shapes_kind(typename scalar_type_::shapes_pack_size_kernel_t pack_size,
-                               typename scalar_type_::shapes_pack_kernel_t pack, call_type_ const &call) {
+error_stats_t test_shapes_kind(call_type_ const &call) {
     using scalar_t = scalar_type_;
     using distance_t = typename scalar_t::shapes_distance_t;
     using raw_distance_t = typename distance_t::raw_t;
@@ -287,8 +285,8 @@ error_stats_t test_shapes_kind(typename scalar_type_::shapes_pack_size_kernel_t 
         nk::vector<scalar_t> row_clouds[2], column_clouds[2];
         row_clouds[1] = random_cloud<scalar_t>(generator, n, 0);
         column_clouds[1] = random_cloud<scalar_t>(generator, n, 0);
-        auto const rows = pack_clouds(row_clouds, pack_size, pack, stats);
-        auto const columns = pack_clouds(column_clouds, pack_size, pack, stats);
+        auto const rows = pack_clouds(row_clouds, stats);
+        auto const columns = pack_clouds(column_clouds, stats);
         if (run(rows, columns, results, rotations)) {
             nk_f64_t const both = results[0], row_only = results[2], column_only = results[1];
             stats.expect_true(both == 0 && std::isinf(row_only) && row_only > 0 && std::isinf(column_only) &&
@@ -320,8 +318,8 @@ error_stats_t test_shapes_kind(typename scalar_type_::shapes_pack_size_kernel_t 
         row_clouds[3] = mapped_cloud(
             base, shuffled, [](nk_f64_t x, nk_f64_t y, nk_f64_t z) { return std::array<nk_f64_t, 3> {x, y, z}; });
         column_clouds[0] = stretched_cloud<scalar_t>(generator, 2 * n / 3 + 1);
-        auto const rows = pack_clouds(row_clouds, pack_size, pack, stats);
-        auto const columns = pack_clouds(column_clouds, pack_size, pack, stats);
+        auto const rows = pack_clouds(row_clouds, stats);
+        auto const columns = pack_clouds(column_clouds, stats);
         if (run(rows, columns, results, rotations)) {
             nk_f64_t const a_radius = radius(rows[0]), b_radius = radius(columns[0]);
             // Each packed coordinate may round one step apart between the poses
@@ -367,13 +365,8 @@ error_stats_t test_shapes_kind(typename scalar_type_::shapes_pack_size_kernel_t 
         for (std::size_t i = 0; i != column_clouds[0].size_values(); ++i)
             largest_input = nk::max_of(largest_input,
                                        std::fabs(static_cast<nk_f64_t>(column_clouds[0].values_data()[i])));
-        // Every kernel scores the same normalized packs, which the CPU's dispatch makes
-        typename scalar_t::shapes_pack_kernel_t const pack_normalized =
-            [](typename scalar_t::raw_t const *cloud, nk_size_t points, void *packed, nk_stream_t) noexcept {
-                return static_cast<nk_status_t>(nk::shapes_pack_normalized<scalar_t>(cloud, points, packed));
-            };
-        auto const rows = pack_clouds(row_clouds, pack_size, pack_normalized, stats);
-        auto const columns = pack_clouds(column_clouds, pack_size, pack_normalized, stats);
+        auto const rows = pack_clouds<scalar_t, pack_normalized_k>(row_clouds, stats);
+        auto const columns = pack_clouds<scalar_t, pack_normalized_k>(column_clouds, stats);
         if (run(rows, columns, results, rotations)) {
             cloud_t const a(rows[0]), b(columns[0]);
             nk_f64_t const a_radius = a.header->max_radius, b_radius = b.header->max_radius;
@@ -390,8 +383,8 @@ error_stats_t test_shapes_kind(typename scalar_type_::shapes_pack_size_kernel_t 
                                       2 * shapes_distance_bound<scalar_t, kind_>(n, n, a_radius, b_radius, results[0]);
             stats.expect_true(std::fabs(static_cast<nk_f64_t>(results[0])) <= rounding + turned,
                               "a grown copy scores above zero between normalized packs");
-            auto const plain_rows = pack_clouds(row_clouds, pack_size, pack, stats);
-            auto const plain_columns = pack_clouds(column_clouds, pack_size, pack, stats);
+            auto const plain_rows = pack_clouds(row_clouds, stats);
+            auto const plain_columns = pack_clouds(column_clouds, stats);
             if (run(plain_rows, plain_columns, results, rotations))
                 stats.expect_true(static_cast<nk_f64_t>(results[0]) > rounding * b_scale,
                                   "a grown copy scores within rounding of zero between plain packs");
@@ -409,8 +402,8 @@ error_stats_t test_shapes_kind(typename scalar_type_::shapes_pack_size_kernel_t 
             row_clouds[index] = random_cloud<scalar_t>(generator, row_points[index], offset);
         for (std::size_t index = 0; index != std::size(column_points); ++index)
             column_clouds[index] = random_cloud<scalar_t>(generator, column_points[index], offset);
-        auto const rows = pack_clouds(row_clouds, pack_size, pack, stats);
-        auto const columns = pack_clouds(column_clouds, pack_size, pack, stats);
+        auto const rows = pack_clouds(row_clouds, stats);
+        auto const columns = pack_clouds(column_clouds, stats);
         if (!run(rows, columns, results, rotations)) continue;
 
         references.assign(rows.size() * columns.size(), reference_t(0.0));
@@ -477,7 +470,6 @@ error_stats_t test_shapes_kind(typename scalar_type_::shapes_pack_size_kernel_t 
  *  the bits, below it reports something past the limit, on sizes around every tile's edge. */
 template <typename scalar_type_, nk_kernel_kind_t kind_>
 error_stats_t test_shapes_packed(
-    typename scalar_type_::shapes_pack_size_kernel_t pack_size, typename scalar_type_::shapes_pack_kernel_t pack,
     std::conditional_t<kind_ == chamfers_k, typename scalar_type_::chamfers_packed_kernel_t,
                        typename scalar_type_::hausdorffs_packed_kernel_t>
         kernel) {
@@ -489,7 +481,7 @@ error_stats_t test_shapes_packed(
                            raw_distance_t limit, std::size_t row_points, std::size_t column_points) {
         std::size_t const stride = columns_count * sizeof(raw_distance_t);
         if constexpr (kind_ == chamfers_k) {
-            std::size_t const bytes = chamfers_workspace_bytes<scalar_type_>(row_points, column_points);
+            std::size_t const bytes = nk::chamfers_workspace_size<scalar_type_>(row_points, column_points).value;
             auto workspace = make_vector<std::byte>(nk::max_of<std::size_t>(bytes, 1));
             return kernel(rows, rows_count, columns, columns_count, results, stride, rotations, &limit,
                           workspace.raw_values_data(), bytes, nullptr);
@@ -501,7 +493,7 @@ error_stats_t test_shapes_packed(
         return score(rows.data(), rows.size(), columns.data(), columns.size(), results, rotations, infinity,
                      rows.max_points(), columns.max_points());
     };
-    error_stats_t stats = test_shapes_kind<scalar_type_, kind_>(pack_size, pack, call);
+    error_stats_t stats = test_shapes_kind<scalar_type_, kind_>(call);
 
     // A stream apart from the one the extended test draws
     split_mix_generator_t generator(case_stream_key(1));
@@ -509,7 +501,7 @@ error_stats_t test_shapes_packed(
                                std::size_t(9), std::size_t(31), std::size_t(33), std::size_t(64)}) {
         nk::vector<scalar_type_> clouds[] = {random_cloud<scalar_type_>(generator, points, 0),
                                              random_cloud<scalar_type_>(generator, points + 1, 0)};
-        auto const packs = pack_clouds(clouds, pack_size, pack, stats);
+        auto const packs = pack_clouds(clouds, stats);
         void const *const first = packs[0], *const second = packs[1];
         raw_distance_t exact = 0, swapped = 0, bounded = 0;
         stats.expect_true(score(&first, 1, &second, 1, &exact, nullptr, infinity, points, points + 1) == nk_success_k,
@@ -533,7 +525,7 @@ error_stats_t test_shapes_packed(
                                                  make_vector<scalar_type_>(points * 3)};
             for (std::size_t i = 0; i != clouds[0].size_values(); ++i)
                 clouds[1].values_data()[i] = scalar_type_(static_cast<nk_f64_t>(clouds[0].values_data()[i]) * 1.25);
-            auto const packs = pack_clouds(clouds, pack_size, pack, stats);
+            auto const packs = pack_clouds(clouds, stats);
             void const *const first = packs[0], *const second = packs[1];
             raw_distance_t exact = 0, bounded = 0;
             stats.expect_true(score(&first, 1, &second, 1, &exact, nullptr, infinity, points, points) == nk_success_k,
@@ -547,21 +539,19 @@ error_stats_t test_shapes_packed(
 
 /** Checks a Chamfer kernel that reads a workspace, and its refusal of a short or misaligned one. */
 template <typename scalar_type_>
-error_stats_t test_chamfers_packed_workspace(typename scalar_type_::shapes_pack_size_kernel_t pack_size,
-                                             typename scalar_type_::shapes_pack_kernel_t pack,
-                                             typename scalar_type_::chamfers_packed_kernel_t kernel) {
+error_stats_t test_chamfers_packed_workspace(typename scalar_type_::chamfers_packed_kernel_t kernel) {
     using distance_t = typename scalar_type_::shapes_distance_t;
     using raw_distance_t = typename distance_t::raw_t;
-    error_stats_t stats = test_shapes_packed<scalar_type_, chamfers_k>(pack_size, pack, kernel);
+    error_stats_t stats = test_shapes_packed<scalar_type_, chamfers_k>(kernel);
 
     // A stream apart from the one the extended test draws
     split_mix_generator_t generator(case_stream_key(2));
     nk::vector<scalar_type_> row_clouds[1], column_clouds[1];
     row_clouds[0] = random_cloud<scalar_type_>(generator, test_run.settings.shape_points, 0);
     column_clouds[0] = random_cloud<scalar_type_>(generator, test_run.settings.shape_points / 2 + 2, 0);
-    auto const rows = pack_clouds(row_clouds, pack_size, pack, stats);
-    auto const columns = pack_clouds(column_clouds, pack_size, pack, stats);
-    std::size_t const bytes = chamfers_workspace_bytes<scalar_type_>(rows.max_points(), columns.max_points());
+    auto const rows = pack_clouds(row_clouds, stats);
+    auto const columns = pack_clouds(column_clouds, stats);
+    std::size_t const bytes = nk::chamfers_workspace_size<scalar_type_>(rows.max_points(), columns.max_points()).value;
     // The query sizes 11 strides for the kernels that widen a cloud, and all read at least 8
     std::size_t const short_bytes = bytes / 11 * 8 - 1;
     auto workspace = make_vector<std::byte>(bytes + nk_default_alignment_k);
@@ -579,9 +569,7 @@ error_stats_t test_chamfers_packed_workspace(typename scalar_type_::shapes_pack_
 
 /** Checks a transport kernel, then that it refuses a workspace one byte short or misaligned. */
 template <typename scalar_type_, nk_kernel_kind_t kind_>
-error_stats_t test_shapes_packed_workspace(typename scalar_type_::shapes_pack_size_kernel_t pack_size,
-                                           typename scalar_type_::shapes_pack_kernel_t pack,
-                                           typename scalar_type_::shapes_workspace_size_kernel_t workspace_size,
+error_stats_t test_shapes_packed_workspace(typename scalar_type_::shapes_workspace_size_kernel_t workspace_size,
                                            typename scalar_type_::wassersteinprocrustes_packed_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_distance_t = typename scalar_t::shapes_distance_t::raw_t;
@@ -600,15 +588,15 @@ error_stats_t test_shapes_packed_workspace(typename scalar_type_::shapes_pack_si
         auto workspace = make_vector<std::byte>(nk::max_of<nk_size_t>(bytes, 1));
         return call_with(rows, columns, results, rotations, workspace.raw_values_data(), bytes);
     };
-    error_stats_t stats = test_shapes_kind<scalar_t, kind_>(pack_size, pack, call);
+    error_stats_t stats = test_shapes_kind<scalar_t, kind_>(call);
 
     // A stream apart from the one the extended test draws
     split_mix_generator_t generator(case_stream_key(1));
     nk::vector<scalar_t> row_clouds[1], column_clouds[1];
     row_clouds[0] = random_cloud<scalar_t>(generator, test_run.settings.shape_points, 0);
     column_clouds[0] = random_cloud<scalar_t>(generator, test_run.settings.shape_points / 2 + 2, 0);
-    auto const rows = pack_clouds(row_clouds, pack_size, pack, stats);
-    auto const columns = pack_clouds(column_clouds, pack_size, pack, stats);
+    auto const rows = pack_clouds(row_clouds, stats);
+    auto const columns = pack_clouds(column_clouds, stats);
     nk_size_t bytes = 0;
     stats.expect_status(workspace_size(rows.max_points(), columns.max_points(), &bytes));
     auto workspace = make_vector<std::byte>(bytes + nk_default_alignment_k);
@@ -623,14 +611,27 @@ error_stats_t test_shapes_packed_workspace(typename scalar_type_::shapes_pack_si
     return stats;
 }
 
-/** Packs of @p kind_ against the oracle pack: the constants @p packed_shape reads, an orthonormal
- *  proper frame, descending spreads, zero padding, and @p unpack restoring the input at its
- *  original scale within one rounding into the storage type. */
+/** Checks that the transport templates size their workspace at zero capabilities as the serial
+ *  kernels do, so a size taken through dispatch fits the template. */
+template <typename scalar_type_>
+void test_shapes_workspace_sizes() {
+    for (std::size_t const points : {1, 7, 16, 33})
+        for (std::size_t const other : {std::size_t(1), points}) {
+            expect_equal(nk::wassersteinprocrustes_workspace_size<scalar_type_>(points, other, no_tiers_k).value,
+                         nk::wassersteinprocrustes_workspace_size<scalar_type_>(points, other, nk_cap_serial_k).value,
+                         "Procrustes of {} and {} points", points, other);
+            expect_equal(nk::gromovwassersteins_workspace_size<scalar_type_>(points, other, no_tiers_k).value,
+                         nk::gromovwassersteins_workspace_size<scalar_type_>(points, other, nk_cap_serial_k).value,
+                         "Gromov-Wasserstein of {} and {} points", points, other);
+        }
+}
+
+/** Packs of @p kind_ against the oracle pack: the constants the template reader finds, an
+ *  orthonormal proper frame, descending spreads, zero padding, and the template unpack restoring
+ *  the input at its original scale within one rounding into the storage type. */
 template <typename scalar_type_, nk_kernel_kind_t kind_>
 error_stats_t test_shapes_pack(typename scalar_type_::shapes_pack_size_kernel_t pack_size,
-                               typename scalar_type_::shapes_pack_kernel_t pack,
-                               typename scalar_type_::shapes_packed_shape_kernel_t packed_shape,
-                               typename scalar_type_::shapes_unpack_kernel_t unpack) {
+                               typename scalar_type_::shapes_pack_kernel_t pack) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using constant_t = typename scalar_t::shapes_distance_t; // packs keep constants in the distance type
@@ -646,6 +647,15 @@ error_stats_t test_shapes_pack(typename scalar_type_::shapes_pack_size_kernel_t 
     nk_f64_t const terms = std::is_same_v<scalar_t, f64_t> ? 8 : static_cast<nk_f64_t>(n);
     nk_size_t count = 0;
     raw_constant_t centroid[3], frame[4], scale, spreads[3], max_radius;
+    auto const read_shape = [&](void const *packed) {
+        std::size_t points = 0;
+        nk::status_t const status = nk::shapes_packed_shape<scalar_t>(
+            packed, &points, reinterpret_cast<constant_t *>(centroid), reinterpret_cast<constant_t *>(frame),
+            reinterpret_cast<constant_t *>(&scale), reinterpret_cast<constant_t *>(spreads),
+            reinterpret_cast<constant_t *>(&max_radius), no_tiers_k);
+        count = static_cast<nk_size_t>(points);
+        return status;
+    };
 
     {
         nk_size_t bytes = 0;
@@ -653,8 +663,7 @@ error_stats_t test_shapes_pack(typename scalar_type_::shapes_pack_size_kernel_t 
         auto packed = make_vector<std::byte>(bytes);
         std::memset(packed.raw_values_data(), 0xFF, bytes);
         stats.expect_status(pack(nullptr, 0, packed.raw_values_data(), nullptr));
-        stats.expect_status(
-            packed_shape(packed.raw_values_data(), &count, centroid, frame, &scale, spreads, &max_radius, nullptr));
+        stats.expect_status(read_shape(packed.raw_values_data()));
         bool zeros = count == 0 && max_radius == 0 && frame[3] == 1 && scale == 1;
         for (std::size_t axis = 0; axis != 3; ++axis)
             zeros &= centroid[axis] == 0 && spreads[axis] == 0 && frame[axis] == 0;
@@ -703,8 +712,7 @@ error_stats_t test_shapes_pack(typename scalar_type_::shapes_pack_size_kernel_t 
                                             : nk::shapes_pack_normalized<scalar_t, reference_t>(
                                                   cloud.raw_values_data(), n, oracle.raw_values_data(), no_tiers_k));
         cloud_t const kernel_pack(packed.raw_values_data()), oracle_pack(oracle.raw_values_data());
-        stats.expect_status(
-            packed_shape(packed.raw_values_data(), &count, centroid, frame, &scale, spreads, &max_radius, nullptr));
+        stats.expect_status(read_shape(packed.raw_values_data()));
         stats.expect_true(count == n, "the pack counts other points");
 
         nk_f64_t largest_input = 0, largest_centroid = 0;
@@ -760,7 +768,8 @@ error_stats_t test_shapes_pack(typename scalar_type_::shapes_pack_size_kernel_t 
                                          32 * roundoff * (largest_centroid + scale * radius) +
                                          half_ulp<constant_t>(largest_centroid));
         auto restored = make_vector<scalar_t>(n * 3);
-        stats.expect_status(unpack(packed.raw_values_data(), restored.raw_values_data(), nullptr));
+        stats.expect_status(
+            nk::shapes_unpack<scalar_t>(packed.raw_values_data(), restored.raw_values_data(), no_tiers_k));
         nk_f64_t trip_error = 0;
         for (std::size_t i = 0; i != cloud.size_values(); ++i)
             trip_error = nk::max_of(trip_error, std::fabs(static_cast<nk_f64_t>(restored.values_data()[i]) -
@@ -822,9 +831,7 @@ reference_type_ kabsch_reference(nk::vector<scalar_type_> const &a, nk::vector<s
  *  motion, with noise far below its closest pair distance, the identity plan is optimal, so the
  *  result is the Kabsch RMSD and rotation. */
 template <typename scalar_type_>
-error_stats_t test_shapes_kabsch(typename scalar_type_::shapes_pack_size_kernel_t pack_size,
-                                 typename scalar_type_::shapes_pack_kernel_t pack,
-                                 typename scalar_type_::shapes_workspace_size_kernel_t workspace_size,
+error_stats_t test_shapes_kabsch(typename scalar_type_::shapes_workspace_size_kernel_t workspace_size,
                                  typename scalar_type_::wassersteinprocrustes_packed_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using distance_t = typename scalar_t::shapes_distance_t;
@@ -871,7 +878,7 @@ error_stats_t test_shapes_kabsch(typename scalar_type_::shapes_pack_size_kernel_
                               translation[axis] + noise * normal(generator);
             return image;
         });
-        auto const packs = pack_clouds(clouds, pack_size, pack, stats);
+        auto const packs = pack_clouds(clouds, stats);
         nk_size_t bytes = 0;
         stats.expect_status(workspace_size(n, n, &bytes));
         auto workspace = make_vector<std::byte>(bytes);
@@ -962,9 +969,7 @@ nk_f64_t rmsd_error_bound(std::size_t n, nk_f64_t rmsd, nk_f64_t spread, nk_f64_
  *  frames of other sizes.
  */
 template <typename scalar_type_>
-error_stats_t test_rmsds_packed(typename scalar_type_::shapes_pack_size_kernel_t pack_size,
-                                typename scalar_type_::shapes_pack_kernel_t pack,
-                                typename scalar_type_::rmsds_packed_kernel_t kernel) {
+error_stats_t test_rmsds_packed(typename scalar_type_::rmsds_packed_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using distance_t = typename scalar_t::shapes_distance_t;
     using raw_distance_t = typename distance_t::raw_t;
@@ -998,8 +1003,8 @@ error_stats_t test_rmsds_packed(typename scalar_type_::shapes_pack_size_kernel_t
         nk::vector<scalar_t> empty[2], mixed[2];
         mixed[0] = random_cloud<scalar_t>(generator, n, 0);
         mixed[1] = random_cloud<scalar_t>(generator, n + 1, 0);
-        auto const empty_packs = pack_clouds(empty, pack_size, pack, stats);
-        auto const mixed_packs = pack_clouds(mixed, pack_size, pack, stats);
+        auto const empty_packs = pack_clouds(empty, stats);
+        auto const mixed_packs = pack_clouds(mixed, stats);
         if (stats.expect_status(run(empty_packs, empty_packs, results)))
             stats.expect_true(std::all_of(results.begin(), results.end(), [](raw_distance_t r) { return r == 0; }),
                               "empty frames score above zero");
@@ -1027,8 +1032,8 @@ error_stats_t test_rmsds_packed(typename scalar_type_::shapes_pack_size_kernel_t
         nk::vector<scalar_t> row_lines[1], column_lines[2];
         row_lines[0] = line(first, 0, steps);
         column_lines[0] = line(second, 64, steps), column_lines[1] = line(second, 3, fresh_steps);
-        auto const rows = pack_clouds(row_lines, pack_size, pack, stats);
-        auto const columns = pack_clouds(column_lines, pack_size, pack, stats);
+        auto const rows = pack_clouds(row_lines, stats);
+        auto const columns = pack_clouds(column_lines, stats);
         if (stats.expect_status(run(rows, columns, results)))
             for (std::size_t column = 0; column != columns.size(); ++column)
                 check_pair(row_lines[0], column_lines[column], results[column]);
@@ -1040,8 +1045,8 @@ error_stats_t test_rmsds_packed(typename scalar_type_::shapes_pack_size_kernel_t
         nk::vector<scalar_t> row_frames[2], column_frames[3];
         for (nk::vector<scalar_t> &frame : row_frames) frame = random_cloud<scalar_t>(generator, n, offset);
         for (nk::vector<scalar_t> &frame : column_frames) frame = random_cloud<scalar_t>(generator, n, offset);
-        auto const rows = pack_clouds(row_frames, pack_size, pack, stats);
-        auto const columns = pack_clouds(column_frames, pack_size, pack, stats);
+        auto const rows = pack_clouds(row_frames, stats);
+        auto const columns = pack_clouds(column_frames, stats);
         if (!stats.expect_status(run(rows, columns, results))) continue;
         for (std::size_t row = 0; row != rows.size(); ++row)
             for (std::size_t column = 0; column != columns.size(); ++column)
@@ -1067,8 +1072,8 @@ error_stats_t test_rmsds_packed(typename scalar_type_::shapes_pack_size_kernel_t
                               noise * normal(generator);
             return image;
         });
-        auto const base_packs = pack_clouds(bases, pack_size, pack, stats);
-        auto const moved_packs = pack_clouds(moved, pack_size, pack, stats);
+        auto const base_packs = pack_clouds(bases, stats);
+        auto const moved_packs = pack_clouds(moved, stats);
         if (stats.expect_status(run(base_packs, moved_packs, results))) check_pair(bases[0], moved[0], results[0]);
     }
     return stats;
@@ -1227,522 +1232,416 @@ void run_shapes_cases() {
     auto const serial = nk_cap_serial_k;
 
     run_kernel_case("nk_shapes_pack_f64_serial", test_shapes_pack<f64_t, pack_k>, serial,
-                    nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial, nk_shapes_packed_shape_f64_serial,
-                    nk_shapes_unpack_f64_serial);
+                    nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial);
     run_kernel_case("nk_shapes_pack_f32_serial", test_shapes_pack<f32_t, pack_k>, serial,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_shapes_packed_shape_f32_serial,
-                    nk_shapes_unpack_f32_serial);
+                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial);
     run_kernel_case("nk_shapes_pack_f16_serial", test_shapes_pack<f16_t, pack_k>, serial,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_shapes_packed_shape_f16_serial,
-                    nk_shapes_unpack_f16_serial);
+                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial);
     run_kernel_case("nk_shapes_pack_normalized_f64_serial", test_shapes_pack<f64_t, pack_normalized_k>, serial,
-                    nk_shapes_pack_size_f64_serial, nk_shapes_pack_normalized_f64_serial,
-                    nk_shapes_packed_shape_f64_serial, nk_shapes_unpack_f64_serial);
+                    nk_shapes_pack_size_f64_serial, nk_shapes_pack_normalized_f64_serial);
     run_kernel_case("nk_shapes_pack_normalized_f32_serial", test_shapes_pack<f32_t, pack_normalized_k>, serial,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_normalized_f32_serial,
-                    nk_shapes_packed_shape_f32_serial, nk_shapes_unpack_f32_serial);
+                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_normalized_f32_serial);
     run_kernel_case("nk_shapes_pack_normalized_f16_serial", test_shapes_pack<f16_t, pack_normalized_k>, serial,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_normalized_f16_serial,
-                    nk_shapes_packed_shape_f16_serial, nk_shapes_unpack_f16_serial);
+                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_normalized_f16_serial);
     run_kernel_case("nk_hausdorffs_packed_f64_serial", test_shapes_packed<f64_t, hausdorffs_k>, serial,
-                    nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial, nk_hausdorffs_packed_f64_serial);
+                    nk_hausdorffs_packed_f64_serial);
     run_kernel_case("nk_hausdorffs_packed_f32_serial", test_shapes_packed<f32_t, hausdorffs_k>, serial,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_hausdorffs_packed_f32_serial);
+                    nk_hausdorffs_packed_f32_serial);
     run_kernel_case("nk_hausdorffs_packed_f16_serial", test_shapes_packed<f16_t, hausdorffs_k>, serial,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_hausdorffs_packed_f16_serial);
+                    nk_hausdorffs_packed_f16_serial);
     run_kernel_case("nk_chamfers_packed_f64_serial", test_shapes_packed<f64_t, chamfers_k>, serial,
-                    nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial, nk_chamfers_packed_f64_serial);
+                    nk_chamfers_packed_f64_serial);
     run_kernel_case("nk_chamfers_packed_f32_serial", test_shapes_packed<f32_t, chamfers_k>, serial,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_chamfers_packed_f32_serial);
+                    nk_chamfers_packed_f32_serial);
     run_kernel_case("nk_chamfers_packed_f16_serial", test_shapes_packed<f16_t, chamfers_k>, serial,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_chamfers_packed_f16_serial);
+                    nk_chamfers_packed_f16_serial);
     run_kernel_case("nk_wassersteinprocrustes_packed_f64_serial",
                     test_shapes_packed_workspace<f64_t, wassersteinprocrustes_k>, serial,
-                    nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial,
                     nk_wassersteinprocrustes_workspace_size_f64_serial, nk_wassersteinprocrustes_packed_f64_serial);
     run_kernel_case("nk_wassersteinprocrustes_packed_f32_serial",
                     test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>, serial,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
                     nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_serial);
     run_kernel_case("nk_wassersteinprocrustes_packed_f16_serial",
                     test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>, serial,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
                     nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_serial);
-    run_kernel_case("test_shapes_kabsch<f64_t>(nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial, " //
-                    "nk_wassersteinprocrustes_workspace_size_f64_serial, nk_wassersteinprocrustes_packed_f64_serial)",
-                    test_shapes_kabsch<f64_t>, serial, nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial,
-                    nk_wassersteinprocrustes_workspace_size_f64_serial, nk_wassersteinprocrustes_packed_f64_serial);
-    run_kernel_case("test_shapes_kabsch<f32_t>(nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, " //
-                    "nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_serial)",
-                    test_shapes_kabsch<f32_t>, serial, nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
-                    nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_serial);
-    run_kernel_case("test_shapes_kabsch<f16_t>(nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, " //
-                    "nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_serial)",
-                    test_shapes_kabsch<f16_t>, serial, nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
-                    nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_serial);
+    run_kernel_case("test_shapes_kabsch<f64_t>(nk_wassersteinprocrustes_packed_f64_serial)", test_shapes_kabsch<f64_t>,
+                    serial, nk_wassersteinprocrustes_workspace_size_f64_serial,
+                    nk_wassersteinprocrustes_packed_f64_serial);
+    run_kernel_case("test_shapes_kabsch<f32_t>(nk_wassersteinprocrustes_packed_f32_serial)", test_shapes_kabsch<f32_t>,
+                    serial, nk_wassersteinprocrustes_workspace_size_f32_serial,
+                    nk_wassersteinprocrustes_packed_f32_serial);
+    run_kernel_case("test_shapes_kabsch<f16_t>(nk_wassersteinprocrustes_packed_f16_serial)", test_shapes_kabsch<f16_t>,
+                    serial, nk_wassersteinprocrustes_workspace_size_f16_serial,
+                    nk_wassersteinprocrustes_packed_f16_serial);
     run_kernel_case("nk_gromovwassersteins_packed_f64_serial",
-                    test_shapes_packed_workspace<f64_t, gromovwassersteins_k>, serial, nk_shapes_pack_size_f64_serial,
-                    nk_shapes_pack_f64_serial, nk_gromovwassersteins_workspace_size_f64_serial,
-                    nk_gromovwassersteins_packed_f64_serial);
+                    test_shapes_packed_workspace<f64_t, gromovwassersteins_k>, serial,
+                    nk_gromovwassersteins_workspace_size_f64_serial, nk_gromovwassersteins_packed_f64_serial);
     run_kernel_case("nk_gromovwassersteins_packed_f32_serial",
-                    test_shapes_packed_workspace<f32_t, gromovwassersteins_k>, serial, nk_shapes_pack_size_f32_serial,
-                    nk_shapes_pack_f32_serial, nk_gromovwassersteins_workspace_size_f32_serial,
-                    nk_gromovwassersteins_packed_f32_serial);
+                    test_shapes_packed_workspace<f32_t, gromovwassersteins_k>, serial,
+                    nk_gromovwassersteins_workspace_size_f32_serial, nk_gromovwassersteins_packed_f32_serial);
     run_kernel_case("nk_gromovwassersteins_packed_f16_serial",
-                    test_shapes_packed_workspace<f16_t, gromovwassersteins_k>, serial, nk_shapes_pack_size_f16_serial,
-                    nk_shapes_pack_f16_serial, nk_gromovwassersteins_workspace_size_f16_serial,
-                    nk_gromovwassersteins_packed_f16_serial);
-    run_kernel_case("test_shapes_ties<f64_t>(nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial, " //
-                    "nk_rmsds_packed_f64_serial)",
-                    test_shapes_ties<f64_t>, serial, nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial,
-                    nk_rmsds_packed_f64_serial);
-    run_kernel_case("test_shapes_ties<f32_t>(nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, " //
-                    "nk_rmsds_packed_f32_serial)",
-                    test_shapes_ties<f32_t>, serial, nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
-                    nk_rmsds_packed_f32_serial);
-    run_kernel_case("test_shapes_ties<f16_t>(nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, " //
-                    "nk_rmsds_packed_f16_serial)",
-                    test_shapes_ties<f16_t>, serial, nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
-                    nk_rmsds_packed_f16_serial);
-    run_kernel_case("nk_rmsds_packed_f64_serial", test_rmsds_packed<f64_t>, serial, nk_shapes_pack_size_f64_serial,
-                    nk_shapes_pack_f64_serial, nk_rmsds_packed_f64_serial);
-    run_kernel_case("nk_rmsds_packed_f32_serial", test_rmsds_packed<f32_t>, serial, nk_shapes_pack_size_f32_serial,
-                    nk_shapes_pack_f32_serial, nk_rmsds_packed_f32_serial);
-    run_kernel_case("nk_rmsds_packed_f16_serial", test_rmsds_packed<f16_t>, serial, nk_shapes_pack_size_f16_serial,
-                    nk_shapes_pack_f16_serial, nk_rmsds_packed_f16_serial);
+                    test_shapes_packed_workspace<f16_t, gromovwassersteins_k>, serial,
+                    nk_gromovwassersteins_workspace_size_f16_serial, nk_gromovwassersteins_packed_f16_serial);
+    run_kernel_case("test_shapes_ties<f64_t>(nk_shapes_pack_f64_serial)", test_shapes_ties<f64_t>, serial,
+                    nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial, nk_rmsds_packed_f64_serial);
+    run_kernel_case("test_shapes_ties<f32_t>(nk_shapes_pack_f32_serial)", test_shapes_ties<f32_t>, serial,
+                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_rmsds_packed_f32_serial);
+    run_kernel_case("test_shapes_ties<f16_t>(nk_shapes_pack_f16_serial)", test_shapes_ties<f16_t>, serial,
+                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_rmsds_packed_f16_serial);
+    run_kernel_case("nk_rmsds_packed_f64_serial", test_rmsds_packed<f64_t>, serial, nk_rmsds_packed_f64_serial);
+    run_kernel_case("nk_rmsds_packed_f32_serial", test_rmsds_packed<f32_t>, serial, nk_rmsds_packed_f32_serial);
+    run_kernel_case("nk_rmsds_packed_f16_serial", test_rmsds_packed<f16_t>, serial, nk_rmsds_packed_f16_serial);
 
 #if !NUMKONG_HEADER_ONLY
+    run_test_case("test_shapes_workspace_sizes<f64_t>", test_shapes_workspace_sizes<f64_t>);
+    run_test_case("test_shapes_workspace_sizes<f32_t>", test_shapes_workspace_sizes<f32_t>);
+    run_test_case("test_shapes_workspace_sizes<f16_t>", test_shapes_workspace_sizes<f16_t>);
     run_kernel_case("nk_shapes_pack_f64_best", test_shapes_pack<f64_t, pack_k>, serial,
-                    cpu_best<nk_shapes_pack_size_f64_best>, cpu_best<nk_shapes_pack_f64_best>,
-                    cpu_best<nk_shapes_packed_shape_f64_best>, cpu_best<nk_shapes_unpack_f64_best>);
+                    cpu_best<nk_shapes_pack_size_f64_best>, cpu_best<nk_shapes_pack_f64_best>);
     run_kernel_case("nk_shapes_pack_f32_best", test_shapes_pack<f32_t, pack_k>, serial,
-                    cpu_best<nk_shapes_pack_size_f32_best>, cpu_best<nk_shapes_pack_f32_best>,
-                    cpu_best<nk_shapes_packed_shape_f32_best>, cpu_best<nk_shapes_unpack_f32_best>);
+                    cpu_best<nk_shapes_pack_size_f32_best>, cpu_best<nk_shapes_pack_f32_best>);
     run_kernel_case("nk_shapes_pack_f16_best", test_shapes_pack<f16_t, pack_k>, serial,
-                    cpu_best<nk_shapes_pack_size_f16_best>, cpu_best<nk_shapes_pack_f16_best>,
-                    cpu_best<nk_shapes_packed_shape_f16_best>, cpu_best<nk_shapes_unpack_f16_best>);
+                    cpu_best<nk_shapes_pack_size_f16_best>, cpu_best<nk_shapes_pack_f16_best>);
     run_kernel_case("nk_shapes_pack_normalized_f64_best", test_shapes_pack<f64_t, pack_normalized_k>, serial,
-                    cpu_best<nk_shapes_pack_size_f64_best>, cpu_best<nk_shapes_pack_normalized_f64_best>,
-                    cpu_best<nk_shapes_packed_shape_f64_best>, cpu_best<nk_shapes_unpack_f64_best>);
+                    cpu_best<nk_shapes_pack_size_f64_best>, cpu_best<nk_shapes_pack_normalized_f64_best>);
     run_kernel_case("nk_shapes_pack_normalized_f32_best", test_shapes_pack<f32_t, pack_normalized_k>, serial,
-                    cpu_best<nk_shapes_pack_size_f32_best>, cpu_best<nk_shapes_pack_normalized_f32_best>,
-                    cpu_best<nk_shapes_packed_shape_f32_best>, cpu_best<nk_shapes_unpack_f32_best>);
+                    cpu_best<nk_shapes_pack_size_f32_best>, cpu_best<nk_shapes_pack_normalized_f32_best>);
     run_kernel_case("nk_shapes_pack_normalized_f16_best", test_shapes_pack<f16_t, pack_normalized_k>, serial,
-                    cpu_best<nk_shapes_pack_size_f16_best>, cpu_best<nk_shapes_pack_normalized_f16_best>,
-                    cpu_best<nk_shapes_packed_shape_f16_best>, cpu_best<nk_shapes_unpack_f16_best>);
-    run_kernel_case("nk_rmsds_packed_f64_best", test_rmsds_packed<f64_t>, serial,
-                    cpu_best<nk_shapes_pack_size_f64_best>, cpu_best<nk_shapes_pack_f64_best>,
-                    cpu_best<nk_rmsds_packed_f64_best>);
-    run_kernel_case("nk_rmsds_packed_f32_best", test_rmsds_packed<f32_t>, serial,
-                    cpu_best<nk_shapes_pack_size_f32_best>, cpu_best<nk_shapes_pack_f32_best>,
-                    cpu_best<nk_rmsds_packed_f32_best>);
-    run_kernel_case("nk_rmsds_packed_f16_best", test_rmsds_packed<f16_t>, serial,
-                    cpu_best<nk_shapes_pack_size_f16_best>, cpu_best<nk_shapes_pack_f16_best>,
-                    cpu_best<nk_rmsds_packed_f16_best>);
+                    cpu_best<nk_shapes_pack_size_f16_best>, cpu_best<nk_shapes_pack_normalized_f16_best>);
+    run_kernel_case("nk_rmsds_packed_f64_best", test_rmsds_packed<f64_t>, serial, cpu_best<nk_rmsds_packed_f64_best>);
+    run_kernel_case("nk_rmsds_packed_f32_best", test_rmsds_packed<f32_t>, serial, cpu_best<nk_rmsds_packed_f32_best>);
+    run_kernel_case("nk_rmsds_packed_f16_best", test_rmsds_packed<f16_t>, serial, cpu_best<nk_rmsds_packed_f16_best>);
     run_kernel_case("nk_hausdorffs_packed_f64_best", test_shapes_packed<f64_t, hausdorffs_k>, serial,
-                    cpu_best<nk_shapes_pack_size_f64_best>, cpu_best<nk_shapes_pack_f64_best>,
                     cpu_best<nk_hausdorffs_packed_f64_best>);
     run_kernel_case("nk_hausdorffs_packed_f32_best", test_shapes_packed<f32_t, hausdorffs_k>, serial,
-                    cpu_best<nk_shapes_pack_size_f32_best>, cpu_best<nk_shapes_pack_f32_best>,
                     cpu_best<nk_hausdorffs_packed_f32_best>);
     run_kernel_case("nk_hausdorffs_packed_f16_best", test_shapes_packed<f16_t, hausdorffs_k>, serial,
-                    cpu_best<nk_shapes_pack_size_f16_best>, cpu_best<nk_shapes_pack_f16_best>,
                     cpu_best<nk_hausdorffs_packed_f16_best>);
     run_kernel_case("nk_chamfers_packed_f64_best", test_shapes_packed<f64_t, chamfers_k>, serial,
-                    cpu_best<nk_shapes_pack_size_f64_best>, cpu_best<nk_shapes_pack_f64_best>,
                     cpu_best<nk_chamfers_packed_f64_best>);
     run_kernel_case("nk_chamfers_packed_f32_best", test_shapes_packed<f32_t, chamfers_k>, serial,
-                    cpu_best<nk_shapes_pack_size_f32_best>, cpu_best<nk_shapes_pack_f32_best>,
                     cpu_best<nk_chamfers_packed_f32_best>);
     run_kernel_case("nk_chamfers_packed_f16_best", test_shapes_packed<f16_t, chamfers_k>, serial,
-                    cpu_best<nk_shapes_pack_size_f16_best>, cpu_best<nk_shapes_pack_f16_best>,
                     cpu_best<nk_chamfers_packed_f16_best>);
-    run_kernel_case(
-        "nk_wassersteinprocrustes_packed_f64_best", test_shapes_packed_workspace<f64_t, wassersteinprocrustes_k>,
-        serial, cpu_best<nk_shapes_pack_size_f64_best>, cpu_best<nk_shapes_pack_f64_best>,
-        cpu_best<nk_wassersteinprocrustes_workspace_size_f64_best>, cpu_best<nk_wassersteinprocrustes_packed_f64_best>);
-    run_kernel_case(
-        "nk_wassersteinprocrustes_packed_f32_best", test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>,
-        serial, cpu_best<nk_shapes_pack_size_f32_best>, cpu_best<nk_shapes_pack_f32_best>,
-        cpu_best<nk_wassersteinprocrustes_workspace_size_f32_best>, cpu_best<nk_wassersteinprocrustes_packed_f32_best>);
-    run_kernel_case(
-        "nk_wassersteinprocrustes_packed_f16_best", test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>,
-        serial, cpu_best<nk_shapes_pack_size_f16_best>, cpu_best<nk_shapes_pack_f16_best>,
-        cpu_best<nk_wassersteinprocrustes_workspace_size_f16_best>, cpu_best<nk_wassersteinprocrustes_packed_f16_best>);
-    run_kernel_case("test_shapes_kabsch<f64_t>(cpu_best<nk_shapes_pack_size_f64_best>, "                              //
-                    "cpu_best<nk_shapes_pack_f64_best>, cpu_best<nk_wassersteinprocrustes_workspace_size_f64_best>, " //
-                    "cpu_best<nk_wassersteinprocrustes_packed_f64_best>)",
-                    test_shapes_kabsch<f64_t>, serial, cpu_best<nk_shapes_pack_size_f64_best>,
-                    cpu_best<nk_shapes_pack_f64_best>, cpu_best<nk_wassersteinprocrustes_workspace_size_f64_best>,
+    run_kernel_case("nk_wassersteinprocrustes_packed_f64_best",
+                    test_shapes_packed_workspace<f64_t, wassersteinprocrustes_k>, serial,
+                    cpu_best<nk_wassersteinprocrustes_workspace_size_f64_best>,
                     cpu_best<nk_wassersteinprocrustes_packed_f64_best>);
-    run_kernel_case("test_shapes_kabsch<f32_t>(cpu_best<nk_shapes_pack_size_f32_best>, "                              //
-                    "cpu_best<nk_shapes_pack_f32_best>, cpu_best<nk_wassersteinprocrustes_workspace_size_f32_best>, " //
-                    "cpu_best<nk_wassersteinprocrustes_packed_f32_best>)",
-                    test_shapes_kabsch<f32_t>, serial, cpu_best<nk_shapes_pack_size_f32_best>,
-                    cpu_best<nk_shapes_pack_f32_best>, cpu_best<nk_wassersteinprocrustes_workspace_size_f32_best>,
+    run_kernel_case("nk_wassersteinprocrustes_packed_f32_best",
+                    test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>, serial,
+                    cpu_best<nk_wassersteinprocrustes_workspace_size_f32_best>,
                     cpu_best<nk_wassersteinprocrustes_packed_f32_best>);
-    run_kernel_case("test_shapes_kabsch<f16_t>(cpu_best<nk_shapes_pack_size_f16_best>, "                              //
-                    "cpu_best<nk_shapes_pack_f16_best>, cpu_best<nk_wassersteinprocrustes_workspace_size_f16_best>, " //
-                    "cpu_best<nk_wassersteinprocrustes_packed_f16_best>)",
-                    test_shapes_kabsch<f16_t>, serial, cpu_best<nk_shapes_pack_size_f16_best>,
-                    cpu_best<nk_shapes_pack_f16_best>, cpu_best<nk_wassersteinprocrustes_workspace_size_f16_best>,
+    run_kernel_case("nk_wassersteinprocrustes_packed_f16_best",
+                    test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>, serial,
+                    cpu_best<nk_wassersteinprocrustes_workspace_size_f16_best>,
+                    cpu_best<nk_wassersteinprocrustes_packed_f16_best>);
+    run_kernel_case("test_shapes_kabsch<f64_t>(cpu_best<nk_wassersteinprocrustes_packed_f64_best>)",
+                    test_shapes_kabsch<f64_t>, serial, cpu_best<nk_wassersteinprocrustes_workspace_size_f64_best>,
+                    cpu_best<nk_wassersteinprocrustes_packed_f64_best>);
+    run_kernel_case("test_shapes_kabsch<f32_t>(cpu_best<nk_wassersteinprocrustes_packed_f32_best>)",
+                    test_shapes_kabsch<f32_t>, serial, cpu_best<nk_wassersteinprocrustes_workspace_size_f32_best>,
+                    cpu_best<nk_wassersteinprocrustes_packed_f32_best>);
+    run_kernel_case("test_shapes_kabsch<f16_t>(cpu_best<nk_wassersteinprocrustes_packed_f16_best>)",
+                    test_shapes_kabsch<f16_t>, serial, cpu_best<nk_wassersteinprocrustes_workspace_size_f16_best>,
                     cpu_best<nk_wassersteinprocrustes_packed_f16_best>);
     run_kernel_case("nk_gromovwassersteins_packed_f64_best", test_shapes_packed_workspace<f64_t, gromovwassersteins_k>,
-                    serial, cpu_best<nk_shapes_pack_size_f64_best>, cpu_best<nk_shapes_pack_f64_best>,
-                    cpu_best<nk_gromovwassersteins_workspace_size_f64_best>,
+                    serial, cpu_best<nk_gromovwassersteins_workspace_size_f64_best>,
                     cpu_best<nk_gromovwassersteins_packed_f64_best>);
     run_kernel_case("nk_gromovwassersteins_packed_f32_best", test_shapes_packed_workspace<f32_t, gromovwassersteins_k>,
-                    serial, cpu_best<nk_shapes_pack_size_f32_best>, cpu_best<nk_shapes_pack_f32_best>,
-                    cpu_best<nk_gromovwassersteins_workspace_size_f32_best>,
+                    serial, cpu_best<nk_gromovwassersteins_workspace_size_f32_best>,
                     cpu_best<nk_gromovwassersteins_packed_f32_best>);
     run_kernel_case("nk_gromovwassersteins_packed_f16_best", test_shapes_packed_workspace<f16_t, gromovwassersteins_k>,
-                    serial, cpu_best<nk_shapes_pack_size_f16_best>, cpu_best<nk_shapes_pack_f16_best>,
-                    cpu_best<nk_gromovwassersteins_workspace_size_f16_best>,
+                    serial, cpu_best<nk_gromovwassersteins_workspace_size_f16_best>,
                     cpu_best<nk_gromovwassersteins_packed_f16_best>);
 #endif
 
 #if NUMKONG_TARGET_NEON
     auto const neon = nk_cap_neon_k;
-    run_kernel_case("nk_shapes_pack_f32_neon", test_shapes_pack<f32_t, pack_k>, neon, nk_shapes_pack_size_f32_serial,
-                    nk_shapes_pack_f32_neon, nk_shapes_packed_shape_f32_serial, nk_shapes_unpack_f32_serial);
-    run_kernel_case("nk_shapes_pack_f16_neon", test_shapes_pack<f16_t, pack_k>, neon, nk_shapes_pack_size_f16_serial,
-                    nk_shapes_pack_f16_neon, nk_shapes_packed_shape_f16_serial, nk_shapes_unpack_f16_serial);
+    run_kernel_case("nk_shapes_pack_f32_neon", test_shapes_pack<f32_t, pack_k>, neon, nk_shapes_pack_size_f32_neon,
+                    nk_shapes_pack_f32_neon);
+    run_kernel_case("nk_shapes_pack_f16_neon", test_shapes_pack<f16_t, pack_k>, neon, nk_shapes_pack_size_f16_neon,
+                    nk_shapes_pack_f16_neon);
     run_kernel_case("nk_shapes_pack_normalized_f32_neon", test_shapes_pack<f32_t, pack_normalized_k>, neon,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_normalized_f32_neon,
-                    nk_shapes_packed_shape_f32_serial, nk_shapes_unpack_f32_serial);
+                    nk_shapes_pack_size_f32_neon, nk_shapes_pack_normalized_f32_neon);
     run_kernel_case("nk_shapes_pack_normalized_f16_neon", test_shapes_pack<f16_t, pack_normalized_k>, neon,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_normalized_f16_neon,
-                    nk_shapes_packed_shape_f16_serial, nk_shapes_unpack_f16_serial);
-    run_kernel_case("nk_rmsds_packed_f64_neon", test_rmsds_packed<f64_t>, neon, nk_shapes_pack_size_f64_serial,
-                    nk_shapes_pack_f64_serial, nk_rmsds_packed_f64_neon);
-    run_kernel_case("nk_rmsds_packed_f32_neon", test_rmsds_packed<f32_t>, neon, nk_shapes_pack_size_f32_serial,
-                    nk_shapes_pack_f32_serial, nk_rmsds_packed_f32_neon);
-    run_kernel_case("nk_rmsds_packed_f16_neon", test_rmsds_packed<f16_t>, neon, nk_shapes_pack_size_f16_serial,
-                    nk_shapes_pack_f16_serial, nk_rmsds_packed_f16_neon);
+                    nk_shapes_pack_size_f16_neon, nk_shapes_pack_normalized_f16_neon);
+    run_kernel_case("nk_rmsds_packed_f64_neon", test_rmsds_packed<f64_t>, neon, nk_rmsds_packed_f64_neon);
+    run_kernel_case("nk_rmsds_packed_f32_neon", test_rmsds_packed<f32_t>, neon, nk_rmsds_packed_f32_neon);
+    run_kernel_case("nk_rmsds_packed_f16_neon", test_rmsds_packed<f16_t>, neon, nk_rmsds_packed_f16_neon);
     run_kernel_case("nk_hausdorffs_packed_f32_neon", test_shapes_packed<f32_t, hausdorffs_k>, neon,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_hausdorffs_packed_f32_neon);
+                    nk_hausdorffs_packed_f32_neon);
     run_kernel_case("nk_hausdorffs_packed_f16_neon", test_shapes_packed<f16_t, hausdorffs_k>, neon,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_hausdorffs_packed_f16_neon);
+                    nk_hausdorffs_packed_f16_neon);
     run_kernel_case("nk_chamfers_packed_f32_neon", test_chamfers_packed_workspace<f32_t>, neon,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_chamfers_packed_f32_neon);
+                    nk_chamfers_packed_f32_neon);
     run_kernel_case("nk_chamfers_packed_f16_neon", test_chamfers_packed_workspace<f16_t>, neon,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_chamfers_packed_f16_neon);
-    run_kernel_case("nk_wassersteinprocrustes_packed_f32_neon",
-                    test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>, neon, nk_shapes_pack_size_f32_serial,
-                    nk_shapes_pack_f32_serial, nk_wassersteinprocrustes_workspace_size_f32_serial,
-                    nk_wassersteinprocrustes_packed_f32_neon);
-    run_kernel_case("nk_wassersteinprocrustes_packed_f16_neon",
-                    test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>, neon, nk_shapes_pack_size_f16_serial,
-                    nk_shapes_pack_f16_serial, nk_wassersteinprocrustes_workspace_size_f16_serial,
-                    nk_wassersteinprocrustes_packed_f16_neon);
-    run_kernel_case("test_shapes_kabsch<f32_t>(nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, " //
-                    "nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_neon)",
-                    test_shapes_kabsch<f32_t>, neon, nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
-                    nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_neon);
-    run_kernel_case("test_shapes_kabsch<f16_t>(nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, " //
-                    "nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_neon)",
-                    test_shapes_kabsch<f16_t>, neon, nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
-                    nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_neon);
-    run_kernel_case("nk_gromovwassersteins_packed_f32_neon", test_shapes_packed_workspace<f32_t, gromovwassersteins_k>,
-                    neon, nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
-                    nk_gromovwassersteins_workspace_size_f32_serial, nk_gromovwassersteins_packed_f32_neon);
-    run_kernel_case("nk_gromovwassersteins_packed_f16_neon", test_shapes_packed_workspace<f16_t, gromovwassersteins_k>,
-                    neon, nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
-                    nk_gromovwassersteins_workspace_size_f16_serial, nk_gromovwassersteins_packed_f16_neon);
+                    nk_chamfers_packed_f16_neon);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>(nk_wassersteinprocrustes_packed_f32_neon)",
+        test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>, neon,
+        nk_wassersteinprocrustes_workspace_size_f32_neon, nk_wassersteinprocrustes_packed_f32_neon);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>(nk_wassersteinprocrustes_packed_f16_neon)",
+        test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>, neon,
+        nk_wassersteinprocrustes_workspace_size_f16_neon, nk_wassersteinprocrustes_packed_f16_neon);
+    run_kernel_case("test_shapes_kabsch<f32_t>(nk_wassersteinprocrustes_packed_f32_neon)", test_shapes_kabsch<f32_t>,
+                    neon, nk_wassersteinprocrustes_workspace_size_f32_neon, nk_wassersteinprocrustes_packed_f32_neon);
+    run_kernel_case("test_shapes_kabsch<f16_t>(nk_wassersteinprocrustes_packed_f16_neon)", test_shapes_kabsch<f16_t>,
+                    neon, nk_wassersteinprocrustes_workspace_size_f16_neon, nk_wassersteinprocrustes_packed_f16_neon);
+    run_kernel_case("test_shapes_packed_workspace<f32_t, gromovwassersteins_k>(nk_gromovwassersteins_packed_f32_neon)",
+                    test_shapes_packed_workspace<f32_t, gromovwassersteins_k>, neon,
+                    nk_gromovwassersteins_workspace_size_f32_neon, nk_gromovwassersteins_packed_f32_neon);
+    run_kernel_case("test_shapes_packed_workspace<f16_t, gromovwassersteins_k>(nk_gromovwassersteins_packed_f16_neon)",
+                    test_shapes_packed_workspace<f16_t, gromovwassersteins_k>, neon,
+                    nk_gromovwassersteins_workspace_size_f16_neon, nk_gromovwassersteins_packed_f16_neon);
 #endif
 
 #if NUMKONG_TARGET_NEONFHM
     auto const neonfhm = nk_cap_neonfhm_k;
-    run_kernel_case("nk_rmsds_packed_f16_neonfhm", test_rmsds_packed<f16_t>, neonfhm, nk_shapes_pack_size_f16_serial,
-                    nk_shapes_pack_f16_serial, nk_rmsds_packed_f16_neonfhm);
+    run_kernel_case("nk_rmsds_packed_f16_neonfhm", test_rmsds_packed<f16_t>, neonfhm, nk_rmsds_packed_f16_neonfhm);
     run_kernel_case("nk_hausdorffs_packed_f16_neonfhm", test_shapes_packed<f16_t, hausdorffs_k>, neonfhm,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_hausdorffs_packed_f16_neonfhm);
+                    nk_hausdorffs_packed_f16_neonfhm);
     run_kernel_case("nk_chamfers_packed_f16_neonfhm", test_chamfers_packed_workspace<f16_t>, neonfhm,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_chamfers_packed_f16_neonfhm);
+                    nk_chamfers_packed_f16_neonfhm);
 #endif
 
 #if NUMKONG_TARGET_HASWELL
     auto const haswell = nk_cap_haswell_k;
     run_kernel_case("nk_shapes_pack_f32_haswell", test_shapes_pack<f32_t, pack_k>, haswell,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_haswell, nk_shapes_packed_shape_f32_serial,
-                    nk_shapes_unpack_f32_serial);
+                    nk_shapes_pack_size_f32_haswell, nk_shapes_pack_f32_haswell);
     run_kernel_case("nk_shapes_pack_f16_haswell", test_shapes_pack<f16_t, pack_k>, haswell,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_haswell, nk_shapes_packed_shape_f16_serial,
-                    nk_shapes_unpack_f16_serial);
+                    nk_shapes_pack_size_f16_haswell, nk_shapes_pack_f16_haswell);
     run_kernel_case("nk_shapes_pack_normalized_f32_haswell", test_shapes_pack<f32_t, pack_normalized_k>, haswell,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_normalized_f32_haswell,
-                    nk_shapes_packed_shape_f32_serial, nk_shapes_unpack_f32_serial);
+                    nk_shapes_pack_size_f32_haswell, nk_shapes_pack_normalized_f32_haswell);
     run_kernel_case("nk_shapes_pack_normalized_f16_haswell", test_shapes_pack<f16_t, pack_normalized_k>, haswell,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_normalized_f16_haswell,
-                    nk_shapes_packed_shape_f16_serial, nk_shapes_unpack_f16_serial);
-    run_kernel_case("nk_rmsds_packed_f64_haswell", test_rmsds_packed<f64_t>, haswell, nk_shapes_pack_size_f64_serial,
-                    nk_shapes_pack_f64_serial, nk_rmsds_packed_f64_haswell);
-    run_kernel_case("nk_rmsds_packed_f32_haswell", test_rmsds_packed<f32_t>, haswell, nk_shapes_pack_size_f32_serial,
-                    nk_shapes_pack_f32_serial, nk_rmsds_packed_f32_haswell);
-    run_kernel_case("nk_rmsds_packed_f16_haswell", test_rmsds_packed<f16_t>, haswell, nk_shapes_pack_size_f16_serial,
-                    nk_shapes_pack_f16_serial, nk_rmsds_packed_f16_haswell);
+                    nk_shapes_pack_size_f16_haswell, nk_shapes_pack_normalized_f16_haswell);
+    run_kernel_case("nk_rmsds_packed_f64_haswell", test_rmsds_packed<f64_t>, haswell, nk_rmsds_packed_f64_haswell);
+    run_kernel_case("nk_rmsds_packed_f32_haswell", test_rmsds_packed<f32_t>, haswell, nk_rmsds_packed_f32_haswell);
+    run_kernel_case("nk_rmsds_packed_f16_haswell", test_rmsds_packed<f16_t>, haswell, nk_rmsds_packed_f16_haswell);
     run_kernel_case("nk_hausdorffs_packed_f32_haswell", test_shapes_packed<f32_t, hausdorffs_k>, haswell,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_hausdorffs_packed_f32_haswell);
+                    nk_hausdorffs_packed_f32_haswell);
     run_kernel_case("nk_hausdorffs_packed_f16_haswell", test_shapes_packed<f16_t, hausdorffs_k>, haswell,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_hausdorffs_packed_f16_haswell);
+                    nk_hausdorffs_packed_f16_haswell);
     run_kernel_case("nk_chamfers_packed_f32_haswell", test_chamfers_packed_workspace<f32_t>, haswell,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_chamfers_packed_f32_haswell);
+                    nk_chamfers_packed_f32_haswell);
     run_kernel_case("nk_chamfers_packed_f16_haswell", test_chamfers_packed_workspace<f16_t>, haswell,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_chamfers_packed_f16_haswell);
-    run_kernel_case("nk_wassersteinprocrustes_packed_f32_haswell",
-                    test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>, haswell,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
-                    nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_haswell);
-    run_kernel_case("nk_wassersteinprocrustes_packed_f16_haswell",
-                    test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>, haswell,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
-                    nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_haswell);
-    run_kernel_case("test_shapes_kabsch<f32_t>(nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, " //
-                    "nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_haswell)",
-                    test_shapes_kabsch<f32_t>, haswell, nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
-                    nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_haswell);
-    run_kernel_case("test_shapes_kabsch<f16_t>(nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, " //
-                    "nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_haswell)",
-                    test_shapes_kabsch<f16_t>, haswell, nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
-                    nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_haswell);
-    run_kernel_case("nk_gromovwassersteins_packed_f32_haswell",
-                    test_shapes_packed_workspace<f32_t, gromovwassersteins_k>, haswell, nk_shapes_pack_size_f32_serial,
-                    nk_shapes_pack_f32_serial, nk_gromovwassersteins_workspace_size_f32_serial,
-                    nk_gromovwassersteins_packed_f32_haswell);
-    run_kernel_case("nk_gromovwassersteins_packed_f16_haswell",
-                    test_shapes_packed_workspace<f16_t, gromovwassersteins_k>, haswell, nk_shapes_pack_size_f16_serial,
-                    nk_shapes_pack_f16_serial, nk_gromovwassersteins_workspace_size_f16_serial,
-                    nk_gromovwassersteins_packed_f16_haswell);
+                    nk_chamfers_packed_f16_haswell);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>(nk_wassersteinprocrustes_packed_f32_haswell)",
+        test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>, haswell,
+        nk_wassersteinprocrustes_workspace_size_f32_haswell, nk_wassersteinprocrustes_packed_f32_haswell);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>(nk_wassersteinprocrustes_packed_f16_haswell)",
+        test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>, haswell,
+        nk_wassersteinprocrustes_workspace_size_f16_haswell, nk_wassersteinprocrustes_packed_f16_haswell);
+    run_kernel_case("test_shapes_kabsch<f32_t>(nk_wassersteinprocrustes_packed_f32_haswell)", test_shapes_kabsch<f32_t>,
+                    haswell, nk_wassersteinprocrustes_workspace_size_f32_haswell,
+                    nk_wassersteinprocrustes_packed_f32_haswell);
+    run_kernel_case("test_shapes_kabsch<f16_t>(nk_wassersteinprocrustes_packed_f16_haswell)", test_shapes_kabsch<f16_t>,
+                    haswell, nk_wassersteinprocrustes_workspace_size_f16_haswell,
+                    nk_wassersteinprocrustes_packed_f16_haswell);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f32_t, gromovwassersteins_k>(nk_gromovwassersteins_packed_f32_haswell)",
+        test_shapes_packed_workspace<f32_t, gromovwassersteins_k>, haswell,
+        nk_gromovwassersteins_workspace_size_f32_haswell, nk_gromovwassersteins_packed_f32_haswell);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f16_t, gromovwassersteins_k>(nk_gromovwassersteins_packed_f16_haswell)",
+        test_shapes_packed_workspace<f16_t, gromovwassersteins_k>, haswell,
+        nk_gromovwassersteins_workspace_size_f16_haswell, nk_gromovwassersteins_packed_f16_haswell);
 #endif
 
 #if NUMKONG_TARGET_SKYLAKE
     auto const skylake = nk_cap_skylake_k;
     run_kernel_case("nk_shapes_pack_f32_skylake", test_shapes_pack<f32_t, pack_k>, skylake,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_skylake, nk_shapes_packed_shape_f32_serial,
-                    nk_shapes_unpack_f32_serial);
+                    nk_shapes_pack_size_f32_skylake, nk_shapes_pack_f32_skylake);
     run_kernel_case("nk_shapes_pack_f16_skylake", test_shapes_pack<f16_t, pack_k>, skylake,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_skylake, nk_shapes_packed_shape_f16_serial,
-                    nk_shapes_unpack_f16_serial);
+                    nk_shapes_pack_size_f16_skylake, nk_shapes_pack_f16_skylake);
     run_kernel_case("nk_shapes_pack_normalized_f32_skylake", test_shapes_pack<f32_t, pack_normalized_k>, skylake,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_normalized_f32_skylake,
-                    nk_shapes_packed_shape_f32_serial, nk_shapes_unpack_f32_serial);
+                    nk_shapes_pack_size_f32_skylake, nk_shapes_pack_normalized_f32_skylake);
     run_kernel_case("nk_shapes_pack_normalized_f16_skylake", test_shapes_pack<f16_t, pack_normalized_k>, skylake,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_normalized_f16_skylake,
-                    nk_shapes_packed_shape_f16_serial, nk_shapes_unpack_f16_serial);
-    run_kernel_case("nk_rmsds_packed_f64_skylake", test_rmsds_packed<f64_t>, skylake, nk_shapes_pack_size_f64_serial,
-                    nk_shapes_pack_f64_serial, nk_rmsds_packed_f64_skylake);
-    run_kernel_case("nk_rmsds_packed_f32_skylake", test_rmsds_packed<f32_t>, skylake, nk_shapes_pack_size_f32_serial,
-                    nk_shapes_pack_f32_serial, nk_rmsds_packed_f32_skylake);
-    run_kernel_case("nk_rmsds_packed_f16_skylake", test_rmsds_packed<f16_t>, skylake, nk_shapes_pack_size_f16_serial,
-                    nk_shapes_pack_f16_serial, nk_rmsds_packed_f16_skylake);
+                    nk_shapes_pack_size_f16_skylake, nk_shapes_pack_normalized_f16_skylake);
+    run_kernel_case("nk_rmsds_packed_f64_skylake", test_rmsds_packed<f64_t>, skylake, nk_rmsds_packed_f64_skylake);
+    run_kernel_case("nk_rmsds_packed_f32_skylake", test_rmsds_packed<f32_t>, skylake, nk_rmsds_packed_f32_skylake);
+    run_kernel_case("nk_rmsds_packed_f16_skylake", test_rmsds_packed<f16_t>, skylake, nk_rmsds_packed_f16_skylake);
     run_kernel_case("nk_hausdorffs_packed_f64_skylake", test_shapes_packed<f64_t, hausdorffs_k>, skylake,
-                    nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial, nk_hausdorffs_packed_f64_skylake);
+                    nk_hausdorffs_packed_f64_skylake);
     run_kernel_case("nk_hausdorffs_packed_f32_skylake", test_shapes_packed<f32_t, hausdorffs_k>, skylake,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_hausdorffs_packed_f32_skylake);
+                    nk_hausdorffs_packed_f32_skylake);
     run_kernel_case("nk_hausdorffs_packed_f16_skylake", test_shapes_packed<f16_t, hausdorffs_k>, skylake,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_hausdorffs_packed_f16_skylake);
+                    nk_hausdorffs_packed_f16_skylake);
     run_kernel_case("nk_chamfers_packed_f64_skylake", test_shapes_packed<f64_t, chamfers_k>, skylake,
-                    nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial, nk_chamfers_packed_f64_skylake);
+                    nk_chamfers_packed_f64_skylake);
     run_kernel_case("nk_chamfers_packed_f32_skylake", test_chamfers_packed_workspace<f32_t>, skylake,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_chamfers_packed_f32_skylake);
+                    nk_chamfers_packed_f32_skylake);
     run_kernel_case("nk_chamfers_packed_f16_skylake", test_chamfers_packed_workspace<f16_t>, skylake,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_chamfers_packed_f16_skylake);
-    run_kernel_case("nk_wassersteinprocrustes_packed_f64_skylake",
-                    test_shapes_packed_workspace<f64_t, wassersteinprocrustes_k>, skylake,
-                    nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial,
-                    nk_wassersteinprocrustes_workspace_size_f64_serial, nk_wassersteinprocrustes_packed_f64_skylake);
-    run_kernel_case("nk_wassersteinprocrustes_packed_f32_skylake",
-                    test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>, skylake,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
-                    nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_skylake);
-    run_kernel_case("nk_wassersteinprocrustes_packed_f16_skylake",
-                    test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>, skylake,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
-                    nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_skylake);
-    run_kernel_case("test_shapes_kabsch<f64_t>(nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial, " //
-                    "nk_wassersteinprocrustes_workspace_size_f64_serial, nk_wassersteinprocrustes_packed_f64_skylake)",
-                    test_shapes_kabsch<f64_t>, skylake, nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial,
-                    nk_wassersteinprocrustes_workspace_size_f64_serial, nk_wassersteinprocrustes_packed_f64_skylake);
-    run_kernel_case("test_shapes_kabsch<f32_t>(nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, " //
-                    "nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_skylake)",
-                    test_shapes_kabsch<f32_t>, skylake, nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
-                    nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_skylake);
-    run_kernel_case("test_shapes_kabsch<f16_t>(nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, " //
-                    "nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_skylake)",
-                    test_shapes_kabsch<f16_t>, skylake, nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
-                    nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_skylake);
-    run_kernel_case("nk_gromovwassersteins_packed_f64_skylake",
-                    test_shapes_packed_workspace<f64_t, gromovwassersteins_k>, skylake, nk_shapes_pack_size_f64_serial,
-                    nk_shapes_pack_f64_serial, nk_gromovwassersteins_workspace_size_f64_serial,
-                    nk_gromovwassersteins_packed_f64_skylake);
-    run_kernel_case("nk_gromovwassersteins_packed_f32_skylake",
-                    test_shapes_packed_workspace<f32_t, gromovwassersteins_k>, skylake, nk_shapes_pack_size_f32_serial,
-                    nk_shapes_pack_f32_serial, nk_gromovwassersteins_workspace_size_f32_serial,
-                    nk_gromovwassersteins_packed_f32_skylake);
-    run_kernel_case("nk_gromovwassersteins_packed_f16_skylake",
-                    test_shapes_packed_workspace<f16_t, gromovwassersteins_k>, skylake, nk_shapes_pack_size_f16_serial,
-                    nk_shapes_pack_f16_serial, nk_gromovwassersteins_workspace_size_f16_serial,
-                    nk_gromovwassersteins_packed_f16_skylake);
+                    nk_chamfers_packed_f16_skylake);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f64_t, wassersteinprocrustes_k>(nk_wassersteinprocrustes_packed_f64_skylake)",
+        test_shapes_packed_workspace<f64_t, wassersteinprocrustes_k>, skylake,
+        nk_wassersteinprocrustes_workspace_size_f64_skylake, nk_wassersteinprocrustes_packed_f64_skylake);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>(nk_wassersteinprocrustes_packed_f32_skylake)",
+        test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>, skylake,
+        nk_wassersteinprocrustes_workspace_size_f32_skylake, nk_wassersteinprocrustes_packed_f32_skylake);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>(nk_wassersteinprocrustes_packed_f16_skylake)",
+        test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>, skylake,
+        nk_wassersteinprocrustes_workspace_size_f16_skylake, nk_wassersteinprocrustes_packed_f16_skylake);
+    run_kernel_case("test_shapes_kabsch<f64_t>(nk_wassersteinprocrustes_packed_f64_skylake)", test_shapes_kabsch<f64_t>,
+                    skylake, nk_wassersteinprocrustes_workspace_size_f64_skylake,
+                    nk_wassersteinprocrustes_packed_f64_skylake);
+    run_kernel_case("test_shapes_kabsch<f32_t>(nk_wassersteinprocrustes_packed_f32_skylake)", test_shapes_kabsch<f32_t>,
+                    skylake, nk_wassersteinprocrustes_workspace_size_f32_skylake,
+                    nk_wassersteinprocrustes_packed_f32_skylake);
+    run_kernel_case("test_shapes_kabsch<f16_t>(nk_wassersteinprocrustes_packed_f16_skylake)", test_shapes_kabsch<f16_t>,
+                    skylake, nk_wassersteinprocrustes_workspace_size_f16_skylake,
+                    nk_wassersteinprocrustes_packed_f16_skylake);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f64_t, gromovwassersteins_k>(nk_gromovwassersteins_packed_f64_skylake)",
+        test_shapes_packed_workspace<f64_t, gromovwassersteins_k>, skylake,
+        nk_gromovwassersteins_workspace_size_f64_skylake, nk_gromovwassersteins_packed_f64_skylake);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f32_t, gromovwassersteins_k>(nk_gromovwassersteins_packed_f32_skylake)",
+        test_shapes_packed_workspace<f32_t, gromovwassersteins_k>, skylake,
+        nk_gromovwassersteins_workspace_size_f32_skylake, nk_gromovwassersteins_packed_f32_skylake);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f16_t, gromovwassersteins_k>(nk_gromovwassersteins_packed_f16_skylake)",
+        test_shapes_packed_workspace<f16_t, gromovwassersteins_k>, skylake,
+        nk_gromovwassersteins_workspace_size_f16_skylake, nk_gromovwassersteins_packed_f16_skylake);
 #endif
 
 #if NUMKONG_TARGET_RVV
     auto const rvv = nk_cap_rvv_k;
-    run_kernel_case("nk_shapes_pack_f32_rvv", test_shapes_pack<f32_t, pack_k>, rvv, nk_shapes_pack_size_f32_serial,
-                    nk_shapes_pack_f32_rvv, nk_shapes_packed_shape_f32_serial, nk_shapes_unpack_f32_serial);
-    run_kernel_case("nk_shapes_pack_f16_rvv", test_shapes_pack<f16_t, pack_k>, rvv, nk_shapes_pack_size_f16_serial,
-                    nk_shapes_pack_f16_rvv, nk_shapes_packed_shape_f16_serial, nk_shapes_unpack_f16_serial);
+    run_kernel_case("nk_shapes_pack_f32_rvv", test_shapes_pack<f32_t, pack_k>, rvv, nk_shapes_pack_size_f32_rvv,
+                    nk_shapes_pack_f32_rvv);
+    run_kernel_case("nk_shapes_pack_f16_rvv", test_shapes_pack<f16_t, pack_k>, rvv, nk_shapes_pack_size_f16_rvv,
+                    nk_shapes_pack_f16_rvv);
     run_kernel_case("nk_shapes_pack_normalized_f32_rvv", test_shapes_pack<f32_t, pack_normalized_k>, rvv,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_normalized_f32_rvv,
-                    nk_shapes_packed_shape_f32_serial, nk_shapes_unpack_f32_serial);
+                    nk_shapes_pack_size_f32_rvv, nk_shapes_pack_normalized_f32_rvv);
     run_kernel_case("nk_shapes_pack_normalized_f16_rvv", test_shapes_pack<f16_t, pack_normalized_k>, rvv,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_normalized_f16_rvv,
-                    nk_shapes_packed_shape_f16_serial, nk_shapes_unpack_f16_serial);
-    run_kernel_case("nk_rmsds_packed_f64_rvv", test_rmsds_packed<f64_t>, rvv, nk_shapes_pack_size_f64_serial,
-                    nk_shapes_pack_f64_serial, nk_rmsds_packed_f64_rvv);
-    run_kernel_case("nk_rmsds_packed_f32_rvv", test_rmsds_packed<f32_t>, rvv, nk_shapes_pack_size_f32_serial,
-                    nk_shapes_pack_f32_serial, nk_rmsds_packed_f32_rvv);
-    run_kernel_case("nk_rmsds_packed_f16_rvv", test_rmsds_packed<f16_t>, rvv, nk_shapes_pack_size_f16_serial,
-                    nk_shapes_pack_f16_serial, nk_rmsds_packed_f16_rvv);
+                    nk_shapes_pack_size_f16_rvv, nk_shapes_pack_normalized_f16_rvv);
+    run_kernel_case("nk_rmsds_packed_f64_rvv", test_rmsds_packed<f64_t>, rvv, nk_rmsds_packed_f64_rvv);
+    run_kernel_case("nk_rmsds_packed_f32_rvv", test_rmsds_packed<f32_t>, rvv, nk_rmsds_packed_f32_rvv);
+    run_kernel_case("nk_rmsds_packed_f16_rvv", test_rmsds_packed<f16_t>, rvv, nk_rmsds_packed_f16_rvv);
     run_kernel_case("nk_hausdorffs_packed_f32_rvv", test_shapes_packed<f32_t, hausdorffs_k>, rvv,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_hausdorffs_packed_f32_rvv);
+                    nk_hausdorffs_packed_f32_rvv);
     run_kernel_case("nk_hausdorffs_packed_f16_rvv", test_shapes_packed<f16_t, hausdorffs_k>, rvv,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_hausdorffs_packed_f16_rvv);
+                    nk_hausdorffs_packed_f16_rvv);
     run_kernel_case("nk_chamfers_packed_f32_rvv", test_chamfers_packed_workspace<f32_t>, rvv,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_chamfers_packed_f32_rvv);
+                    nk_chamfers_packed_f32_rvv);
     run_kernel_case("nk_chamfers_packed_f16_rvv", test_chamfers_packed_workspace<f16_t>, rvv,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_chamfers_packed_f16_rvv);
-    run_kernel_case("nk_wassersteinprocrustes_packed_f32_rvv",
-                    test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>, rvv, nk_shapes_pack_size_f32_serial,
-                    nk_shapes_pack_f32_serial, nk_wassersteinprocrustes_workspace_size_f32_serial,
-                    nk_wassersteinprocrustes_packed_f32_rvv);
-    run_kernel_case("nk_wassersteinprocrustes_packed_f16_rvv",
-                    test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>, rvv, nk_shapes_pack_size_f16_serial,
-                    nk_shapes_pack_f16_serial, nk_wassersteinprocrustes_workspace_size_f16_serial,
-                    nk_wassersteinprocrustes_packed_f16_rvv);
-    run_kernel_case("test_shapes_kabsch<f32_t>(nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, " //
-                    "nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_rvv)",
-                    test_shapes_kabsch<f32_t>, rvv, nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
-                    nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_rvv);
-    run_kernel_case("test_shapes_kabsch<f16_t>(nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, " //
-                    "nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_rvv)",
-                    test_shapes_kabsch<f16_t>, rvv, nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
-                    nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_rvv);
-    run_kernel_case("nk_gromovwassersteins_packed_f32_rvv", test_shapes_packed_workspace<f32_t, gromovwassersteins_k>,
-                    rvv, nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
-                    nk_gromovwassersteins_workspace_size_f32_serial, nk_gromovwassersteins_packed_f32_rvv);
-    run_kernel_case("nk_gromovwassersteins_packed_f16_rvv", test_shapes_packed_workspace<f16_t, gromovwassersteins_k>,
-                    rvv, nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
-                    nk_gromovwassersteins_workspace_size_f16_serial, nk_gromovwassersteins_packed_f16_rvv);
+                    nk_chamfers_packed_f16_rvv);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>(nk_wassersteinprocrustes_packed_f32_rvv)",
+        test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>, rvv,
+        nk_wassersteinprocrustes_workspace_size_f32_rvv, nk_wassersteinprocrustes_packed_f32_rvv);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>(nk_wassersteinprocrustes_packed_f16_rvv)",
+        test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>, rvv,
+        nk_wassersteinprocrustes_workspace_size_f16_rvv, nk_wassersteinprocrustes_packed_f16_rvv);
+    run_kernel_case("test_shapes_kabsch<f32_t>(nk_wassersteinprocrustes_packed_f32_rvv)", test_shapes_kabsch<f32_t>,
+                    rvv, nk_wassersteinprocrustes_workspace_size_f32_rvv, nk_wassersteinprocrustes_packed_f32_rvv);
+    run_kernel_case("test_shapes_kabsch<f16_t>(nk_wassersteinprocrustes_packed_f16_rvv)", test_shapes_kabsch<f16_t>,
+                    rvv, nk_wassersteinprocrustes_workspace_size_f16_rvv, nk_wassersteinprocrustes_packed_f16_rvv);
+    run_kernel_case("test_shapes_packed_workspace<f32_t, gromovwassersteins_k>(nk_gromovwassersteins_packed_f32_rvv)",
+                    test_shapes_packed_workspace<f32_t, gromovwassersteins_k>, rvv,
+                    nk_gromovwassersteins_workspace_size_f32_rvv, nk_gromovwassersteins_packed_f32_rvv);
+    run_kernel_case("test_shapes_packed_workspace<f16_t, gromovwassersteins_k>(nk_gromovwassersteins_packed_f16_rvv)",
+                    test_shapes_packed_workspace<f16_t, gromovwassersteins_k>, rvv,
+                    nk_gromovwassersteins_workspace_size_f16_rvv, nk_gromovwassersteins_packed_f16_rvv);
 #endif
 
 #if NUMKONG_TARGET_V128RELAXED
     auto const v128relaxed = nk_cap_v128relaxed_k;
     run_kernel_case("nk_shapes_pack_f32_v128relaxed", test_shapes_pack<f32_t, pack_k>, v128relaxed,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_v128relaxed, nk_shapes_packed_shape_f32_serial,
-                    nk_shapes_unpack_f32_serial);
+                    nk_shapes_pack_size_f32_v128relaxed, nk_shapes_pack_f32_v128relaxed);
     run_kernel_case("nk_shapes_pack_f16_v128relaxed", test_shapes_pack<f16_t, pack_k>, v128relaxed,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_v128relaxed, nk_shapes_packed_shape_f16_serial,
-                    nk_shapes_unpack_f16_serial);
+                    nk_shapes_pack_size_f16_v128relaxed, nk_shapes_pack_f16_v128relaxed);
     run_kernel_case("nk_shapes_pack_normalized_f32_v128relaxed", test_shapes_pack<f32_t, pack_normalized_k>,
-                    v128relaxed, nk_shapes_pack_size_f32_serial, nk_shapes_pack_normalized_f32_v128relaxed,
-                    nk_shapes_packed_shape_f32_serial, nk_shapes_unpack_f32_serial);
+                    v128relaxed, nk_shapes_pack_size_f32_v128relaxed, nk_shapes_pack_normalized_f32_v128relaxed);
     run_kernel_case("nk_shapes_pack_normalized_f16_v128relaxed", test_shapes_pack<f16_t, pack_normalized_k>,
-                    v128relaxed, nk_shapes_pack_size_f16_serial, nk_shapes_pack_normalized_f16_v128relaxed,
-                    nk_shapes_packed_shape_f16_serial, nk_shapes_unpack_f16_serial);
+                    v128relaxed, nk_shapes_pack_size_f16_v128relaxed, nk_shapes_pack_normalized_f16_v128relaxed);
     run_kernel_case("nk_rmsds_packed_f64_v128relaxed", test_rmsds_packed<f64_t>, v128relaxed,
-                    nk_shapes_pack_size_f64_serial, nk_shapes_pack_f64_serial, nk_rmsds_packed_f64_v128relaxed);
+                    nk_rmsds_packed_f64_v128relaxed);
     run_kernel_case("nk_rmsds_packed_f32_v128relaxed", test_rmsds_packed<f32_t>, v128relaxed,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_rmsds_packed_f32_v128relaxed);
+                    nk_rmsds_packed_f32_v128relaxed);
     run_kernel_case("nk_rmsds_packed_f16_v128relaxed", test_rmsds_packed<f16_t>, v128relaxed,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_rmsds_packed_f16_v128relaxed);
+                    nk_rmsds_packed_f16_v128relaxed);
     run_kernel_case("nk_hausdorffs_packed_f32_v128relaxed", test_shapes_packed<f32_t, hausdorffs_k>, v128relaxed,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_hausdorffs_packed_f32_v128relaxed);
+                    nk_hausdorffs_packed_f32_v128relaxed);
     run_kernel_case("nk_hausdorffs_packed_f16_v128relaxed", test_shapes_packed<f16_t, hausdorffs_k>, v128relaxed,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_hausdorffs_packed_f16_v128relaxed);
+                    nk_hausdorffs_packed_f16_v128relaxed);
     run_kernel_case("nk_chamfers_packed_f32_v128relaxed", test_chamfers_packed_workspace<f32_t>, v128relaxed,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_chamfers_packed_f32_v128relaxed);
+                    nk_chamfers_packed_f32_v128relaxed);
     run_kernel_case("nk_chamfers_packed_f16_v128relaxed", test_chamfers_packed_workspace<f16_t>, v128relaxed,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_chamfers_packed_f16_v128relaxed);
+                    nk_chamfers_packed_f16_v128relaxed);
     run_kernel_case(
-        "nk_wassersteinprocrustes_packed_f32_v128relaxed", test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>,
-        v128relaxed, nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
-        nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_v128relaxed);
+        "test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>(nk_wassersteinprocrustes_packed_f32_v128relaxed)",
+        test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>, v128relaxed,
+        nk_wassersteinprocrustes_workspace_size_f32_v128relaxed, nk_wassersteinprocrustes_packed_f32_v128relaxed);
     run_kernel_case(
-        "nk_wassersteinprocrustes_packed_f16_v128relaxed", test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>,
-        v128relaxed, nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
-        nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_v128relaxed);
+        "test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>(nk_wassersteinprocrustes_packed_f16_v128relaxed)",
+        test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>, v128relaxed,
+        nk_wassersteinprocrustes_workspace_size_f16_v128relaxed, nk_wassersteinprocrustes_packed_f16_v128relaxed);
+    run_kernel_case("test_shapes_kabsch<f32_t>(nk_wassersteinprocrustes_packed_f32_v128relaxed)",
+                    test_shapes_kabsch<f32_t>, v128relaxed, nk_wassersteinprocrustes_workspace_size_f32_v128relaxed,
+                    nk_wassersteinprocrustes_packed_f32_v128relaxed);
+    run_kernel_case("test_shapes_kabsch<f16_t>(nk_wassersteinprocrustes_packed_f16_v128relaxed)",
+                    test_shapes_kabsch<f16_t>, v128relaxed, nk_wassersteinprocrustes_workspace_size_f16_v128relaxed,
+                    nk_wassersteinprocrustes_packed_f16_v128relaxed);
     run_kernel_case(
-        "test_shapes_kabsch<f32_t>(nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, " //
-        "nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_v128relaxed)",
-        test_shapes_kabsch<f32_t>, v128relaxed, nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
-        nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_v128relaxed);
+        "test_shapes_packed_workspace<f32_t, gromovwassersteins_k>(nk_gromovwassersteins_packed_f32_v128relaxed)",
+        test_shapes_packed_workspace<f32_t, gromovwassersteins_k>, v128relaxed,
+        nk_gromovwassersteins_workspace_size_f32_v128relaxed, nk_gromovwassersteins_packed_f32_v128relaxed);
     run_kernel_case(
-        "test_shapes_kabsch<f16_t>(nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, " //
-        "nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_v128relaxed)",
-        test_shapes_kabsch<f16_t>, v128relaxed, nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
-        nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_v128relaxed);
-    run_kernel_case("nk_gromovwassersteins_packed_f32_v128relaxed",
-                    test_shapes_packed_workspace<f32_t, gromovwassersteins_k>, v128relaxed,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
-                    nk_gromovwassersteins_workspace_size_f32_serial, nk_gromovwassersteins_packed_f32_v128relaxed);
-    run_kernel_case("nk_gromovwassersteins_packed_f16_v128relaxed",
-                    test_shapes_packed_workspace<f16_t, gromovwassersteins_k>, v128relaxed,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
-                    nk_gromovwassersteins_workspace_size_f16_serial, nk_gromovwassersteins_packed_f16_v128relaxed);
+        "test_shapes_packed_workspace<f16_t, gromovwassersteins_k>(nk_gromovwassersteins_packed_f16_v128relaxed)",
+        test_shapes_packed_workspace<f16_t, gromovwassersteins_k>, v128relaxed,
+        nk_gromovwassersteins_workspace_size_f16_v128relaxed, nk_gromovwassersteins_packed_f16_v128relaxed);
 #endif
 
 #if NUMKONG_TARGET_POWERVSX
     auto const powervsx = nk_cap_powervsx_k;
     run_kernel_case("nk_shapes_pack_f32_powervsx", test_shapes_pack<f32_t, pack_k>, powervsx,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_powervsx, nk_shapes_packed_shape_f32_serial,
-                    nk_shapes_unpack_f32_serial);
+                    nk_shapes_pack_size_f32_powervsx, nk_shapes_pack_f32_powervsx);
     run_kernel_case("nk_shapes_pack_f16_powervsx", test_shapes_pack<f16_t, pack_k>, powervsx,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_powervsx, nk_shapes_packed_shape_f16_serial,
-                    nk_shapes_unpack_f16_serial);
+                    nk_shapes_pack_size_f16_powervsx, nk_shapes_pack_f16_powervsx);
     run_kernel_case("nk_shapes_pack_normalized_f32_powervsx", test_shapes_pack<f32_t, pack_normalized_k>, powervsx,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_normalized_f32_powervsx,
-                    nk_shapes_packed_shape_f32_serial, nk_shapes_unpack_f32_serial);
+                    nk_shapes_pack_size_f32_powervsx, nk_shapes_pack_normalized_f32_powervsx);
     run_kernel_case("nk_shapes_pack_normalized_f16_powervsx", test_shapes_pack<f16_t, pack_normalized_k>, powervsx,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_normalized_f16_powervsx,
-                    nk_shapes_packed_shape_f16_serial, nk_shapes_unpack_f16_serial);
-    run_kernel_case("nk_rmsds_packed_f64_powervsx", test_rmsds_packed<f64_t>, powervsx, nk_shapes_pack_size_f64_serial,
-                    nk_shapes_pack_f64_serial, nk_rmsds_packed_f64_powervsx);
-    run_kernel_case("nk_rmsds_packed_f32_powervsx", test_rmsds_packed<f32_t>, powervsx, nk_shapes_pack_size_f32_serial,
-                    nk_shapes_pack_f32_serial, nk_rmsds_packed_f32_powervsx);
-    run_kernel_case("nk_rmsds_packed_f16_powervsx", test_rmsds_packed<f16_t>, powervsx, nk_shapes_pack_size_f16_serial,
-                    nk_shapes_pack_f16_serial, nk_rmsds_packed_f16_powervsx);
+                    nk_shapes_pack_size_f16_powervsx, nk_shapes_pack_normalized_f16_powervsx);
+    run_kernel_case("nk_rmsds_packed_f64_powervsx", test_rmsds_packed<f64_t>, powervsx, nk_rmsds_packed_f64_powervsx);
+    run_kernel_case("nk_rmsds_packed_f32_powervsx", test_rmsds_packed<f32_t>, powervsx, nk_rmsds_packed_f32_powervsx);
+    run_kernel_case("nk_rmsds_packed_f16_powervsx", test_rmsds_packed<f16_t>, powervsx, nk_rmsds_packed_f16_powervsx);
     run_kernel_case("nk_hausdorffs_packed_f32_powervsx", test_shapes_packed<f32_t, hausdorffs_k>, powervsx,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_hausdorffs_packed_f32_powervsx);
+                    nk_hausdorffs_packed_f32_powervsx);
     run_kernel_case("nk_hausdorffs_packed_f16_powervsx", test_shapes_packed<f16_t, hausdorffs_k>, powervsx,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_hausdorffs_packed_f16_powervsx);
+                    nk_hausdorffs_packed_f16_powervsx);
     run_kernel_case("nk_chamfers_packed_f32_powervsx", test_chamfers_packed_workspace<f32_t>, powervsx,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_chamfers_packed_f32_powervsx);
+                    nk_chamfers_packed_f32_powervsx);
     run_kernel_case("nk_chamfers_packed_f16_powervsx", test_chamfers_packed_workspace<f16_t>, powervsx,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_chamfers_packed_f16_powervsx);
-    run_kernel_case("nk_wassersteinprocrustes_packed_f32_powervsx",
-                    test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>, powervsx,
-                    nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
-                    nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_powervsx);
-    run_kernel_case("nk_wassersteinprocrustes_packed_f16_powervsx",
-                    test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>, powervsx,
-                    nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
-                    nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_powervsx);
-    run_kernel_case("test_shapes_kabsch<f32_t>(nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, " //
-                    "nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_powervsx)",
-                    test_shapes_kabsch<f32_t>, powervsx, nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
-                    nk_wassersteinprocrustes_workspace_size_f32_serial, nk_wassersteinprocrustes_packed_f32_powervsx);
-    run_kernel_case("test_shapes_kabsch<f16_t>(nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, " //
-                    "nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_powervsx)",
-                    test_shapes_kabsch<f16_t>, powervsx, nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial,
-                    nk_wassersteinprocrustes_workspace_size_f16_serial, nk_wassersteinprocrustes_packed_f16_powervsx);
-    run_kernel_case("nk_gromovwassersteins_packed_f32_powervsx",
-                    test_shapes_packed_workspace<f32_t, gromovwassersteins_k>, powervsx, nk_shapes_pack_size_f32_serial,
-                    nk_shapes_pack_f32_serial, nk_gromovwassersteins_workspace_size_f32_serial,
-                    nk_gromovwassersteins_packed_f32_powervsx);
-    run_kernel_case("nk_gromovwassersteins_packed_f16_powervsx",
-                    test_shapes_packed_workspace<f16_t, gromovwassersteins_k>, powervsx, nk_shapes_pack_size_f16_serial,
-                    nk_shapes_pack_f16_serial, nk_gromovwassersteins_workspace_size_f16_serial,
-                    nk_gromovwassersteins_packed_f16_powervsx);
+                    nk_chamfers_packed_f16_powervsx);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>(nk_wassersteinprocrustes_packed_f32_powervsx)",
+        test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>, powervsx,
+        nk_wassersteinprocrustes_workspace_size_f32_powervsx, nk_wassersteinprocrustes_packed_f32_powervsx);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>(nk_wassersteinprocrustes_packed_f16_powervsx)",
+        test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>, powervsx,
+        nk_wassersteinprocrustes_workspace_size_f16_powervsx, nk_wassersteinprocrustes_packed_f16_powervsx);
+    run_kernel_case("test_shapes_kabsch<f32_t>(nk_wassersteinprocrustes_packed_f32_powervsx)",
+                    test_shapes_kabsch<f32_t>, powervsx, nk_wassersteinprocrustes_workspace_size_f32_powervsx,
+                    nk_wassersteinprocrustes_packed_f32_powervsx);
+    run_kernel_case("test_shapes_kabsch<f16_t>(nk_wassersteinprocrustes_packed_f16_powervsx)",
+                    test_shapes_kabsch<f16_t>, powervsx, nk_wassersteinprocrustes_workspace_size_f16_powervsx,
+                    nk_wassersteinprocrustes_packed_f16_powervsx);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f32_t, gromovwassersteins_k>(nk_gromovwassersteins_packed_f32_powervsx)",
+        test_shapes_packed_workspace<f32_t, gromovwassersteins_k>, powervsx,
+        nk_gromovwassersteins_workspace_size_f32_powervsx, nk_gromovwassersteins_packed_f32_powervsx);
+    run_kernel_case(
+        "test_shapes_packed_workspace<f16_t, gromovwassersteins_k>(nk_gromovwassersteins_packed_f16_powervsx)",
+        test_shapes_packed_workspace<f16_t, gromovwassersteins_k>, powervsx,
+        nk_gromovwassersteins_workspace_size_f16_powervsx, nk_gromovwassersteins_packed_f16_powervsx);
 #endif
 }
 

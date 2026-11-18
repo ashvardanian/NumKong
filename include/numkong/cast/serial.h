@@ -2081,6 +2081,11 @@ NUMKONG_INLINE void nk_scalar_buffers_to_i64_serial_(                  //
             to_buffers[i * 2 + 1].i64 = (nk_i64_t)(p[i] & 0xF);
         }
     } break;
+    // Sub-byte: u1 - 1 byte to 8 bits, MSB-first
+    case nk_u1_k: {
+        nk_u8_t byte = *(nk_u8_t const *)from_ptr;
+        for (i = 0; i < 8; ++i) to_buffers[i].i64 = (byte >> (7 - i)) & 1;
+    } break;
     default: break;
     }
 }
@@ -2137,6 +2142,23 @@ NUMKONG_INLINE void nk_scalar_buffers_from_i64_serial_(      //
             low = low > 7 ? 7 : (low < -8 ? -8 : low);
             p[i] = (nk_u8_t)(((high & 0xF) << 4) | (low & 0xF));
         }
+    } break;
+    // Sub-byte: u4 - 8 nibbles to 4 bytes, clamp [0,15]
+    case nk_u4_k: {
+        nk_u4x2_t *p = (nk_u4x2_t *)to_ptr;
+        for (i = 0; i < to_count / NUMKONG_NIBBLES_PER_BYTE; ++i) {
+            nk_i64_t high = from_buffers[i * 2].i64;
+            nk_i64_t low = (i * 2 + 1 < to_count) ? from_buffers[i * 2 + 1].i64 : 0;
+            high = high < 0 ? 0 : (high > 15 ? 15 : high);
+            low = low < 0 ? 0 : (low > 15 ? 15 : low);
+            p[i] = (nk_u8_t)((high << 4) | low);
+        }
+    } break;
+    // Sub-byte: u1 - 8 bits to 1 byte, MSB-first, non-zero becomes 1
+    case nk_u1_k: {
+        nk_u8_t byte = 0;
+        for (i = 0; i < 8; ++i) byte |= (nk_u8_t)((from_buffers[i].i64 != 0) << (7 - i));
+        *(nk_u8_t *)to_ptr = byte;
     } break;
     default: break;
     }
@@ -2297,6 +2319,14 @@ NUMKONG_INLINE void nk_cast_elementwise_serial_(void const *from, nk_dtype_t fro
         return;
     }
 
+    // BF16 → F32 widens by the plain 16-bit shift, as the kernels do, so a signaling NaN stays one
+    if ((from_type == nk_bf16_k && to_type == nk_f32_k) || (from_type == nk_bf16c_k && to_type == nk_f32c_k)) {
+        nk_size_t const components = from_type == nk_bf16c_k ? n * 2 : n;
+        for (nk_size_t i = 0; i != components; ++i)
+            nk_bf16_to_f32_serial_((nk_bf16_t const *)from + i, (nk_f32_t *)to + i);
+        return;
+    }
+
     nk_size_t from_bits = nk_dtype_bits(from_type);
     nk_size_t to_bits = nk_dtype_bits(to_type);
     if (from_bits == 0 || to_bits == 0) return;
@@ -2435,11 +2465,7 @@ NUMKONG_CONSTEXPR int nk_cast_plan_serial_(nk_dtype_t from_dtype, nk_dtype_t to_
     else if (from_family == nk_dtype_family_uint_k && to_family == nk_dtype_family_uint_k) {
         plan->hub = nk_cast_hub_u64_k;
     }
-    else if (from_integer && to_integer) {
-        // The serial I64 hub stores no U4 and no U1
-        if (to_dtype == nk_u4_k || to_dtype == nk_u1_k) return 0;
-        plan->hub = nk_cast_hub_i64_k;
-    }
+    else if (from_integer && to_integer) { plan->hub = nk_cast_hub_i64_k; }
     else if (nk_dtype_f32_exact_serial_(from_dtype) && nk_dtype_f32_exact_serial_(to_dtype)) {
         plan->hub = nk_cast_hub_f32c_k;
     }

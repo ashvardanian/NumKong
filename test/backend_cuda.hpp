@@ -1,12 +1,12 @@
 /**
- *  @file test/harness_cuda.hpp
+ *  @file test/backend_cuda.hpp
  *  @author Ash Vardanian
  *  @date November 16, 2026
  *  @brief The CUDA runtime checks that the CUDA reference tests share.
  */
 #pragma once
-#ifndef NUMKONG_TEST_HARNESS_CUDA_HPP
-#define NUMKONG_TEST_HARNESS_CUDA_HPP
+#ifndef NUMKONG_TEST_BACKEND_CUDA_HPP
+#define NUMKONG_TEST_BACKEND_CUDA_HPP
 
 #include "harness.hpp" // `record_failed_check`, `run_kernel_case`
 
@@ -43,4 +43,4 @@ struct cuda_device_scope_t {
 } // namespace ashvardanian::numkong::test
 
 #endif // NUMKONG_ARCH_CUDA_
-#endif // NUMKONG_TEST_HARNESS_CUDA_HPP
+#endif // NUMKONG_TEST_BACKEND_CUDA_HPP

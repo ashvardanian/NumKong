@@ -34,12 +34,10 @@ void run_shapes_rocm_cases() {
     auto const rocm = nk_cap_rocm_k;
     run_kernel_case("test_rmsds_packed<f16_t, rocm_backend_t>(shapes_best<nk_rmsds_packed_f16_best>)",
                     test_rmsds_packed<f16_t, rocm_backend_t>, rocm, shapes_best<nk_rmsds_packed_f16_best>);
-    run_kernel_case("test_shapes_flips<f16_t, nk_kernel_hausdorffs_packed_k, " //
-                    "rocm_backend_t>(shapes_best<nk_hausdorffs_packed_f16_best>)",
+    run_kernel_case("test_shapes_flips<f16_t, nk_kernel_hausdorffs_packed_k, rocm_backend_t>",
                     test_shapes_flips<f16_t, nk_kernel_hausdorffs_packed_k, rocm_backend_t>, rocm,
                     shapes_best<nk_hausdorffs_packed_f16_best>);
-    run_kernel_case("test_shapes_flips<f16_t, nk_kernel_chamfers_packed_k, " //
-                    "rocm_backend_t>(shapes_best<nk_chamfers_packed_f16_best>)",
+    run_kernel_case("test_shapes_flips<f16_t, nk_kernel_chamfers_packed_k, rocm_backend_t>",
                     test_shapes_flips<f16_t, nk_kernel_chamfers_packed_k, rocm_backend_t>, rocm,
                     shapes_best<nk_chamfers_packed_f16_best>);
 }
@@ -51,12 +49,10 @@ void run_shapes_cuda_cases() {
     auto const cuda = nk_cap_cuda_k;
     run_kernel_case("test_rmsds_packed<f16_t, cuda_backend_t>(shapes_best<nk_rmsds_packed_f16_best>)",
                     test_rmsds_packed<f16_t, cuda_backend_t>, cuda, shapes_best<nk_rmsds_packed_f16_best>);
-    run_kernel_case("test_shapes_flips<f16_t, nk_kernel_hausdorffs_packed_k, " //
-                    "cuda_backend_t>(shapes_best<nk_hausdorffs_packed_f16_best>)",
+    run_kernel_case("test_shapes_flips<f16_t, nk_kernel_hausdorffs_packed_k, cuda_backend_t>",
                     test_shapes_flips<f16_t, nk_kernel_hausdorffs_packed_k, cuda_backend_t>, cuda,
                     shapes_best<nk_hausdorffs_packed_f16_best>);
-    run_kernel_case("test_shapes_flips<f16_t, nk_kernel_chamfers_packed_k, " //
-                    "cuda_backend_t>(shapes_best<nk_chamfers_packed_f16_best>)",
+    run_kernel_case("test_shapes_flips<f16_t, nk_kernel_chamfers_packed_k, cuda_backend_t>",
                     test_shapes_flips<f16_t, nk_kernel_chamfers_packed_k, cuda_backend_t>, cuda,
                     shapes_best<nk_chamfers_packed_f16_best>);
 }

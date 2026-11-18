@@ -9,7 +9,7 @@
 #include "numkong/cast.h" // `nk_cast_cuda`, `nk_cast_ampere`, `nk_cast_ada`
 
 #include "cross.hpp"
-#include "harness_cuda.hpp"
+#include "backend_cuda.hpp"
 
 namespace ashvardanian::numkong::bench {
 

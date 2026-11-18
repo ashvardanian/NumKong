@@ -763,7 +763,7 @@ struct nk_shapes_network_metal_t {
     device long const *gradient;
     device half const *row_axes, *column_axes;
     uint row_stride, column_stride, points_stride, rows, columns, gradient_shift;
-    float cost_scale;
+    float cost_scale, tolerance;
 };
 
 /** The network of one pair over the slot at @p slot , for clouds of up to @p largest points. */
@@ -788,6 +788,7 @@ inline nk_shapes_network_metal_t nk_shapes_network_f16_metal_(device uchar *slot
     // 2⁴⁰ over the power of two above radii², whose product with an F32 cost stays exact
     uint const exponent = (as_type<uint>(radii * radii) >> 23) & 0xFF;
     network.cost_scale = as_type<float>(min(293u - exponent, 254u) << 23);
+    network.tolerance = radii * radii * 1e-12f * network.cost_scale;
     return network;
 }
 
@@ -942,16 +943,44 @@ inline void nk_shapes_arc_advance_f16_metal_(thread nk_shapes_network_metal_t co
     while (column >= network.columns) column -= network.columns, row = row + 1 == network.rows ? 0 : row + 1;
 }
 
+/** The reduced cost of the arc @p offset arcs past @p row and @p column in row-major order. */
+template <bool gradient_>
+inline long nk_shapes_reduced_cost_f16_metal_(thread nk_shapes_network_metal_t const &network, uint row, uint column,
+                                              uint offset) {
+    nk_shapes_arc_advance_f16_metal_(network, offset, row, column);
+    return nk_shapes_arc_cost_f16_metal_<gradient_>(network, row, column) - network.potentials[row] +
+           network.potentials[network.rows + column];
+}
+
+/** The first offset below @p index past @p row and @p column whose reduced cost lies within
+ *  @p tolerance of @p least , or @p index when none does, the same on every lane. */
+template <bool gradient_>
+inline uint nk_shapes_first_tied_f16_metal_(thread nk_shapes_network_metal_t const &network, uint row, uint column,
+                                            uint index, long least, float tolerance, uint lane) {
+    uint tied = lane;
+    while (tied < index &&
+           !(float(nk_shapes_reduced_cost_f16_metal_<gradient_>(network, row, column, tied) - least) < tolerance))
+        tied += 32;
+    return simd_min(tied < index ? tied : index);
+}
+
 /** The exact plan by the serial network simplex from the tree in @p network : the lanes price each
- *  block of √(n × m) arcs from the cursor, taking its first most negative reduced cost, and one
- *  lane pivots. Fixed-point sums are exact, so any negative reduced cost is real and no tolerance
- *  stops it, while the scale leaves the serial tolerance to the rounding of each cost. */
+ *  block of √(n × m) arcs from the cursor, the first arc within the tolerance of the block's least
+ *  enters, as in serial, and one lane pivots. The gradient simplex scales its tolerance by the
+ *  largest gradient magnitude, as SIMT does before each simplex. */
 template <bool gradient_>
 inline void nk_shapes_simplex_f16_metal_(thread nk_shapes_network_metal_t const &network, uint lane) {
     uint const rows = network.rows, columns = network.columns;
     ulong const arcs = ulong(rows) * columns;
     uint block = 10, cursor_row = 0, cursor_column = 0;
     while (ulong(block) * block < arcs) ++block;
+    float tolerance = network.tolerance;
+    if constexpr (gradient_) {
+        float largest = 0;
+        for (uint cell = lane; cell < arcs; cell += 32)
+            largest = fmax(largest, fabs(float(network.gradient[cell] >> network.gradient_shift)));
+        tolerance = simd_max(largest) * 1e-12f;
+    }
     if (lane == 0) nk_shapes_tree_potentials_f16_metal_<gradient_>(network);
     simdgroup_barrier(mem_flags::mem_device);
     for (;;) {
@@ -962,16 +991,18 @@ inline void nk_shapes_simplex_f16_metal_(thread nk_shapes_network_metal_t const 
             long least = 0;
             uint index = nk_shapes_no_node_metal_k;
             for (uint offset = lane; offset < count; offset += 32) {
-                uint row = cursor_row, column = cursor_column;
-                nk_shapes_arc_advance_f16_metal_(network, offset, row, column);
-                long const reduced = nk_shapes_arc_cost_f16_metal_<gradient_>(network, row, column) -
-                                     network.potentials[row] + network.potentials[rows + column];
+                long const reduced = nk_shapes_reduced_cost_f16_metal_<gradient_>(network, cursor_row, cursor_column,
+                                                                                  offset);
                 if (reduced < least) least = reduced, index = offset;
             }
             least = nk_shapes_simdgroup_argmin_metal_(least, index);
-            if (least < 0) {
-                entering_cost = least, entering_row = cursor_row, entering_column = cursor_column;
-                nk_shapes_arc_advance_f16_metal_(network, index, entering_row, entering_column);
+            // A found arc costs below least + tolerance < 0, so entering_cost == 0 still means none
+            if (float(least) < -tolerance) {
+                uint const tied = nk_shapes_first_tied_f16_metal_<gradient_>(network, cursor_row, cursor_column, index,
+                                                                             least, tolerance, lane);
+                entering_cost = nk_shapes_reduced_cost_f16_metal_<gradient_>(network, cursor_row, cursor_column, tied);
+                entering_row = cursor_row, entering_column = cursor_column;
+                nk_shapes_arc_advance_f16_metal_(network, tied, entering_row, entering_column);
             }
             nk_shapes_arc_advance_f16_metal_(network, count, cursor_row, cursor_column);
             scanned += count;

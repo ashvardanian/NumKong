@@ -62,9 +62,7 @@ static nk::status_t bench_device(bench_settings_t const &env, nk::device_t devic
     auto [memory, memory_status] = nk::allocator<char>::make(capabilities.value, stream.get(),
                                                              nk_allocator_init_device_best);
     if (nk::failed(memory_status)) return memory_status;
-    char families[NUMKONG_CAPABILITIES_NAME_CAPACITY];
-    nk_capabilities_name(capabilities.value, families, sizeof(families));
-    fmt::println("- {}:{}: {}", device_name(device.kind()), device.ordinal(), families);
+    fmt::println("- {}:{}: {}", device_name(device.kind()), device.ordinal(), capability_names_t {capabilities.value});
     device_backend_t const runtime {device, capabilities.value, memory};
     switch (device.kind()) {
     case nk::device_kind_t::cuda_k: return bench_cross_cuda(env, runtime);

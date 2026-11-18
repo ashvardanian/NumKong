@@ -368,6 +368,12 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_neonfhm(void const *const *a_packed,
     return nk_success_k;
 }
 
+NUMKONG_API nk_status_t nk_chamfers_workspace_size_f16_neonfhm(nk_size_t row_points, nk_size_t column_points,
+                                                               nk_size_t *bytes) {
+    *bytes = nk_chamfers_workspace_bytes_f16_serial_(row_points, column_points);
+    return nk_success_k;
+}
+
 #endif // NUMKONG_TARGET_NEONFHM
 
 #if defined(__clang__)

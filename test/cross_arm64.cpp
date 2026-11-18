@@ -18,22 +18,16 @@ void run_cross_arm64_cases() {
     auto const neon = nk_cap_neon_k;
     run_kernel_case("nk_dots_packed_f64_neon", test_dots_packed<f64_t>, neon, nk_dots_pack_size_f64_neon,
                     nk_dots_pack_f64_neon, nk_dots_packed_f64_neon);
-    run_kernel_case("nk_dots_pack_f64_neon",
-                    test_dots_pack_layout<f64_t, host_backend_t, nk_dots_pack_size_f64_neon,
-                                          nk_dots_packed_shape_f64_neon, nk_dots_pack_f64_neon>,
-                    neon);
+    run_kernel_case("nk_dots_pack_f64_neon", test_dots_pack_layout<f64_t, host_backend_t>, neon,
+                    nk_dots_pack_size_f64_neon, nk_dots_packed_shape_f64_neon, nk_dots_pack_f64_neon);
     run_kernel_case("nk_dots_packed_f32_neon", test_dots_packed<f32_t>, neon, nk_dots_pack_size_f32_neon,
                     nk_dots_pack_f32_neon, nk_dots_packed_f32_neon);
-    run_kernel_case("nk_dots_pack_f32_neon",
-                    test_dots_pack_layout<f32_t, host_backend_t, nk_dots_pack_size_f32_neon,
-                                          nk_dots_packed_shape_f32_neon, nk_dots_pack_f32_neon>,
-                    neon);
+    run_kernel_case("nk_dots_pack_f32_neon", test_dots_pack_layout<f32_t, host_backend_t>, neon,
+                    nk_dots_pack_size_f32_neon, nk_dots_packed_shape_f32_neon, nk_dots_pack_f32_neon);
     run_kernel_case("nk_dots_packed_bf16_neon", test_dots_packed<bf16_t>, neon, nk_dots_pack_size_bf16_neon,
                     nk_dots_pack_bf16_neon, nk_dots_packed_bf16_neon);
-    run_kernel_case("nk_dots_pack_bf16_neon",
-                    test_dots_pack_layout<bf16_t, host_backend_t, nk_dots_pack_size_bf16_neon,
-                                          nk_dots_packed_shape_bf16_neon, nk_dots_pack_bf16_neon>,
-                    neon);
+    run_kernel_case("nk_dots_pack_bf16_neon", test_dots_pack_layout<bf16_t, host_backend_t>, neon,
+                    nk_dots_pack_size_bf16_neon, nk_dots_packed_shape_bf16_neon, nk_dots_pack_bf16_neon);
     run_kernel_case("nk_dots_packed_u1_neon", test_dots_packed<u1x8_t>, neon, nk_dots_pack_size_u1_neon,
                     nk_dots_pack_u1_neon, nk_dots_packed_u1_neon);
 
@@ -72,10 +66,8 @@ void run_cross_arm64_cases() {
 
     run_kernel_case("nk_dots_packed_f16_neon", test_dots_packed<f16_t>, neon, nk_dots_pack_size_f16_neon,
                     nk_dots_pack_f16_neon, nk_dots_packed_f16_neon);
-    run_kernel_case("nk_dots_pack_f16_neon",
-                    test_dots_pack_layout<f16_t, host_backend_t, nk_dots_pack_size_f16_neon,
-                                          nk_dots_packed_shape_f16_neon, nk_dots_pack_f16_neon>,
-                    neon);
+    run_kernel_case("nk_dots_pack_f16_neon", test_dots_pack_layout<f16_t, host_backend_t>, neon,
+                    nk_dots_pack_size_f16_neon, nk_dots_packed_shape_f16_neon, nk_dots_pack_f16_neon);
     run_kernel_case("nk_dots_symmetric_f16_neon", test_dots_symmetric<f16_t>, neon, nk_dots_symmetric_f16_neon);
 
     run_kernel_case("nk_angulars_packed_f16_neon", test_angulars_packed<f16_t>, neon, nk_dots_pack_size_f16_neon,
@@ -202,10 +194,8 @@ void run_cross_arm64_cases() {
     auto const neonbfdot = nk_cap_neonbfdot_k;
     run_kernel_case("nk_dots_packed_bf16_neonbfdot", test_dots_packed<bf16_t>, neonbfdot,
                     nk_dots_pack_size_bf16_neonbfdot, nk_dots_pack_bf16_neonbfdot, nk_dots_packed_bf16_neonbfdot);
-    run_kernel_case("nk_dots_pack_bf16_neonbfdot",
-                    test_dots_pack_layout<bf16_t, host_backend_t, nk_dots_pack_size_bf16_neonbfdot,
-                                          nk_dots_packed_shape_bf16_neonbfdot, nk_dots_pack_bf16_neonbfdot>,
-                    neonbfdot);
+    run_kernel_case("nk_dots_pack_bf16_neonbfdot", test_dots_pack_layout<bf16_t, host_backend_t>, neonbfdot,
+                    nk_dots_pack_size_bf16_neonbfdot, nk_dots_packed_shape_bf16_neonbfdot, nk_dots_pack_bf16_neonbfdot);
     run_kernel_case("nk_dots_symmetric_bf16_neonbfdot", test_dots_symmetric<bf16_t>, neonbfdot,
                     nk_dots_symmetric_bf16_neonbfdot);
 
@@ -243,10 +233,8 @@ void run_cross_arm64_cases() {
     auto const neonfhm = nk_cap_neonfhm_k;
     run_kernel_case("nk_dots_packed_f16_neonfhm", test_dots_packed<f16_t>, neonfhm, nk_dots_pack_size_f16_neonfhm,
                     nk_dots_pack_f16_neonfhm, nk_dots_packed_f16_neonfhm);
-    run_kernel_case("nk_dots_pack_f16_neonfhm",
-                    test_dots_pack_layout<f16_t, host_backend_t, nk_dots_pack_size_f16_neonfhm,
-                                          nk_dots_packed_shape_f16_neonfhm, nk_dots_pack_f16_neonfhm>,
-                    neonfhm);
+    run_kernel_case("nk_dots_pack_f16_neonfhm", test_dots_pack_layout<f16_t, host_backend_t>, neonfhm,
+                    nk_dots_pack_size_f16_neonfhm, nk_dots_packed_shape_f16_neonfhm, nk_dots_pack_f16_neonfhm);
     run_kernel_case("nk_dots_symmetric_f16_neonfhm", test_dots_symmetric<f16_t>, neonfhm,
                     nk_dots_symmetric_f16_neonfhm);
 
@@ -322,28 +310,20 @@ void run_cross_arm64_cases() {
     auto const neonsdot = nk_cap_neonsdot_k;
     run_kernel_case("nk_dots_packed_i8_neonsdot", test_dots_packed<i8_t>, neonsdot, nk_dots_pack_size_i8_neonsdot,
                     nk_dots_pack_i8_neonsdot, nk_dots_packed_i8_neonsdot);
-    run_kernel_case("nk_dots_pack_i8_neonsdot",
-                    test_dots_pack_layout<i8_t, host_backend_t, nk_dots_pack_size_i8_neonsdot,
-                                          nk_dots_packed_shape_i8_neonsdot, nk_dots_pack_i8_neonsdot>,
-                    neonsdot);
+    run_kernel_case("nk_dots_pack_i8_neonsdot", test_dots_pack_layout<i8_t, host_backend_t>, neonsdot,
+                    nk_dots_pack_size_i8_neonsdot, nk_dots_packed_shape_i8_neonsdot, nk_dots_pack_i8_neonsdot);
     run_kernel_case("nk_dots_packed_i4_neonsdot", test_dots_packed<i4x2_t>, neonsdot, nk_dots_pack_size_i4_neonsdot,
                     nk_dots_pack_i4_neonsdot, nk_dots_packed_i4_neonsdot);
-    run_kernel_case("nk_dots_pack_i4_neonsdot",
-                    test_dots_pack_layout<i4x2_t, host_backend_t, nk_dots_pack_size_i4_neonsdot,
-                                          nk_dots_packed_shape_i4_neonsdot, nk_dots_pack_i4_neonsdot>,
-                    neonsdot);
+    run_kernel_case("nk_dots_pack_i4_neonsdot", test_dots_pack_layout<i4x2_t, host_backend_t>, neonsdot,
+                    nk_dots_pack_size_i4_neonsdot, nk_dots_packed_shape_i4_neonsdot, nk_dots_pack_i4_neonsdot);
     run_kernel_case("nk_dots_packed_u8_neonsdot", test_dots_packed<u8_t>, neonsdot, nk_dots_pack_size_u8_neonsdot,
                     nk_dots_pack_u8_neonsdot, nk_dots_packed_u8_neonsdot);
-    run_kernel_case("nk_dots_pack_u8_neonsdot",
-                    test_dots_pack_layout<u8_t, host_backend_t, nk_dots_pack_size_u8_neonsdot,
-                                          nk_dots_packed_shape_u8_neonsdot, nk_dots_pack_u8_neonsdot>,
-                    neonsdot);
+    run_kernel_case("nk_dots_pack_u8_neonsdot", test_dots_pack_layout<u8_t, host_backend_t>, neonsdot,
+                    nk_dots_pack_size_u8_neonsdot, nk_dots_packed_shape_u8_neonsdot, nk_dots_pack_u8_neonsdot);
     run_kernel_case("nk_dots_packed_u4_neonsdot", test_dots_packed<u4x2_t>, neonsdot, nk_dots_pack_size_u4_neonsdot,
                     nk_dots_pack_u4_neonsdot, nk_dots_packed_u4_neonsdot);
-    run_kernel_case("nk_dots_pack_u4_neonsdot",
-                    test_dots_pack_layout<u4x2_t, host_backend_t, nk_dots_pack_size_u4_neonsdot,
-                                          nk_dots_packed_shape_u4_neonsdot, nk_dots_pack_u4_neonsdot>,
-                    neonsdot);
+    run_kernel_case("nk_dots_pack_u4_neonsdot", test_dots_pack_layout<u4x2_t, host_backend_t>, neonsdot,
+                    nk_dots_pack_size_u4_neonsdot, nk_dots_packed_shape_u4_neonsdot, nk_dots_pack_u4_neonsdot);
 
     run_kernel_case("nk_dots_symmetric_i8_neonsdot", test_dots_symmetric<i8_t>, neonsdot,
                     nk_dots_symmetric_i8_neonsdot);
@@ -392,22 +372,16 @@ void run_cross_arm64_cases() {
 
     run_kernel_case("nk_dots_packed_e3m2_neonsdot", test_dots_packed<e3m2_t>, neonsdot, nk_dots_pack_size_e3m2_neonsdot,
                     nk_dots_pack_e3m2_neonsdot, nk_dots_packed_e3m2_neonsdot);
-    run_kernel_case("nk_dots_pack_e3m2_neonsdot",
-                    test_dots_pack_layout<e3m2_t, host_backend_t, nk_dots_pack_size_e3m2_neonsdot,
-                                          nk_dots_packed_shape_e3m2_neonsdot, nk_dots_pack_e3m2_neonsdot>,
-                    neonsdot);
+    run_kernel_case("nk_dots_pack_e3m2_neonsdot", test_dots_pack_layout<e3m2_t, host_backend_t>, neonsdot,
+                    nk_dots_pack_size_e3m2_neonsdot, nk_dots_packed_shape_e3m2_neonsdot, nk_dots_pack_e3m2_neonsdot);
     run_kernel_case("nk_dots_packed_e2m3_neonsdot", test_dots_packed<e2m3_t>, neonsdot, nk_dots_pack_size_e2m3_neonsdot,
                     nk_dots_pack_e2m3_neonsdot, nk_dots_packed_e2m3_neonsdot);
-    run_kernel_case("nk_dots_pack_e2m3_neonsdot",
-                    test_dots_pack_layout<e2m3_t, host_backend_t, nk_dots_pack_size_e2m3_neonsdot,
-                                          nk_dots_packed_shape_e2m3_neonsdot, nk_dots_pack_e2m3_neonsdot>,
-                    neonsdot);
+    run_kernel_case("nk_dots_pack_e2m3_neonsdot", test_dots_pack_layout<e2m3_t, host_backend_t>, neonsdot,
+                    nk_dots_pack_size_e2m3_neonsdot, nk_dots_packed_shape_e2m3_neonsdot, nk_dots_pack_e2m3_neonsdot);
     run_kernel_case("nk_dots_packed_e2m1_neonsdot", test_dots_packed<e2m1x2_t>, neonsdot,
                     nk_dots_pack_size_e2m1_neonsdot, nk_dots_pack_e2m1_neonsdot, nk_dots_packed_e2m1_neonsdot);
-    run_kernel_case("nk_dots_pack_e2m1_neonsdot",
-                    test_dots_pack_layout<e2m1x2_t, host_backend_t, nk_dots_pack_size_e2m1_neonsdot,
-                                          nk_dots_packed_shape_e2m1_neonsdot, nk_dots_pack_e2m1_neonsdot>,
-                    neonsdot);
+    run_kernel_case("nk_dots_pack_e2m1_neonsdot", test_dots_pack_layout<e2m1x2_t, host_backend_t>, neonsdot,
+                    nk_dots_pack_size_e2m1_neonsdot, nk_dots_packed_shape_e2m1_neonsdot, nk_dots_pack_e2m1_neonsdot);
     run_kernel_case("nk_dots_symmetric_e3m2_neonsdot", test_dots_symmetric<e3m2_t>, neonsdot,
                     nk_dots_symmetric_e3m2_neonsdot);
     run_kernel_case("nk_dots_symmetric_e2m3_neonsdot", test_dots_symmetric<e2m3_t>, neonsdot,
@@ -488,34 +462,24 @@ void run_cross_arm64_cases() {
     auto const neonfp8 = nk_cap_neonfp8_k;
     run_kernel_case("nk_dots_packed_e5m2_neonfp8", test_dots_packed<e5m2_t>, neonfp8, nk_dots_pack_size_e5m2_neonfp8,
                     nk_dots_pack_e5m2_neonfp8, nk_dots_packed_e5m2_neonfp8);
-    run_kernel_case("nk_dots_pack_e5m2_neonfp8",
-                    test_dots_pack_layout<e5m2_t, host_backend_t, nk_dots_pack_size_e5m2_neonfp8,
-                                          nk_dots_packed_shape_e5m2_neonfp8, nk_dots_pack_e5m2_neonfp8>,
-                    neonfp8);
+    run_kernel_case("nk_dots_pack_e5m2_neonfp8", test_dots_pack_layout<e5m2_t, host_backend_t>, neonfp8,
+                    nk_dots_pack_size_e5m2_neonfp8, nk_dots_packed_shape_e5m2_neonfp8, nk_dots_pack_e5m2_neonfp8);
     run_kernel_case("nk_dots_packed_e4m3_neonfp8", test_dots_packed<e4m3_t>, neonfp8, nk_dots_pack_size_e4m3_neonfp8,
                     nk_dots_pack_e4m3_neonfp8, nk_dots_packed_e4m3_neonfp8);
-    run_kernel_case("nk_dots_pack_e4m3_neonfp8",
-                    test_dots_pack_layout<e4m3_t, host_backend_t, nk_dots_pack_size_e4m3_neonfp8,
-                                          nk_dots_packed_shape_e4m3_neonfp8, nk_dots_pack_e4m3_neonfp8>,
-                    neonfp8);
+    run_kernel_case("nk_dots_pack_e4m3_neonfp8", test_dots_pack_layout<e4m3_t, host_backend_t>, neonfp8,
+                    nk_dots_pack_size_e4m3_neonfp8, nk_dots_packed_shape_e4m3_neonfp8, nk_dots_pack_e4m3_neonfp8);
     run_kernel_case("nk_dots_packed_e3m2_neonfp8", test_dots_packed<e3m2_t>, neonfp8, nk_dots_pack_size_e3m2_neonfp8,
                     nk_dots_pack_e3m2_neonfp8, nk_dots_packed_e3m2_neonfp8);
-    run_kernel_case("nk_dots_pack_e3m2_neonfp8",
-                    test_dots_pack_layout<e3m2_t, host_backend_t, nk_dots_pack_size_e3m2_neonfp8,
-                                          nk_dots_packed_shape_e3m2_neonfp8, nk_dots_pack_e3m2_neonfp8>,
-                    neonfp8);
+    run_kernel_case("nk_dots_pack_e3m2_neonfp8", test_dots_pack_layout<e3m2_t, host_backend_t>, neonfp8,
+                    nk_dots_pack_size_e3m2_neonfp8, nk_dots_packed_shape_e3m2_neonfp8, nk_dots_pack_e3m2_neonfp8);
     run_kernel_case("nk_dots_packed_e2m3_neonfp8", test_dots_packed<e2m3_t>, neonfp8, nk_dots_pack_size_e2m3_neonfp8,
                     nk_dots_pack_e2m3_neonfp8, nk_dots_packed_e2m3_neonfp8);
-    run_kernel_case("nk_dots_pack_e2m3_neonfp8",
-                    test_dots_pack_layout<e2m3_t, host_backend_t, nk_dots_pack_size_e2m3_neonfp8,
-                                          nk_dots_packed_shape_e2m3_neonfp8, nk_dots_pack_e2m3_neonfp8>,
-                    neonfp8);
+    run_kernel_case("nk_dots_pack_e2m3_neonfp8", test_dots_pack_layout<e2m3_t, host_backend_t>, neonfp8,
+                    nk_dots_pack_size_e2m3_neonfp8, nk_dots_packed_shape_e2m3_neonfp8, nk_dots_pack_e2m3_neonfp8);
     run_kernel_case("nk_dots_packed_e2m1_neonfp8", test_dots_packed<e2m1x2_t>, neonfp8, nk_dots_pack_size_e2m1_neonfp8,
                     nk_dots_pack_e2m1_neonfp8, nk_dots_packed_e2m1_neonfp8);
-    run_kernel_case("nk_dots_pack_e2m1_neonfp8",
-                    test_dots_pack_layout<e2m1x2_t, host_backend_t, nk_dots_pack_size_e2m1_neonfp8,
-                                          nk_dots_packed_shape_e2m1_neonfp8, nk_dots_pack_e2m1_neonfp8>,
-                    neonfp8);
+    run_kernel_case("nk_dots_pack_e2m1_neonfp8", test_dots_pack_layout<e2m1x2_t, host_backend_t>, neonfp8,
+                    nk_dots_pack_size_e2m1_neonfp8, nk_dots_packed_shape_e2m1_neonfp8, nk_dots_pack_e2m1_neonfp8);
 
     run_kernel_case("nk_dots_symmetric_e5m2_neonfp8", test_dots_symmetric<e5m2_t>, neonfp8,
                     nk_dots_symmetric_e5m2_neonfp8);
@@ -577,70 +541,48 @@ void run_cross_arm64_cases() {
     auto const sme = nk_cap_sme_k;
     run_kernel_case("nk_dots_packed_bf16_sme", test_dots_packed<bf16_t>, sme, nk_dots_pack_size_bf16_sme,
                     nk_dots_pack_bf16_sme, nk_dots_packed_bf16_sme);
-    run_kernel_case("nk_dots_pack_bf16_sme",
-                    test_dots_pack_layout<bf16_t, host_backend_t, nk_dots_pack_size_bf16_sme,
-                                          nk_dots_packed_shape_bf16_sme, nk_dots_pack_bf16_sme>,
-                    sme);
+    run_kernel_case("nk_dots_pack_bf16_sme", test_dots_pack_layout<bf16_t, host_backend_t>, sme,
+                    nk_dots_pack_size_bf16_sme, nk_dots_packed_shape_bf16_sme, nk_dots_pack_bf16_sme);
     run_kernel_case("nk_dots_packed_f16_sme", test_dots_packed<f16_t>, sme, nk_dots_pack_size_f16_sme,
                     nk_dots_pack_f16_sme, nk_dots_packed_f16_sme);
-    run_kernel_case("nk_dots_pack_f16_sme",
-                    test_dots_pack_layout<f16_t, host_backend_t, nk_dots_pack_size_f16_sme,
-                                          nk_dots_packed_shape_f16_sme, nk_dots_pack_f16_sme>,
-                    sme);
+    run_kernel_case("nk_dots_pack_f16_sme", test_dots_pack_layout<f16_t, host_backend_t>, sme,
+                    nk_dots_pack_size_f16_sme, nk_dots_packed_shape_f16_sme, nk_dots_pack_f16_sme);
     run_kernel_case("nk_dots_packed_e5m2_sme", test_dots_packed<e5m2_t>, sme, nk_dots_pack_size_e5m2_sme,
                     nk_dots_pack_e5m2_sme, nk_dots_packed_e5m2_sme);
-    run_kernel_case("nk_dots_pack_e5m2_sme",
-                    test_dots_pack_layout<e5m2_t, host_backend_t, nk_dots_pack_size_e5m2_sme,
-                                          nk_dots_packed_shape_e5m2_sme, nk_dots_pack_e5m2_sme>,
-                    sme);
+    run_kernel_case("nk_dots_pack_e5m2_sme", test_dots_pack_layout<e5m2_t, host_backend_t>, sme,
+                    nk_dots_pack_size_e5m2_sme, nk_dots_packed_shape_e5m2_sme, nk_dots_pack_e5m2_sme);
     run_kernel_case("nk_dots_packed_e4m3_sme", test_dots_packed<e4m3_t>, sme, nk_dots_pack_size_e4m3_sme,
                     nk_dots_pack_e4m3_sme, nk_dots_packed_e4m3_sme);
-    run_kernel_case("nk_dots_pack_e4m3_sme",
-                    test_dots_pack_layout<e4m3_t, host_backend_t, nk_dots_pack_size_e4m3_sme,
-                                          nk_dots_packed_shape_e4m3_sme, nk_dots_pack_e4m3_sme>,
-                    sme);
+    run_kernel_case("nk_dots_pack_e4m3_sme", test_dots_pack_layout<e4m3_t, host_backend_t>, sme,
+                    nk_dots_pack_size_e4m3_sme, nk_dots_packed_shape_e4m3_sme, nk_dots_pack_e4m3_sme);
     run_kernel_case("nk_dots_packed_e3m2_sme", test_dots_packed<e3m2_t>, sme, nk_dots_pack_size_e3m2_sme,
                     nk_dots_pack_e3m2_sme, nk_dots_packed_e3m2_sme);
-    run_kernel_case("nk_dots_pack_e3m2_sme",
-                    test_dots_pack_layout<e3m2_t, host_backend_t, nk_dots_pack_size_e3m2_sme,
-                                          nk_dots_packed_shape_e3m2_sme, nk_dots_pack_e3m2_sme>,
-                    sme);
+    run_kernel_case("nk_dots_pack_e3m2_sme", test_dots_pack_layout<e3m2_t, host_backend_t>, sme,
+                    nk_dots_pack_size_e3m2_sme, nk_dots_packed_shape_e3m2_sme, nk_dots_pack_e3m2_sme);
     run_kernel_case("nk_dots_packed_e2m3_sme", test_dots_packed<e2m3_t>, sme, nk_dots_pack_size_e2m3_sme,
                     nk_dots_pack_e2m3_sme, nk_dots_packed_e2m3_sme);
-    run_kernel_case("nk_dots_pack_e2m3_sme",
-                    test_dots_pack_layout<e2m3_t, host_backend_t, nk_dots_pack_size_e2m3_sme,
-                                          nk_dots_packed_shape_e2m3_sme, nk_dots_pack_e2m3_sme>,
-                    sme);
+    run_kernel_case("nk_dots_pack_e2m3_sme", test_dots_pack_layout<e2m3_t, host_backend_t>, sme,
+                    nk_dots_pack_size_e2m3_sme, nk_dots_packed_shape_e2m3_sme, nk_dots_pack_e2m3_sme);
     run_kernel_case("nk_dots_packed_e2m1_sme", test_dots_packed<e2m1x2_t>, sme, nk_dots_pack_size_e2m1_sme,
                     nk_dots_pack_e2m1_sme, nk_dots_packed_e2m1_sme);
-    run_kernel_case("nk_dots_pack_e2m1_sme",
-                    test_dots_pack_layout<e2m1x2_t, host_backend_t, nk_dots_pack_size_e2m1_sme,
-                                          nk_dots_packed_shape_e2m1_sme, nk_dots_pack_e2m1_sme>,
-                    sme);
+    run_kernel_case("nk_dots_pack_e2m1_sme", test_dots_pack_layout<e2m1x2_t, host_backend_t>, sme,
+                    nk_dots_pack_size_e2m1_sme, nk_dots_packed_shape_e2m1_sme, nk_dots_pack_e2m1_sme);
     run_kernel_case("nk_dots_packed_i8_sme", test_dots_packed<i8_t>, sme, nk_dots_pack_size_i8_sme, nk_dots_pack_i8_sme,
                     nk_dots_packed_i8_sme);
-    run_kernel_case("nk_dots_pack_i8_sme",
-                    test_dots_pack_layout<i8_t, host_backend_t, nk_dots_pack_size_i8_sme, nk_dots_packed_shape_i8_sme,
-                                          nk_dots_pack_i8_sme>,
-                    sme);
+    run_kernel_case("nk_dots_pack_i8_sme", test_dots_pack_layout<i8_t, host_backend_t>, sme, nk_dots_pack_size_i8_sme,
+                    nk_dots_packed_shape_i8_sme, nk_dots_pack_i8_sme);
     run_kernel_case("nk_dots_packed_i4_sme", test_dots_packed<i4x2_t>, sme, nk_dots_pack_size_i4_sme,
                     nk_dots_pack_i4_sme, nk_dots_packed_i4_sme);
-    run_kernel_case("nk_dots_pack_i4_sme",
-                    test_dots_pack_layout<i4x2_t, host_backend_t, nk_dots_pack_size_i4_sme, nk_dots_packed_shape_i4_sme,
-                                          nk_dots_pack_i4_sme>,
-                    sme);
+    run_kernel_case("nk_dots_pack_i4_sme", test_dots_pack_layout<i4x2_t, host_backend_t>, sme, nk_dots_pack_size_i4_sme,
+                    nk_dots_packed_shape_i4_sme, nk_dots_pack_i4_sme);
     run_kernel_case("nk_dots_packed_u8_sme", test_dots_packed<u8_t>, sme, nk_dots_pack_size_u8_sme, nk_dots_pack_u8_sme,
                     nk_dots_packed_u8_sme);
-    run_kernel_case("nk_dots_pack_u8_sme",
-                    test_dots_pack_layout<u8_t, host_backend_t, nk_dots_pack_size_u8_sme, nk_dots_packed_shape_u8_sme,
-                                          nk_dots_pack_u8_sme>,
-                    sme);
+    run_kernel_case("nk_dots_pack_u8_sme", test_dots_pack_layout<u8_t, host_backend_t>, sme, nk_dots_pack_size_u8_sme,
+                    nk_dots_packed_shape_u8_sme, nk_dots_pack_u8_sme);
     run_kernel_case("nk_dots_packed_u4_sme", test_dots_packed<u4x2_t>, sme, nk_dots_pack_size_u4_sme,
                     nk_dots_pack_u4_sme, nk_dots_packed_u4_sme);
-    run_kernel_case("nk_dots_pack_u4_sme",
-                    test_dots_pack_layout<u4x2_t, host_backend_t, nk_dots_pack_size_u4_sme, nk_dots_packed_shape_u4_sme,
-                                          nk_dots_pack_u4_sme>,
-                    sme);
+    run_kernel_case("nk_dots_pack_u4_sme", test_dots_pack_layout<u4x2_t, host_backend_t>, sme, nk_dots_pack_size_u4_sme,
+                    nk_dots_packed_shape_u4_sme, nk_dots_pack_u4_sme);
 
     run_kernel_case("nk_dots_symmetric_bf16_sme", test_dots_symmetric<bf16_t>, sme, nk_dots_symmetric_bf16_sme);
     run_kernel_case("nk_dots_symmetric_f16_sme", test_dots_symmetric<f16_t>, sme, nk_dots_symmetric_f16_sme);
@@ -843,10 +785,8 @@ void run_cross_arm64_cases() {
     auto const smebi32 = nk_cap_smebi32_k;
     run_kernel_case("nk_dots_packed_u1_smebi32", test_dots_packed<u1x8_t>, smebi32, nk_dots_pack_size_u1_smebi32,
                     nk_dots_pack_u1_smebi32, nk_dots_packed_u1_smebi32);
-    run_kernel_case("nk_dots_pack_u1_smebi32",
-                    test_dots_pack_layout<u1x8_t, host_backend_t, nk_dots_pack_size_u1_smebi32,
-                                          nk_dots_packed_shape_u1_smebi32, nk_dots_pack_u1_smebi32>,
-                    smebi32);
+    run_kernel_case("nk_dots_pack_u1_smebi32", test_dots_pack_layout<u1x8_t, host_backend_t>, smebi32,
+                    nk_dots_pack_size_u1_smebi32, nk_dots_packed_shape_u1_smebi32, nk_dots_pack_u1_smebi32);
     run_kernel_case("nk_dots_symmetric_u1_smebi32", test_dots_symmetric<u1x8_t>, smebi32, nk_dots_symmetric_u1_smebi32);
 
     run_kernel_case("nk_hammings_packed_u1_smebi32", test_hammings_packed<u1x8_t>, smebi32,
@@ -864,16 +804,12 @@ void run_cross_arm64_cases() {
     auto const smef64 = nk_cap_smef64_k;
     run_kernel_case("nk_dots_packed_f64_smef64", test_dots_packed<f64_t>, smef64, nk_dots_pack_size_f64_smef64,
                     nk_dots_pack_f64_smef64, nk_dots_packed_f64_smef64);
-    run_kernel_case("nk_dots_pack_f64_smef64",
-                    test_dots_pack_layout<f64_t, host_backend_t, nk_dots_pack_size_f64_smef64,
-                                          nk_dots_packed_shape_f64_smef64, nk_dots_pack_f64_smef64>,
-                    smef64);
+    run_kernel_case("nk_dots_pack_f64_smef64", test_dots_pack_layout<f64_t, host_backend_t>, smef64,
+                    nk_dots_pack_size_f64_smef64, nk_dots_packed_shape_f64_smef64, nk_dots_pack_f64_smef64);
     run_kernel_case("nk_dots_packed_f32_smef64", test_dots_packed<f32_t>, smef64, nk_dots_pack_size_f32_smef64,
                     nk_dots_pack_f32_smef64, nk_dots_packed_f32_smef64);
-    run_kernel_case("nk_dots_pack_f32_smef64",
-                    test_dots_pack_layout<f32_t, host_backend_t, nk_dots_pack_size_f32_smef64,
-                                          nk_dots_packed_shape_f32_smef64, nk_dots_pack_f32_smef64>,
-                    smef64);
+    run_kernel_case("nk_dots_pack_f32_smef64", test_dots_pack_layout<f32_t, host_backend_t>, smef64,
+                    nk_dots_pack_size_f32_smef64, nk_dots_packed_shape_f32_smef64, nk_dots_pack_f32_smef64);
     run_kernel_case("nk_dots_symmetric_f64_smef64", test_dots_symmetric<f64_t>, smef64, nk_dots_symmetric_f64_smef64);
     run_kernel_case("nk_dots_symmetric_f32_smef64", test_dots_symmetric<f32_t>, smef64, nk_dots_symmetric_f32_smef64);
 

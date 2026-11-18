@@ -618,9 +618,8 @@ static nk::status_t run_device_cases(nk::device_t device) {
     else {
         auto const capabilities = device.capabilities_enabled();
         if (!capabilities) return capabilities.status;
-        char names[NUMKONG_CAPABILITIES_NAME_CAPACITY];
-        nk_capabilities_name(capabilities.value, names, sizeof(names));
-        fmt::println("- {}:{}: {}", device_name(device.kind()), device.ordinal(), names);
+        fmt::println("- {}:{}: {}", device_name(device.kind()), device.ordinal(),
+                     capability_names_t {capabilities.value});
         test_run.settings.device = device;
         test_run.settings.capabilities = capabilities.value;
         run_kernel_case("test_gpu_capabilities(device)", test_gpu_capabilities,

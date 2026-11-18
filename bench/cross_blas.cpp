@@ -9,6 +9,8 @@
 
 #include <vector> // `std::vector`
 
+#include <fmt/format.h> // `fmt::format`
+
 #include "harness.hpp"
 
 namespace ashvardanian::numkong::bench {
@@ -204,9 +206,8 @@ void measure_dots_i16_with_mkl(loop_t &loop, bench_settings_t const &env, std::s
 
 void bench_cross_blas(bench_settings_t const &env) {
 
-    std::string syrk_dims = std::to_string(env.matrix_height) + "x" + std::to_string(env.matrix_depth);
-    std::string gemm_dims = std::to_string(env.matrix_height) + "x" + std::to_string(env.matrix_width) + "x" +
-                            std::to_string(env.matrix_depth);
+    std::string const syrk_dims = fmt::format("{}x{}", env.matrix_height, env.matrix_depth);
+    std::string const gemm_dims = fmt::format("{}x{}x{}", env.matrix_height, env.matrix_width, env.matrix_depth);
 
     nk_unused_(syrk_dims);
     nk_unused_(gemm_dims);
@@ -214,38 +215,38 @@ void bench_cross_blas(bench_settings_t const &env) {
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
     section(env, "Cross External Baselines", nk_cap_serial_k);
     // BLAS GEMM baselines for matmul comparison (same layout as NumKong: A x B^T)
-    run_benchmark(env, "dots_packed_f32_with_blas<" + gemm_dims + ">", measure_dots_f32_with_blas, env.matrix_height,
-                  env.matrix_width, env.matrix_depth);
-    run_benchmark(env, "dots_packed_f64_with_blas<" + gemm_dims + ">", measure_dots_f64_with_blas, env.matrix_height,
-                  env.matrix_width, env.matrix_depth);
+    run_benchmark(env, fmt::format("dots_packed_f32_with_blas<{}>", gemm_dims), measure_dots_f32_with_blas,
+                  env.matrix_height, env.matrix_width, env.matrix_depth);
+    run_benchmark(env, fmt::format("dots_packed_f64_with_blas<{}>", gemm_dims), measure_dots_f64_with_blas,
+                  env.matrix_height, env.matrix_width, env.matrix_depth);
 
     // BLAS SYRK baselines for symmetric operations (correct operation for dots_symmetric: A x A^T)
-    run_benchmark(env, "dots_symmetric_f32_with_blas<" + syrk_dims + ">", measure_dots_symmetric_f32_with_blas,
+    run_benchmark(env, fmt::format("dots_symmetric_f32_with_blas<{}>", syrk_dims), measure_dots_symmetric_f32_with_blas,
                   env.matrix_height, env.matrix_depth);
-    run_benchmark(env, "dots_symmetric_f64_with_blas<" + syrk_dims + ">", measure_dots_symmetric_f64_with_blas,
+    run_benchmark(env, fmt::format("dots_symmetric_f64_with_blas<{}>", syrk_dims), measure_dots_symmetric_f64_with_blas,
                   env.matrix_height, env.matrix_depth);
 #endif
 
 #if NUMKONG_COMPARE_TO_ACCELERATE
-    run_benchmark(env, "dots_packed_f16_with_accelerate<" + gemm_dims + ">", measure_dots_f16_with_accelerate,
+    run_benchmark(env, fmt::format("dots_packed_f16_with_accelerate<{}>", gemm_dims), measure_dots_f16_with_accelerate,
                   env.matrix_height, env.matrix_width, env.matrix_depth);
-    run_benchmark(env, "dots_packed_bf16_with_accelerate<" + gemm_dims + ">", measure_dots_bf16_with_accelerate,
-                  env.matrix_height, env.matrix_width, env.matrix_depth);
+    run_benchmark(env, fmt::format("dots_packed_bf16_with_accelerate<{}>", gemm_dims),
+                  measure_dots_bf16_with_accelerate, env.matrix_height, env.matrix_width, env.matrix_depth);
 #endif
 
 #if NUMKONG_COMPARE_TO_MKL
-    run_benchmark(env, "dots_packed_f32_with_mkl<" + gemm_dims + ">", measure_dots_f32_with_mkl, env.matrix_height,
-                  env.matrix_width, env.matrix_depth);
-    run_benchmark(env, "dots_packed_bf16_with_mkl<" + gemm_dims + ">", measure_dots_bf16_with_mkl, env.matrix_height,
-                  env.matrix_width, env.matrix_depth);
-    run_benchmark(env, "dots_packed_f16_with_mkl<" + gemm_dims + ">", measure_dots_f16_with_mkl, env.matrix_height,
-                  env.matrix_width, env.matrix_depth);
-    run_benchmark(env, "dots_packed_f64_with_mkl<" + gemm_dims + ">", measure_dots_f64_with_mkl, env.matrix_height,
-                  env.matrix_width, env.matrix_depth);
-    run_benchmark(env, "dots_packed_i8u8_with_mkl<" + gemm_dims + ">", measure_dots_i8u8_with_mkl, env.matrix_height,
-                  env.matrix_width, env.matrix_depth);
-    run_benchmark(env, "dots_packed_i16_with_mkl<" + gemm_dims + ">", measure_dots_i16_with_mkl, env.matrix_height,
-                  env.matrix_width, env.matrix_depth);
+    run_benchmark(env, fmt::format("dots_packed_f32_with_mkl<{}>", gemm_dims), measure_dots_f32_with_mkl,
+                  env.matrix_height, env.matrix_width, env.matrix_depth);
+    run_benchmark(env, fmt::format("dots_packed_bf16_with_mkl<{}>", gemm_dims), measure_dots_bf16_with_mkl,
+                  env.matrix_height, env.matrix_width, env.matrix_depth);
+    run_benchmark(env, fmt::format("dots_packed_f16_with_mkl<{}>", gemm_dims), measure_dots_f16_with_mkl,
+                  env.matrix_height, env.matrix_width, env.matrix_depth);
+    run_benchmark(env, fmt::format("dots_packed_f64_with_mkl<{}>", gemm_dims), measure_dots_f64_with_mkl,
+                  env.matrix_height, env.matrix_width, env.matrix_depth);
+    run_benchmark(env, fmt::format("dots_packed_i8u8_with_mkl<{}>", gemm_dims), measure_dots_i8u8_with_mkl,
+                  env.matrix_height, env.matrix_width, env.matrix_depth);
+    run_benchmark(env, fmt::format("dots_packed_i16_with_mkl<{}>", gemm_dims), measure_dots_i16_with_mkl,
+                  env.matrix_height, env.matrix_width, env.matrix_depth);
 #endif
 }
 

@@ -4,6 +4,8 @@
  *  @date February 28, 2026
  *  @brief MaxSim, ColBERT late-interaction, benchmarks.
  */
+#include <fmt/format.h> // `fmt::format`
+
 #include "numkong/maxsim.h"
 
 #include "harness.hpp"
@@ -73,8 +75,7 @@ void run_maxsim_packed(bench_settings_t const &env, std::string name, //
     std::size_t query_count = env.matrix_height;
     std::size_t document_count = env.matrix_width;
     std::size_t depth = env.matrix_depth;
-    std::string bench_name = name + "<" + std::to_string(query_count) + "x" + std::to_string(document_count) + "x" +
-                             std::to_string(depth) + ">";
+    std::string const bench_name = fmt::format("{}<{}x{}x{}>", name, query_count, document_count, depth);
     run_benchmark(env, bench_name, measure_maxsim_packed<input_dtype_>, packed_size_fn, pack_fn, maxsim_fn, query_count,
                   document_count, depth);
 }

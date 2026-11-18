@@ -8,6 +8,8 @@
 #include <complex> // std::complex
 #include <vector>  // std::vector
 
+#include <fmt/format.h> // `fmt::format`
+
 #include "numkong/curved.h"
 
 #include "harness.hpp"
@@ -129,8 +131,8 @@ void measure_curved(loop_t &loop, bench_settings_t const &env, kernel_type_ kern
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
 void run_curved(bench_settings_t const &env, std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(env.curved_dimensions) + ">";
-    run_benchmark(env, bench_name, measure_curved<input_dtype_, kernel_type_ *>, kernel, env.curved_dimensions);
+    run_benchmark(env, fmt::format("{}<{}>", name, env.curved_dimensions), measure_curved<input_dtype_, kernel_type_ *>,
+                  kernel, env.curved_dimensions);
 }
 
 void bench_curved(bench_settings_t const &env) {

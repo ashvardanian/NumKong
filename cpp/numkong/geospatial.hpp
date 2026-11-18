@@ -60,6 +60,79 @@ void haversines(f64_t const *a_latitudes, f64_t const *a_longitudes, std::size_t
     }
 }
 
+/** Geodesic metres on the WGS-84 ellipsoid between two points, given the sines and cosines of
+ *  their reduced latitudes and the @p longitude_difference from the first to the second, through
+ *  Vincenty's inverse formula in @p precision_type_. */
+template <numeric_dtype precision_type_>
+precision_type_ vincenty_reference_(precision_type_ sin_reduced_first, precision_type_ cos_reduced_first,
+                                    precision_type_ sin_reduced_second, precision_type_ cos_reduced_second,
+                                    precision_type_ longitude_difference) noexcept {
+    using precision_t = precision_type_;
+    precision_t const equatorial_radius = precision_t(NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
+    precision_t const flattening = precision_t(1.0) / precision_t(NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING);
+    precision_t const polar_radius = equatorial_radius * (precision_t(1.0) - flattening);
+    precision_t const convergence_threshold = precision_t(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F64);
+    precision_t lambda = longitude_difference;
+    precision_t sin_angular_distance, cos_angular_distance, angular_distance;
+    precision_t cos_squared_azimuth, cos_double_angular_midpoint;
+    bool coincident = false;
+    for (int iteration = 0; iteration != NUMKONG_VINCENTY_MAX_ITERATIONS; ++iteration) {
+        precision_t const sin_lambda = lambda.sin(), cos_lambda = lambda.cos();
+        precision_t const cross_term = cos_reduced_second * sin_lambda;
+        precision_t const mixed_term = cos_reduced_first * sin_reduced_second -
+                                       sin_reduced_first * cos_reduced_second * cos_lambda;
+        sin_angular_distance = (cross_term * cross_term + mixed_term * mixed_term).sqrt();
+        if (sin_angular_distance == precision_t(0.0)) {
+            coincident = true;
+            break;
+        }
+        cos_angular_distance = sin_reduced_first * sin_reduced_second +
+                               cos_reduced_first * cos_reduced_second * cos_lambda;
+        angular_distance = sin_angular_distance.atan2(cos_angular_distance);
+        precision_t const sin_azimuth = cos_reduced_first * cos_reduced_second * sin_lambda / sin_angular_distance;
+        cos_squared_azimuth = precision_t(1.0) - sin_azimuth * sin_azimuth;
+        cos_double_angular_midpoint = cos_squared_azimuth != precision_t(0.0)
+                                          ? cos_angular_distance - precision_t(2.0) * sin_reduced_first *
+                                                                       sin_reduced_second / cos_squared_azimuth
+                                          : precision_t(0.0);
+        precision_t const correction_factor =
+            flattening / precision_t(16.0) * cos_squared_azimuth *
+            (precision_t(4.0) + flattening * (precision_t(4.0) - precision_t(3.0) * cos_squared_azimuth));
+        precision_t const lambda_previous = lambda;
+        lambda = longitude_difference +
+                 (precision_t(1.0) - correction_factor) * flattening * sin_azimuth *
+                     (angular_distance + correction_factor * sin_angular_distance *
+                                             (cos_double_angular_midpoint +
+                                              correction_factor * cos_angular_distance *
+                                                  (precision_t(-1.0) + precision_t(2.0) * cos_double_angular_midpoint *
+                                                                           cos_double_angular_midpoint)));
+        if (!((lambda - lambda_previous).abs() > convergence_threshold)) break;
+    }
+    if (coincident) return precision_t(0.0);
+    precision_t const u_squared = cos_squared_azimuth *
+                                  (equatorial_radius * equatorial_radius - polar_radius * polar_radius) /
+                                  (polar_radius * polar_radius);
+    precision_t const series_a =
+        precision_t(1.0) +
+        u_squared / precision_t(16384.0) *
+            (precision_t(4096.0) +
+             u_squared * (precision_t(-768.0) + u_squared * (precision_t(320.0) - precision_t(175.0) * u_squared)));
+    precision_t const series_b =
+        u_squared / precision_t(1024.0) *
+        (precision_t(256.0) +
+         u_squared * (precision_t(-128.0) + u_squared * (precision_t(74.0) - precision_t(47.0) * u_squared)));
+    precision_t const angular_correction =
+        series_b * sin_angular_distance *
+        (cos_double_angular_midpoint +
+         series_b / precision_t(4.0) *
+             (cos_angular_distance *
+                  (precision_t(-1.0) + precision_t(2.0) * cos_double_angular_midpoint * cos_double_angular_midpoint) -
+              series_b / precision_t(6.0) * cos_double_angular_midpoint *
+                  (precision_t(-3.0) + precision_t(4.0) * sin_angular_distance * sin_angular_distance) *
+                  (precision_t(-3.0) + precision_t(4.0) * cos_double_angular_midpoint * cos_double_angular_midpoint)));
+    return polar_radius * series_a * (angular_distance - angular_correction);
+}
+
 /** Geodesic metres on the WGS-84 ellipsoid between every row and every column point, through
  *  Vincenty's inverse formula in @p precision_type_, with the reduced latitudes taken through
  *  atan2 to stay finite at the poles; parameters as @c haversines. */
@@ -67,10 +140,7 @@ template <numeric_dtype precision_type_>
 void vincentys(f64_t const *a_latitudes, f64_t const *a_longitudes, std::size_t rows, f64_t const *b_latitudes,
                f64_t const *b_longitudes, std::size_t columns, f64_t *results, std::size_t results_stride) noexcept {
     using precision_t = precision_type_;
-    precision_t const equatorial_radius = precision_t(NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
     precision_t const flattening = precision_t(1.0) / precision_t(NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING);
-    precision_t const polar_radius = equatorial_radius * (precision_t(1.0) - flattening);
-    precision_t const convergence_threshold = precision_t(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F64);
     auto reduced = [&](f64_t latitude) noexcept {
         precision_t const angle = precision_t(latitude);
         return ((precision_t(1.0) - flattening) * angle.sin()).atan2(angle.cos());
@@ -79,79 +149,12 @@ void vincentys(f64_t const *a_latitudes, f64_t const *a_longitudes, std::size_t 
     for (std::size_t row = 0; row != rows; ++row) {
         f64_t *output = reinterpret_cast<f64_t *>(reinterpret_cast<char *>(results) + row * results_stride);
         precision_t const reduced_first = reduced(a_latitudes[row]);
-        precision_t const sin_reduced_first = reduced_first.sin(), cos_reduced_first = reduced_first.cos();
         for (std::size_t column = 0; column != columns; ++column) {
             precision_t const reduced_second = reduced(b_latitudes[column]);
-            precision_t const sin_reduced_second = reduced_second.sin(), cos_reduced_second = reduced_second.cos();
             precision_t const longitude_difference = precision_t(b_longitudes[column]) - precision_t(a_longitudes[row]);
-
-            precision_t lambda = longitude_difference;
-            precision_t sin_angular_distance, cos_angular_distance, angular_distance;
-            precision_t cos_squared_azimuth, cos_double_angular_midpoint;
-            bool coincident = false;
-            for (int iteration = 0; iteration != NUMKONG_VINCENTY_MAX_ITERATIONS; ++iteration) {
-                precision_t const sin_lambda = lambda.sin(), cos_lambda = lambda.cos();
-                precision_t const cross_term = cos_reduced_second * sin_lambda;
-                precision_t const mixed_term = cos_reduced_first * sin_reduced_second -
-                                               sin_reduced_first * cos_reduced_second * cos_lambda;
-                sin_angular_distance = (cross_term * cross_term + mixed_term * mixed_term).sqrt();
-                if (sin_angular_distance == precision_t(0.0)) {
-                    coincident = true;
-                    break;
-                }
-                cos_angular_distance = sin_reduced_first * sin_reduced_second +
-                                       cos_reduced_first * cos_reduced_second * cos_lambda;
-                angular_distance = sin_angular_distance.atan2(cos_angular_distance);
-                precision_t const sin_azimuth = cos_reduced_first * cos_reduced_second * sin_lambda /
-                                                sin_angular_distance;
-                cos_squared_azimuth = precision_t(1.0) - sin_azimuth * sin_azimuth;
-                cos_double_angular_midpoint = cos_squared_azimuth != precision_t(0.0)
-                                                  ? cos_angular_distance - precision_t(2.0) * sin_reduced_first *
-                                                                               sin_reduced_second / cos_squared_azimuth
-                                                  : precision_t(0.0);
-                precision_t const correction_factor =
-                    flattening / precision_t(16.0) * cos_squared_azimuth *
-                    (precision_t(4.0) + flattening * (precision_t(4.0) - precision_t(3.0) * cos_squared_azimuth));
-                precision_t const lambda_previous = lambda;
-                lambda = longitude_difference +
-                         (precision_t(1.0) - correction_factor) * flattening * sin_azimuth *
-                             (angular_distance +
-                              correction_factor * sin_angular_distance *
-                                  (cos_double_angular_midpoint +
-                                   correction_factor * cos_angular_distance *
-                                       (precision_t(-1.0) +
-                                        precision_t(2.0) * cos_double_angular_midpoint * cos_double_angular_midpoint)));
-                if (!((lambda - lambda_previous).abs() > convergence_threshold)) break;
-            }
-            if (coincident) {
-                output[column] = f64_t(0.0);
-                continue;
-            }
-            precision_t const u_squared = cos_squared_azimuth *
-                                          (equatorial_radius * equatorial_radius - polar_radius * polar_radius) /
-                                          (polar_radius * polar_radius);
-            precision_t const series_a =
-                precision_t(1.0) +
-                u_squared / precision_t(16384.0) *
-                    (precision_t(4096.0) +
-                     u_squared *
-                         (precision_t(-768.0) + u_squared * (precision_t(320.0) - precision_t(175.0) * u_squared)));
-            precision_t const series_b =
-                u_squared / precision_t(1024.0) *
-                (precision_t(256.0) +
-                 u_squared * (precision_t(-128.0) + u_squared * (precision_t(74.0) - precision_t(47.0) * u_squared)));
-            precision_t const angular_correction =
-                series_b * sin_angular_distance *
-                (cos_double_angular_midpoint +
-                 series_b / precision_t(4.0) *
-                     (cos_angular_distance * (precision_t(-1.0) + precision_t(2.0) * cos_double_angular_midpoint *
-                                                                      cos_double_angular_midpoint) -
-                      series_b / precision_t(6.0) * cos_double_angular_midpoint *
-                          (precision_t(-3.0) + precision_t(4.0) * sin_angular_distance * sin_angular_distance) *
-                          (precision_t(-3.0) +
-                           precision_t(4.0) * cos_double_angular_midpoint * cos_double_angular_midpoint)));
-            output[column] = f64_t(
-                static_cast<double>(polar_radius * series_a * (angular_distance - angular_correction)));
+            output[column] = f64_t(static_cast<double>(
+                vincenty_reference_<precision_t>(reduced_first.sin(), reduced_first.cos(), reduced_second.sin(),
+                                                 reduced_second.cos(), longitude_difference)));
         }
     }
 }
@@ -207,6 +210,169 @@ status_t sqeuclideans3d(in_type_ const *a, std::size_t rows, in_type_ const *b, 
     return status_t::success_k;
 }
 
+/** Bytes of a Haversine or Vincenty pack of @p points, as @c geospatial/serial.h lays it out. */
+constexpr std::size_t geodesics_pack_bytes_(std::size_t points) noexcept {
+    return nk_default_alignment_k +
+           3 * nk_size_round_up_to_multiple_(points, nk_default_alignment_k / sizeof(f64_t)) * sizeof(f64_t);
+}
+
+/** Packs @p count points as unit vectors on the mean sphere, evaluated in @p precision_type_ and
+ *  rounded once, by the layout of @c geospatial/serial.h. */
+template <numeric_dtype precision_type_>
+void haversines_pack_reference_(f64_t const *latitudes, f64_t const *longitudes, std::size_t count,
+                                void *packed) noexcept {
+    std::size_t const axis_stride = nk_size_round_up_to_multiple_(count, nk_default_alignment_k / sizeof(f64_t));
+    nk_geospatial_packed_header_t *header = static_cast<nk_geospatial_packed_header_t *>(packed);
+    header->points = count, header->axis_stride = axis_stride;
+    f64_t *packed_x = reinterpret_cast<f64_t *>(static_cast<char *>(packed) + nk_default_alignment_k);
+    f64_t *packed_y = packed_x + axis_stride, *packed_z = packed_y + axis_stride;
+    for (std::size_t point = 0; point != count; ++point) {
+        precision_type_ const latitude = precision_type_(latitudes[point]);
+        precision_type_ const longitude = precision_type_(longitudes[point]);
+        precision_type_ const cos_latitude = latitude.cos();
+        packed_x[point] = f64_t(static_cast<double>(cos_latitude * longitude.cos()));
+        packed_y[point] = f64_t(static_cast<double>(cos_latitude * longitude.sin()));
+        packed_z[point] = f64_t(static_cast<double>(latitude.sin()));
+    }
+}
+
+/** Packs @p count points as their longitudes and the sines and cosines of their reduced latitudes,
+ *  evaluated in @p precision_type_ through atan2 as @c vincentys does, by the layout of
+ *  @c geospatial/serial.h. */
+template <numeric_dtype precision_type_>
+void vincentys_pack_reference_(f64_t const *latitudes, f64_t const *longitudes, std::size_t count,
+                               void *packed) noexcept {
+    using precision_t = precision_type_;
+    precision_t const flattening = precision_t(1.0) / precision_t(NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING);
+    std::size_t const axis_stride = nk_size_round_up_to_multiple_(count, nk_default_alignment_k / sizeof(f64_t));
+    nk_geospatial_packed_header_t *header = static_cast<nk_geospatial_packed_header_t *>(packed);
+    header->points = count, header->axis_stride = axis_stride;
+    f64_t *packed_longitudes = reinterpret_cast<f64_t *>(static_cast<char *>(packed) + nk_default_alignment_k);
+    f64_t *packed_sines = packed_longitudes + axis_stride, *packed_cosines = packed_sines + axis_stride;
+    for (std::size_t point = 0; point != count; ++point) {
+        precision_t const latitude = precision_t(latitudes[point]);
+        precision_t const reduced = ((precision_t(1.0) - flattening) * latitude.sin()).atan2(latitude.cos());
+        packed_longitudes[point] = longitudes[point];
+        packed_sines[point] = f64_t(static_cast<double>(reduced.sin()));
+        packed_cosines[point] = f64_t(static_cast<double>(reduced.cos()));
+    }
+}
+
+/** Great-circle metres between every row and every column point of two Haversine packs, through
+ *  the chord formula of @c geospatial/serial.h in @p precision_type_. */
+template <numeric_dtype precision_type_>
+void haversines_packed_reference_(void const *a_packed, void const *b_packed, f64_t *results,
+                                  std::size_t results_stride) noexcept {
+    using precision_t = precision_type_;
+    nk_geospatial_packed_header_t const *a_header = static_cast<nk_geospatial_packed_header_t const *>(a_packed);
+    nk_geospatial_packed_header_t const *b_header = static_cast<nk_geospatial_packed_header_t const *>(b_packed);
+    f64_t const *a_x = reinterpret_cast<f64_t const *>(static_cast<char const *>(a_packed) + nk_default_alignment_k);
+    f64_t const *b_x = reinterpret_cast<f64_t const *>(static_cast<char const *>(b_packed) + nk_default_alignment_k);
+    std::size_t const a_stride = static_cast<std::size_t>(a_header->axis_stride);
+    std::size_t const b_stride = static_cast<std::size_t>(b_header->axis_stride);
+    precision_t const diameter = precision_t(2.0 * NUMKONG_EARTH_MEAN_RADIUS);
+    for (std::size_t row = 0; row != a_header->points; ++row) {
+        f64_t *output = reinterpret_cast<f64_t *>(reinterpret_cast<char *>(results) + row * results_stride);
+        for (std::size_t column = 0; column != b_header->points; ++column) {
+            precision_t chord(0.0), span(0.0);
+            for (std::size_t axis = 0; axis != 3; ++axis) {
+                precision_t const first = precision_t(a_x[axis * a_stride + row]);
+                precision_t const second = precision_t(b_x[axis * b_stride + column]);
+                chord = chord + (first - second) * (first - second);
+                span = span + (first + second) * (first + second);
+            }
+            output[column] = f64_t(static_cast<double>(diameter * chord.sqrt().atan2(span.sqrt())));
+        }
+    }
+}
+
+/** Geodesic metres on the WGS-84 ellipsoid between every row and every column point of two
+ *  Vincenty packs, through @c vincenty_reference_ in @p precision_type_. */
+template <numeric_dtype precision_type_>
+void vincentys_packed_reference_(void const *a_packed, void const *b_packed, f64_t *results,
+                                 std::size_t results_stride) noexcept {
+    using precision_t = precision_type_;
+    nk_geospatial_packed_header_t const *a_header = static_cast<nk_geospatial_packed_header_t const *>(a_packed);
+    nk_geospatial_packed_header_t const *b_header = static_cast<nk_geospatial_packed_header_t const *>(b_packed);
+    f64_t const *a_longitudes = reinterpret_cast<f64_t const *>(static_cast<char const *>(a_packed) +
+                                                                nk_default_alignment_k);
+    f64_t const *b_longitudes = reinterpret_cast<f64_t const *>(static_cast<char const *>(b_packed) +
+                                                                nk_default_alignment_k);
+    f64_t const *a_sines = a_longitudes + a_header->axis_stride, *a_cosines = a_sines + a_header->axis_stride;
+    f64_t const *b_sines = b_longitudes + b_header->axis_stride, *b_cosines = b_sines + b_header->axis_stride;
+    for (std::size_t row = 0; row != a_header->points; ++row) {
+        f64_t *output = reinterpret_cast<f64_t *>(reinterpret_cast<char *>(results) + row * results_stride);
+        for (std::size_t column = 0; column != b_header->points; ++column)
+            output[column] = f64_t(static_cast<double>(vincenty_reference_<precision_t>(
+                precision_t(a_sines[row]), precision_t(a_cosines[row]), precision_t(b_sines[column]),
+                precision_t(b_cosines[column]), precision_t(b_longitudes[column]) - precision_t(a_longitudes[row]))));
+    }
+}
+
+/** Blocks along one axis of @p cells cells at terrain level @p level. */
+constexpr std::size_t terrain_level_blocks_(std::size_t cells, std::size_t level) noexcept {
+    return nk_size_divide_round_up_(cells > 1 ? cells - 1 : 1, std::size_t(1) << level);
+}
+
+/** Levels of maxima a @p rows × @p columns grid needs, the coarsest holding a single block. */
+constexpr std::size_t terrain_levels_(std::size_t rows, std::size_t columns) noexcept {
+    std::size_t levels = 0;
+    while (terrain_level_blocks_(max_of(rows, columns), levels) > 1) ++levels;
+    return levels;
+}
+
+/** Bytes the terrain pack of a @p rows × @p columns grid takes, by the layout of
+ *  @c geospatial/serial.h. */
+constexpr std::size_t terrain_pack_bytes_(std::size_t rows, std::size_t columns) noexcept {
+    std::size_t bytes = nk_default_alignment_k;
+    for (std::size_t level = 1, levels = terrain_levels_(rows, columns); level <= levels; ++level)
+        bytes += terrain_level_blocks_(rows, level) * terrain_level_blocks_(columns, level) * sizeof(f32_t);
+    return bytes;
+}
+
+/** The largest height in rows @p first_row to @p last_row and columns @p first_column to
+ *  @p last_column , both inclusive, skipping NaNs, or negative infinity when all are NaN. */
+inline f32_t terrain_window_maximum_(f32_t const *heights, std::size_t heights_stride, std::size_t first_row,
+                                     std::size_t last_row, std::size_t first_column, std::size_t last_column) noexcept {
+    // NaN never wins a comparison
+    f32_t maximum = f32_t::negative_infinity();
+    for (std::size_t row = first_row; row <= last_row; ++row) {
+        f32_t const *line = reinterpret_cast<f32_t const *>(reinterpret_cast<char const *>(heights) +
+                                                            row * heights_stride);
+        for (std::size_t column = first_column; column <= last_column; ++column)
+            if (maximum < line[column]) maximum = line[column];
+    }
+    return maximum;
+}
+
+/** Packs a grid as @c nk_terrain_packed_header_t lays it out, taking every block's maximum straight
+ *  from the heights under it and its ring; parameters as @c terrain_pack. */
+inline status_t terrain_pack_reference_(f32_t const *heights, std::size_t rows, std::size_t columns,
+                                        std::size_t heights_stride, f64_t row_metres, f64_t column_metres,
+                                        void *packed) noexcept {
+    if (!rows || !columns) return status_t::unexpected_dimensions_k;
+    std::size_t const levels = terrain_levels_(rows, columns);
+    nk_terrain_packed_header_t *header = static_cast<nk_terrain_packed_header_t *>(packed);
+    header->rows = rows, header->columns = columns, header->heights_stride = heights_stride;
+    header->levels = levels, header->row_metres = row_metres.raw_, header->column_metres = column_metres.raw_;
+    f32_t *maxima = reinterpret_cast<f32_t *>(static_cast<char *>(packed) + nk_default_alignment_k);
+    for (std::size_t level = 1; level <= levels; ++level) {
+        std::size_t const span = std::size_t(1) << level;
+        std::size_t const block_rows = terrain_level_blocks_(rows, level);
+        std::size_t const block_columns = terrain_level_blocks_(columns, level);
+        for (std::size_t block_row = 0; block_row != block_rows; ++block_row)
+            for (std::size_t block_column = 0; block_column != block_columns; ++block_column) {
+                std::size_t const first_row = block_row ? block_row * span - 1 : 0;
+                std::size_t const first_column = block_column ? block_column * span - 1 : 0;
+                std::size_t const last_row = min_of(block_row * span + span + 1, rows - 1);
+                std::size_t const last_column = min_of(block_column * span + span + 1, columns - 1);
+                *maxima++ = terrain_window_maximum_(heights, heights_stride, first_row, last_row, first_column,
+                                                    last_column);
+            }
+    }
+    return status_t::success_k;
+}
+
 /**
  *  @brief Returns the bytes a Haversine pack of @p points takes.
  *  @param[in] points Number of points in the pack.
@@ -214,9 +380,9 @@ status_t sqeuclideans3d(in_type_ const *a, std::size_t rows, in_type_ const *b, 
  */
 inline expected<std::size_t> haversines_pack_size(std::size_t points,
                                                   nk_capability_t capabilities = default_capabilities()) noexcept {
-    nk_size_t bytes = 0;
+    nk_size_t bytes = geodesics_pack_bytes_(points);
     nk_status_t const status = capabilities ? nk_haversines_pack_size_f64_best(points, capabilities, &bytes)
-                                            : nk_haversines_pack_size_f64_serial(points, &bytes);
+                                            : nk_success_k;
     return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
 }
 
@@ -226,17 +392,19 @@ inline expected<std::size_t> haversines_pack_size(std::size_t points,
  *  @param[in] longitudes The @p count longitudes, in radians.
  *  @param[in] count Number of points.
  *  @param[out] packed At least @c haversines_pack_size bytes, aligned to @c nk_default_alignment_k.
- *  @param[in] capabilities Capabilities to pick from, or zero for the serial kernel.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the @p precision_type_ template.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
+ *  @tparam precision_type_ The template's arithmetic; the kernels compute in @c f64_t.
  */
-inline status_t haversines_pack(f64_t const *latitudes, f64_t const *longitudes, std::size_t count, void *packed,
-                                nk_capability_t capabilities = default_capabilities(),
-                                nk_stream_t stream = nullptr) noexcept {
-    if (capabilities)
-        return static_cast<status_t>(
-            nk_haversines_pack_f64_best(&latitudes->raw_, &longitudes->raw_, count, packed, capabilities, stream));
-    return static_cast<status_t>(
-        nk_haversines_pack_f64_serial(&latitudes->raw_, &longitudes->raw_, count, packed, stream));
+template <numeric_dtype precision_type_ = f64_t>
+status_t haversines_pack(f64_t const *latitudes, f64_t const *longitudes, std::size_t count, void *packed,
+                         nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
+    if constexpr (std::is_same_v<precision_type_, f64_t>)
+        if (capabilities)
+            return static_cast<status_t>(
+                nk_haversines_pack_f64_best(&latitudes->raw_, &longitudes->raw_, count, packed, capabilities, stream));
+    haversines_pack_reference_<precision_type_>(latitudes, longitudes, count, packed);
+    return status_t::success_k;
 }
 
 /**
@@ -245,50 +413,56 @@ inline status_t haversines_pack(f64_t const *latitudes, f64_t const *longitudes,
  *  @param[in] b_packed The column points' Haversine pack.
  *  @param[out] results The @b [rows,columns] distances, @p results_stride bytes apart.
  *  @param[in] results_stride Bytes between the rows of @p results.
- *  @param[in] capabilities Capabilities to pick from, or zero for the serial kernel.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the @p precision_type_ template.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
+ *  @tparam precision_type_ The template's arithmetic; the kernels compute in @c f64_t.
  */
-inline status_t haversines_packed(void const *a_packed, void const *b_packed, f64_t *results,
-                                  std::size_t results_stride, nk_capability_t capabilities = default_capabilities(),
-                                  nk_stream_t stream = nullptr) noexcept {
-    if (capabilities)
-        return static_cast<status_t>(
-            nk_haversines_packed_f64_best(a_packed, b_packed, &results->raw_, results_stride, capabilities, stream));
-    return static_cast<status_t>(
-        nk_haversines_packed_f64_serial(a_packed, b_packed, &results->raw_, results_stride, stream));
+template <numeric_dtype precision_type_ = f64_t>
+status_t haversines_packed(void const *a_packed, void const *b_packed, f64_t *results, std::size_t results_stride,
+                           nk_capability_t capabilities = default_capabilities(),
+                           nk_stream_t stream = nullptr) noexcept {
+    if constexpr (std::is_same_v<precision_type_, f64_t>)
+        if (capabilities)
+            return static_cast<status_t>(nk_haversines_packed_f64_best(a_packed, b_packed, &results->raw_,
+                                                                       results_stride, capabilities, stream));
+    haversines_packed_reference_<precision_type_>(a_packed, b_packed, results, results_stride);
+    return status_t::success_k;
 }
 
 /** Returns the bytes a Vincenty pack of @p points takes, as @c haversines_pack_size does. */
 inline expected<std::size_t> vincentys_pack_size(std::size_t points,
                                                  nk_capability_t capabilities = default_capabilities()) noexcept {
-    nk_size_t bytes = 0;
+    nk_size_t bytes = geodesics_pack_bytes_(points);
     nk_status_t const status = capabilities ? nk_vincentys_pack_size_f64_best(points, capabilities, &bytes)
-                                            : nk_vincentys_pack_size_f64_serial(points, &bytes);
+                                            : nk_success_k;
     return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
 }
 
 /** Packs points as their longitudes and the sines and cosines of their reduced latitudes, for
  *  @c vincentys_packed, taking what @c haversines_pack takes. */
-inline status_t vincentys_pack(f64_t const *latitudes, f64_t const *longitudes, std::size_t count, void *packed,
-                               nk_capability_t capabilities = default_capabilities(),
-                               nk_stream_t stream = nullptr) noexcept {
-    if (capabilities)
-        return static_cast<status_t>(
-            nk_vincentys_pack_f64_best(&latitudes->raw_, &longitudes->raw_, count, packed, capabilities, stream));
-    return static_cast<status_t>(
-        nk_vincentys_pack_f64_serial(&latitudes->raw_, &longitudes->raw_, count, packed, stream));
+template <numeric_dtype precision_type_ = f64_t>
+status_t vincentys_pack(f64_t const *latitudes, f64_t const *longitudes, std::size_t count, void *packed,
+                        nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
+    if constexpr (std::is_same_v<precision_type_, f64_t>)
+        if (capabilities)
+            return static_cast<status_t>(
+                nk_vincentys_pack_f64_best(&latitudes->raw_, &longitudes->raw_, count, packed, capabilities, stream));
+    vincentys_pack_reference_<precision_type_>(latitudes, longitudes, count, packed);
+    return status_t::success_k;
 }
 
 /** Geodesic metres on the WGS-84 ellipsoid between every row and every column point of two Vincenty
  *  packs, taking what @c haversines_packed takes. */
-inline status_t vincentys_packed(void const *a_packed, void const *b_packed, f64_t *results, std::size_t results_stride,
-                                 nk_capability_t capabilities = default_capabilities(),
-                                 nk_stream_t stream = nullptr) noexcept {
-    if (capabilities)
-        return static_cast<status_t>(
-            nk_vincentys_packed_f64_best(a_packed, b_packed, &results->raw_, results_stride, capabilities, stream));
-    return static_cast<status_t>(
-        nk_vincentys_packed_f64_serial(a_packed, b_packed, &results->raw_, results_stride, stream));
+template <numeric_dtype precision_type_ = f64_t>
+status_t vincentys_packed(void const *a_packed, void const *b_packed, f64_t *results, std::size_t results_stride,
+                          nk_capability_t capabilities = default_capabilities(),
+                          nk_stream_t stream = nullptr) noexcept {
+    if constexpr (std::is_same_v<precision_type_, f64_t>)
+        if (capabilities)
+            return static_cast<status_t>(
+                nk_vincentys_packed_f64_best(a_packed, b_packed, &results->raw_, results_stride, capabilities, stream));
+    vincentys_packed_reference_<precision_type_>(a_packed, b_packed, results, results_stride);
+    return status_t::success_k;
 }
 
 /**
@@ -299,9 +473,9 @@ inline status_t vincentys_packed(void const *a_packed, void const *b_packed, f64
  */
 inline expected<std::size_t> terrain_pack_size(std::size_t rows, std::size_t columns,
                                                nk_capability_t capabilities = default_capabilities()) noexcept {
-    nk_size_t bytes = 0;
+    nk_size_t bytes = terrain_pack_bytes_(rows, columns);
     nk_status_t const status = capabilities ? nk_terrain_pack_size_f32_best(rows, columns, capabilities, &bytes)
-                                            : nk_terrain_pack_size_f32_serial(rows, columns, &bytes);
+                                            : nk_success_k;
     return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
 }
 
@@ -314,7 +488,7 @@ inline expected<std::size_t> terrain_pack_size(std::size_t rows, std::size_t col
  *  @param[in] row_metres Metres between adjacent rows.
  *  @param[in] column_metres Metres between adjacent columns.
  *  @param[out] packed At least @c terrain_pack_size bytes, aligned to @c nk_default_alignment_k.
- *  @param[in] capabilities Capabilities to pick from, or zero for the serial kernel.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the template.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  */
 inline status_t terrain_pack(f32_t const *heights, std::size_t rows, std::size_t columns, std::size_t heights_stride,
@@ -325,8 +499,7 @@ inline status_t terrain_pack(f32_t const *heights, std::size_t rows, std::size_t
         return static_cast<status_t>(nk_terrain_pack_f32_best(&heights->raw_, rows, columns, heights_stride,
                                                               row_metres.raw_, column_metres.raw_, packed, capabilities,
                                                               stream));
-    return static_cast<status_t>(nk_terrain_pack_f32_serial(&heights->raw_, rows, columns, heights_stride,
-                                                            row_metres.raw_, column_metres.raw_, packed, stream));
+    return terrain_pack_reference_(heights, rows, columns, heights_stride, row_metres, column_metres, packed);
 }
 
 /** Bilinear heights under @p count interleaved [column, row] points, NaN off the grid, rounding

@@ -8,7 +8,7 @@
 #include "numkong/each.h" // `nk_each_*_rocm`
 
 #include "cross.hpp"
-#include "harness_rocm.hpp"
+#include "backend_rocm.hpp"
 
 namespace ashvardanian::numkong::bench {
 

@@ -5,6 +5,8 @@
  *  @brief Reduction benchmarks, reduce_moments, reduce_minmax.
  */
 
+#include <fmt/format.h> // `fmt::format`
+
 #include "numkong/reduce.h"
 
 #include "harness.hpp"
@@ -41,8 +43,8 @@ void measure_reduce_moments(loop_t &loop, bench_settings_t const &env, kernel_ty
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
 void run_reduce_moments(bench_settings_t const &env, std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(env.batch_per_core) + ">";
-    run_benchmark(env, bench_name, measure_reduce_moments<input_dtype_, kernel_type_ *>, kernel, env.batch_per_core);
+    run_benchmark(env, fmt::format("{}<{}>", name, env.batch_per_core),
+                  measure_reduce_moments<input_dtype_, kernel_type_ *>, kernel, env.batch_per_core);
 }
 
 /** Measures the performance of a reduce_minmax kernel, min and max with indices. */
@@ -74,8 +76,8 @@ void measure_reduce_minmax(loop_t &loop, bench_settings_t const &env, kernel_typ
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
 void run_reduce_minmax(bench_settings_t const &env, std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(env.batch_per_core) + ">";
-    run_benchmark(env, bench_name, measure_reduce_minmax<input_dtype_, kernel_type_ *>, kernel, env.batch_per_core);
+    run_benchmark(env, fmt::format("{}<{}>", name, env.batch_per_core),
+                  measure_reduce_minmax<input_dtype_, kernel_type_ *>, kernel, env.batch_per_core);
 }
 
 void bench_reduce(bench_settings_t const &env) {

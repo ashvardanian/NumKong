@@ -787,8 +787,9 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_stub_i4_serial_(nk_i4x2_t const *d, n
         if (norm_format.block_size) {                                                                                  \
             nk_i32_t norm_base = 0, norm_spread;                                                                       \
             if (norm_format.scale_dtype == nk_ue8m0_k)                                                                 \
-                norm_base = nk_cross_scaled_base_serial_((operand).scales + (row_index) * (operand).scales_stride,     \
-                                                         (depth) / norm_format.block_size, &norm_spread);              \
+                norm_base = nk_cross_scaled_base_serial_(                                                              \
+                    (operand).scales + (row_index) * (operand).scales_stride,                                          \
+                    nk_cross_scale_blocks_serial_(nk_##input_type_name##_k, (depth)), &norm_spread);                   \
             norm = (nk_##norm_value_type##_t)nk_scale_f32_serial_(norm_sum.sum, norm_sum.exponent - 2 * norm_base);    \
         }                                                                                                              \
         else norm = compute_norm_fn(row, depth, sizeof(*(row)));                                                       \
@@ -843,8 +844,10 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_stub_i4_serial_(nk_i4x2_t const *d, n
                 partial_store_fn(&vec, destination_row + full_chunks * (simd_width), remainder);                       \
             }                                                                                                          \
             if (block_size)                                                                                            \
-                pack_scales_fn(source.scales + row * source.scales_stride + depth_first / block_size,                  \
-                               depth / block_size, scales + (row - rows_begin) * scales_stride, scales_stride,         \
+                pack_scales_fn(source.scales + row * source.scales_stride +                                            \
+                                   nk_cross_scale_blocks_serial_(nk_##input_type_name##_k, depth_first),               \
+                               nk_cross_scale_blocks_serial_(nk_##input_type_name##_k, depth),                         \
+                               scales + (row - rows_begin) * scales_stride, scales_stride,                             \
                                bases ? bases[row - rows_begin] : 0);                                                   \
         }                                                                                                              \
     }                                                                                                                  \

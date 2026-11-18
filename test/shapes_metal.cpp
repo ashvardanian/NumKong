@@ -83,34 +83,26 @@ error_stats_t test_transport_packed_metal() {
     return stats;
 }
 
+/** The dispatch point @p best_ in the shape of its capability kernels, over the Metal baseline and
+ *  its Apple10 kits, so a transport's workspace query and kernel pick the same kit. */
+template <auto best_>
+static constexpr auto shapes_best =
+    [](auto... arguments) noexcept { return call_best<best_>(nk_cap_metal_k | nk_cap_apple10_k, arguments...); };
+
 void run_shapes_metal_cases() {
     auto const metal = nk_cap_metal_k;
     run_kernel_case("test_rmsds_packed<f16_t, metal_backend_t>(nk_rmsds_packed_f16_best)",
                     test_rmsds_packed<f16_t, metal_backend_t>, nk_cap_metal_k, [](auto... arguments) noexcept {
                         return call_best<nk_rmsds_packed_f16_best>(nk_cap_metal_k, arguments...);
                     });
-    run_kernel_case(
-        "test_transport_packed<f16_t, nk_kernel_wassersteinprocrustes_packed_k, " //
-        "metal_backend_t>(nk_wassersteinprocrustes_packed_f16_best)",
-        test_transport_packed<f16_t, nk_kernel_wassersteinprocrustes_packed_k, metal_backend_t>, nk_cap_metal_k,
-        [](auto... arguments) noexcept {
-            return call_best<nk_wassersteinprocrustes_workspace_size_f16_best>(nk_cap_metal_k | nk_cap_apple10_k,
-                                                                               arguments...);
-        },
-        [](auto... arguments) noexcept {
-            return call_best<nk_wassersteinprocrustes_packed_f16_best>(nk_cap_metal_k | nk_cap_apple10_k, arguments...);
-        });
-    run_kernel_case(
-        "test_transport_packed<f16_t, nk_kernel_gromovwassersteins_packed_k, " //
-        "metal_backend_t>(nk_gromovwassersteins_packed_f16_best)",
-        test_transport_packed<f16_t, nk_kernel_gromovwassersteins_packed_k, metal_backend_t>, nk_cap_metal_k,
-        [](auto... arguments) noexcept {
-            return call_best<nk_gromovwassersteins_workspace_size_f16_best>(nk_cap_metal_k | nk_cap_apple10_k,
-                                                                            arguments...);
-        },
-        [](auto... arguments) noexcept {
-            return call_best<nk_gromovwassersteins_packed_f16_best>(nk_cap_metal_k | nk_cap_apple10_k, arguments...);
-        });
+    run_kernel_case("test_transport_packed<f16_t, nk_kernel_wassersteinprocrustes_packed_k, metal_backend_t>",
+                    test_transport_packed<f16_t, nk_kernel_wassersteinprocrustes_packed_k, metal_backend_t>, metal,
+                    shapes_best<nk_wassersteinprocrustes_workspace_size_f16_best>,
+                    shapes_best<nk_wassersteinprocrustes_packed_f16_best>);
+    run_kernel_case("test_transport_packed<f16_t, nk_kernel_gromovwassersteins_packed_k, metal_backend_t>",
+                    test_transport_packed<f16_t, nk_kernel_gromovwassersteins_packed_k, metal_backend_t>, metal,
+                    shapes_best<nk_gromovwassersteins_workspace_size_f16_best>,
+                    shapes_best<nk_gromovwassersteins_packed_f16_best>);
     run_kernel_case("test_transport_packed_metal<nk_kernel_wassersteinprocrustes_packed_k>",
                     test_transport_packed_metal<nk_kernel_wassersteinprocrustes_packed_k>, metal);
     run_kernel_case("test_transport_packed_metal<nk_kernel_gromovwassersteins_packed_k>",

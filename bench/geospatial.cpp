@@ -5,7 +5,9 @@
  *  @brief Many-to-many 3D squares, Haversine, Vincenty and terrain clearance benchmarks.
  */
 
-#include "numkong/geospatial.h"
+#include <fmt/format.h> // `fmt::format`
+
+#include "numkong/geospatial.hpp" // `nk::haversines_pack`, `nk::terrain_pack`
 
 #include "harness.hpp"
 
@@ -16,8 +18,6 @@ using sqeuclideans3d_i32_kernel_t = nk_status_t (*)(nk_i32_t const *, nk_size_t,
 using sqeuclideans3d_f64_kernel_t = nk_status_t (*)(nk_f64_t const *, nk_size_t, nk_f64_t const *, nk_size_t,
                                                     nk_f64_t *, nk_size_t, nk_stream_t);
 using geodesics_packed_kernel_t = nk_status_t (*)(void const *, void const *, nk_f64_t *, nk_size_t, nk_stream_t);
-using geodesics_pack_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t *);
-using geodesics_pack_kernel_t = nk_status_t (*)(nk_f64_t const *, nk_f64_t const *, nk_size_t, void *, nk_stream_t);
 using clearances_packed_kernel_t = nk_status_t (*)(nk_f32_t const *, void const *, nk_f32_t const *, nk_f32_t const *,
                                                    nk_size_t, nk_f32_t const *, nk_size_t, nk_f64_t, nk_f32_t *,
                                                    nk_size_t, nk_stream_t);
@@ -42,21 +42,27 @@ void measure_sqeuclideans3d(loop_t &loop, bench_settings_t const &env, kernel_ty
     loop.rate("distances", static_cast<double>(rows * columns));
 }
 
-/** Measures a many-to-many geodesic kernel over packs of @p rows and @p columns points drawn
- *  anywhere on Earth. */
-void measure_geodesics(loop_t &loop, bench_settings_t const &env, geodesics_pack_size_kernel_t pack_size,
-                       geodesics_pack_kernel_t pack, geodesics_packed_kernel_t kernel, std::size_t rows,
+/** Measures a many-to-many geodesic kernel of @p kind_ over packs of @p rows and @p columns points
+ *  drawn anywhere on Earth, packed through the public dispatch. */
+template <nk_kernel_kind_t kind_>
+void measure_geodesics(loop_t &loop, bench_settings_t const &env, geodesics_packed_kernel_t kernel, std::size_t rows,
                        std::size_t columns) {
+    constexpr bool spherical = kind_ == nk_kernel_haversines_packed_k;
+    auto const pack_size = spherical ? nk::haversines_pack_size : nk::vincentys_pack_size;
+    auto const pack = spherical ? nk::haversines_pack<> : nk::vincentys_pack<>;
+    nk_capability_t const capabilities = nk::default_capabilities();
     split_mix_generator_t generator(env.seed);
-    std::vector<nk_f64_t> a_latitudes(rows), a_longitudes(rows), b_latitudes(columns), b_longitudes(columns);
+    std::vector<f64_t> a_latitudes(rows), a_longitudes(rows), b_latitudes(columns), b_longitudes(columns);
     nk::fill_coordinates(generator, a_latitudes.data(), a_longitudes.data(), rows);
     nk::fill_coordinates(generator, b_latitudes.data(), b_longitudes.data(), columns);
-    nk_size_t a_bytes = 0, b_bytes = 0;
-    if (!succeeded(loop, pack_size(rows, &a_bytes)) || !succeeded(loop, pack_size(columns, &b_bytes))) return;
-    auto a_packed = make_vector<std::byte>(a_bytes), b_packed = make_vector<std::byte>(b_bytes);
-    if (!succeeded(loop, pack(a_latitudes.data(), a_longitudes.data(), rows, a_packed.raw_values_data(), nullptr)) ||
-        !succeeded(loop, pack(b_latitudes.data(), b_longitudes.data(), columns, b_packed.raw_values_data(), nullptr)))
-        return;
+    auto a_packed = make_vector<std::byte>(pack_size(rows, capabilities).value);
+    auto b_packed = make_vector<std::byte>(pack_size(columns, capabilities).value);
+    nk::status_t const a_status = pack(a_latitudes.data(), a_longitudes.data(), rows, a_packed.raw_values_data(),
+                                       capabilities, nullptr);
+    if (!nk::succeeded(a_status)) return loop.skip(nk::status_name(a_status));
+    nk::status_t const b_status = pack(b_latitudes.data(), b_longitudes.data(), columns, b_packed.raw_values_data(),
+                                       capabilities, nullptr);
+    if (!nk::succeeded(b_status)) return loop.skip(nk::status_name(b_status));
     std::vector<nk_f64_t> results(rows * columns);
     for (std::size_t call : loop) {
         nk_unused_(call);
@@ -75,26 +81,25 @@ void measure_clearances(loop_t &loop, bench_settings_t const &env, clearances_pa
     split_mix_generator_t generator(env.seed);
     std::normal_distribution<float> step(0.0f, 4.0f);
     std::uniform_real_distribution<float> unit(0.0f, 1.0f);
-    std::vector<nk_f32_t> heights(cells * cells);
+    auto heights = make_vector<f32_t>(cells * cells);
+    nk_f32_t *terrain = heights.raw_values_data();
     for (std::size_t row = 0; row != cells; ++row)
         for (std::size_t column = 0; column != cells; ++column) {
-            float const north = row ? heights[(row - 1) * cells + column] : 100.0f;
-            float const west = column ? heights[row * cells + column - 1] : north;
-            heights[row * cells + column] = (north + west) / 2 + step(generator);
+            float const north = row ? terrain[(row - 1) * cells + column] : 100.0f;
+            float const west = column ? terrain[row * cells + column - 1] : north;
+            terrain[row * cells + column] = (north + west) / 2 + step(generator);
         }
-    nk_size_t bytes = 0;
-    if (!succeeded(loop, nk_terrain_pack_size_f32_serial(cells, cells, &bytes))) return;
-    auto packed = make_vector<std::byte>(bytes);
-    if (!succeeded(loop, nk_terrain_pack_f32_serial(heights.data(), cells, cells, cells * sizeof(nk_f32_t), 30.0, 30.0,
-                                                    packed.raw_values_data(), nullptr)))
-        return;
+    auto packed = make_vector<std::byte>(nk::terrain_pack_size(cells, cells).value);
+    nk::status_t const pack_status = nk::terrain_pack(heights.values_data(), cells, cells, cells * sizeof(nk_f32_t),
+                                                      30.0, 30.0, packed.raw_values_data());
+    if (!nk::succeeded(pack_status)) return loop.skip(nk::status_name(pack_status));
     auto place = [&](std::vector<nk_f32_t> &points, std::size_t count) {
         points.resize(count * 3);
         for (std::size_t point = 0; point != count; ++point) {
             std::size_t const row = std::size_t(unit(generator) * float(cells - 1));
             std::size_t const column = std::size_t(unit(generator) * float(cells - 1));
             points[point * 3] = float(column), points[point * 3 + 1] = float(row);
-            points[point * 3 + 2] = heights[row * cells + column] + 2.0f;
+            points[point * 3 + 2] = terrain[row * cells + column] + 2.0f;
         }
     };
     std::vector<nk_f32_t> viewpoints, targets;
@@ -102,9 +107,8 @@ void measure_clearances(loop_t &loop, bench_settings_t const &env, clearances_pa
     std::vector<nk_f32_t> results(rows * columns);
     for (std::size_t call : loop) {
         nk_unused_(call);
-        if (!succeeded(
-                loop, kernel(heights.data(), packed.raw_values_data(), viewpoints.data(), nullptr, rows, targets.data(),
-                             columns, 1.0 / 7, results.data(), columns * sizeof(nk_f32_t), nullptr)))
+        if (!succeeded(loop, kernel(terrain, packed.raw_values_data(), viewpoints.data(), nullptr, rows, targets.data(),
+                                    columns, 1.0 / 7, results.data(), columns * sizeof(nk_f32_t), nullptr)))
             break;
         do_not_optimize(results.data());
     }
@@ -116,15 +120,14 @@ void run_geospatial(bench_settings_t const &env, std::string const &suffix, sqeu
                     sqeuclideans3d_f64_kernel_t f64_kernel, geodesics_packed_kernel_t haversines,
                     geodesics_packed_kernel_t vincentys) {
     std::size_t const rows = env.matrix_height, columns = env.matrix_width;
-    std::string const shape = "<" + std::to_string(rows) + "x" + std::to_string(columns) + ">";
-    run_benchmark(env, "sqeuclideans3d_i32_" + suffix + shape,
+    run_benchmark(env, fmt::format("sqeuclideans3d_i32_{}<{}x{}>", suffix, rows, columns),
                   measure_sqeuclideans3d<nk_i32_t, nk_u64_t, sqeuclideans3d_i32_kernel_t>, i32_kernel, rows, columns);
-    run_benchmark(env, "sqeuclideans3d_f64_" + suffix + shape,
+    run_benchmark(env, fmt::format("sqeuclideans3d_f64_{}<{}x{}>", suffix, rows, columns),
                   measure_sqeuclideans3d<nk_f64_t, nk_f64_t, sqeuclideans3d_f64_kernel_t>, f64_kernel, rows, columns);
-    run_benchmark(env, "haversines_packed_f64_" + suffix + shape, measure_geodesics, nk_haversines_pack_size_f64_serial,
-                  nk_haversines_pack_f64_serial, haversines, rows, columns);
-    run_benchmark(env, "vincentys_packed_f64_" + suffix + shape, measure_geodesics, nk_vincentys_pack_size_f64_serial,
-                  nk_vincentys_pack_f64_serial, vincentys, rows, columns);
+    run_benchmark(env, fmt::format("haversines_packed_f64_{}<{}x{}>", suffix, rows, columns),
+                  measure_geodesics<nk_kernel_haversines_packed_k>, haversines, rows, columns);
+    run_benchmark(env, fmt::format("vincentys_packed_f64_{}<{}x{}>", suffix, rows, columns),
+                  measure_geodesics<nk_kernel_vincentys_packed_k>, vincentys, rows, columns);
 }
 
 void bench_geospatial(bench_settings_t const &env) {

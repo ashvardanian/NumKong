@@ -38,7 +38,7 @@ def pytest_report_header() -> list[str]:
     """Echoes every setting in the grammar it parses, where pytest prints its own header."""
     return [
         f"NumKong {nk.__version__} from {nk.__file__}",
-        f"- Seed: {SETTINGS.seed}, scale: {SETTINGS.scale:g}, filter: {SETTINGS.filter.pattern or 'none'}",
+        f"- Seed: {SETTINGS.seed}, scale: {SETTINGS.scale:g}",
         f"- Capabilities: {nk.capabilities_enabled_cpu()!r}",
         f"- In QEMU: {str(SETTINGS.in_qemu).lower()}",
         f"- Repetitions: {SETTINGS.repetitions}",
@@ -56,7 +56,7 @@ def pytest_report_header() -> list[str]:
 
 # region Shared Pytest
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Refuses a test whose cases outgrow MAX_CASES_PER_TEST, then deselects what the filter setting leaves out."""
+    """Refuses a test whose cases outgrow MAX_CASES_PER_TEST."""
     variants: dict[tuple[str, str], set[str]] = collections.defaultdict(set)
     for item in items:
         callspec = getattr(item, "callspec", None)
@@ -71,10 +71,6 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     ]
     if oversized:
         raise pytest.UsageError(f"over MAX_CASES_PER_TEST={MAX_CASES_PER_TEST}: " + "; ".join(oversized))
-    deselected = [item for item in items if not SETTINGS.filter.selects(item.nodeid)]
-    if deselected:
-        config.hook.pytest_deselected(items=deselected)
-        items[:] = [item for item in items if SETTINGS.filter.selects(item.nodeid)]
 
 
 def pytest_make_parametrize_id(config: pytest.Config, val: object, argname: str) -> str | None:

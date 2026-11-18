@@ -71,6 +71,60 @@ inline uchar nk_minifloat_encode_metal_(float value) {
     return uchar(sign | (magnitude > 0x7F800000u ? nan_code_ : min(code, largest_code_)));
 }
 
+/** The F32 bits of @p integer times 2 to the power of @p exponent, a normal number or zero. */
+inline uint nk_f32_from_scaled_integer_metal_(uint integer, int exponent) {
+    if (!integer) return 0;
+    uint const top = 31 - clz(integer);
+    return (uint(int(top) + exponent + 127) << 23) | ((integer << (23 - top)) & 0x7FFFFFu);
+}
+
+/** Widens one F16 code to F32 bits, exactly, keeping NaN payloads. */
+inline uint nk_f32_from_f16_metal_(uint code) {
+    uint const sign = (code & 0x8000u) << 16, exponent = (code >> 10) & 0x1Fu, mantissa = code & 0x3FFu;
+    if (exponent == 0x1F) return sign | 0x7F800000u | (mantissa << 13);
+    if (exponent) return sign | ((exponent + 112) << 23) | (mantissa << 13);
+    return sign | nk_f32_from_scaled_integer_metal_(mantissa, -24);
+}
+
+/** Widens one E4M3FN code to F32 bits, its NaN to the quiet NaN of its sign. */
+inline uint nk_f32_from_e4m3_metal_(uint code) {
+    uint const sign = (code & 0x80u) << 24, exponent = (code >> 3) & 0xFu, mantissa = code & 7u;
+    if (exponent == 0xF && mantissa == 7) return sign | 0x7FC00000u;
+    if (exponent) return sign | ((exponent + 120) << 23) | (mantissa << 20);
+    return sign | nk_f32_from_scaled_integer_metal_(mantissa, -9);
+}
+
+/** Widens one E5M2 code to F32 bits, a NaN to the quiet NaN of its sign. */
+inline uint nk_f32_from_e5m2_metal_(uint code) {
+    return (code & 0x7Fu) > 0x7Cu ? ((code & 0x80u) << 24) | 0x7FC00000u : nk_f32_from_f16_metal_(code << 8);
+}
+
+/** Widens one E2M3FN code, its low 6 bits, to F32 bits. */
+inline uint nk_f32_from_e2m3_metal_(uint code) {
+    uint const exponent = (code >> 3) & 3u, mantissa = code & 7u;
+    uint const magnitude = exponent ? ((exponent + 126) << 23) | (mantissa << 20)
+                                    : nk_f32_from_scaled_integer_metal_(mantissa, -3);
+    return ((code & 0x20u) << 26) | magnitude;
+}
+
+/** Widens one E3M2FN code, its low 6 bits, to F32 bits. */
+inline uint nk_f32_from_e3m2_metal_(uint code) {
+    uint const exponent = (code >> 2) & 7u, mantissa = code & 3u;
+    uint const magnitude = exponent ? ((exponent + 124) << 23) | (mantissa << 21)
+                                    : nk_f32_from_scaled_integer_metal_(mantissa, -4);
+    return ((code & 0x20u) << 26) | magnitude;
+}
+
+/** Widens the E2M1 code in the low 4 bits of @p nibble to F32 bits, keeping a signed zero. */
+inline uint nk_f32_from_e2m1_metal_(uint nibble) {
+    uint const exponent = (nibble >> 1) & 3u, mantissa = nibble & 1u;
+    uint const magnitude = exponent ? ((exponent + 126) << 23) | (mantissa << 22) : mantissa * 0x3F000000u;
+    return ((nibble & 8u) << 28) | magnitude;
+}
+
+/** Widens one UE8M0 scale to F32 bits: 0x00 to zero and 0xFF to a NaN. */
+inline uint nk_f32_from_ue8m0_metal_(uint code) { return (code << 23) | (uint(code == 0xFF) << 22); }
+
 /** One dimension's code of a row of nibble pairs, the high nibble first as in @c nk_i4x2_t, so
  *  dimensions 2k and 2k + 1 share byte k. */
 inline ushort nk_b4_load_(device uchar const *row, uint index) {
@@ -78,9 +132,10 @@ inline ushort nk_b4_load_(device uchar const *row, uint index) {
 }
 
 /** The square of one stored value of a widened format, both nibbles of a packed pair when two
- *  dimensions share a byte. Every widened format places its sign, exponent and mantissa bits where
- *  @c half keeps them and rescales by the difference of the biases, a power of two; subnormal codes
- *  land on @c half subnormals, which Apple GPUs keep, so every code widens exactly. */
+ *  dimensions share a byte. Every widened format decodes through its integer decoder, as fast math
+ *  may flush the @c half subnormals a rescaled bit pattern would pass through. The formats calling
+ *  it widen into normal halves only, so every code widens exactly, while F16 and E5M2, whose
+ *  smallest codes are half subnormals, decode their scalars straight into F32. */
 template <typename dtype_>
 inline float nk_widened_squares_(uint bits) {
     float4 const values = dtype_::dimensions_per_value == 2
@@ -180,8 +235,8 @@ struct f16_t {
     static constant constexpr uint chunk_values = 8;
     static half4 widen(ushort4 codes) { return as_type<half4>(codes); }
     static float load(device uchar const *row, uint index) {
-        device half const *elements = (device half const *)row;
-        return (float)elements[index];
+        device ushort const *codes = (device ushort const *)row;
+        return as_type<float>(nk_f32_from_f16_metal_(codes[index]));
     }
     static void store(device uchar *row, uint index, float value) {
         uint const bits = as_type<uint>(value), payload = (bits & 0x7FFFFFu) >> 13;
@@ -190,7 +245,7 @@ struct f16_t {
                                             : as_type<ushort>((half)value);
     }
     static float squares(uint bits) {
-        float const value = (float)as_type<half>((ushort)bits);
+        float const value = as_type<float>(nk_f32_from_f16_metal_(bits & 0xFFFFu));
         return value * value;
     }
 };
@@ -229,8 +284,8 @@ struct e4m3_t {
     static constant constexpr uint dimensions_per_value = 1;
     static constant constexpr uint chunk_values = 16;
     static half4 widen(ushort4 codes) {
-        ushort4 const bits = ((codes & ushort(0x7F)) << ushort(7)) | ((codes & ushort(0x80)) << ushort(8));
-        return select(as_type<half4>(bits) * half(256), half4(NAN), (codes & ushort(0x7F)) == ushort(0x7F));
+        return half4(as_type<float4>(uint4(nk_f32_from_e4m3_metal_(codes.x), nk_f32_from_e4m3_metal_(codes.y),
+                                           nk_f32_from_e4m3_metal_(codes.z), nk_f32_from_e4m3_metal_(codes.w))));
     }
     static float load(device uchar const *row, uint index) { return nk_widened_load_<e4m3_t>(row, index); }
     static void store(device uchar *row, uint index, float value) {
@@ -248,11 +303,16 @@ struct e5m2_t {
     static constant constexpr uint dimensions_per_value = 1;
     static constant constexpr uint chunk_values = 16;
     static half4 widen(ushort4 codes) { return as_type<half4>(codes << ushort(8)); }
-    static float load(device uchar const *row, uint index) { return nk_widened_load_<e5m2_t>(row, index); }
+    static float load(device uchar const *row, uint index) {
+        return as_type<float>(nk_f32_from_e5m2_metal_(row[index]));
+    }
     static void store(device uchar *row, uint index, float value) {
         row[index] = nk_minifloat_encode_metal_<2, 15, 7, 0x7C, 0x7D>(value);
     }
-    static float squares(uint bits) { return nk_widened_squares_<e5m2_t>(bits); }
+    static float squares(uint bits) {
+        float const value = as_type<float>(nk_f32_from_e5m2_metal_(bits & 0xFFu));
+        return value * value;
+    }
 };
 
 /** E3M2, OCP FP6 in the low six bits of a byte: bias 3, no infinities or NaNs. */
@@ -264,8 +324,8 @@ struct e3m2_t {
     static constant constexpr uint dimensions_per_value = 1;
     static constant constexpr uint chunk_values = 16;
     static half4 widen(ushort4 codes) {
-        ushort4 const bits = ((codes & ushort(0x1F)) << ushort(8)) | ((codes & ushort(0x20)) << ushort(10));
-        return as_type<half4>(bits) * half(4096);
+        return half4(as_type<float4>(uint4(nk_f32_from_e3m2_metal_(codes.x), nk_f32_from_e3m2_metal_(codes.y),
+                                           nk_f32_from_e3m2_metal_(codes.z), nk_f32_from_e3m2_metal_(codes.w))));
     }
     static float load(device uchar const *row, uint index) { return nk_widened_load_<e3m2_t>(row, index); }
     static void store(device uchar *row, uint index, float value) {
@@ -283,8 +343,8 @@ struct e2m3_t {
     static constant constexpr uint dimensions_per_value = 1;
     static constant constexpr uint chunk_values = 16;
     static half4 widen(ushort4 codes) {
-        ushort4 const bits = ((codes & ushort(0x1F)) << ushort(7)) | ((codes & ushort(0x20)) << ushort(10));
-        return as_type<half4>(bits) * half(16384);
+        return half4(as_type<float4>(uint4(nk_f32_from_e2m3_metal_(codes.x), nk_f32_from_e2m3_metal_(codes.y),
+                                           nk_f32_from_e2m3_metal_(codes.z), nk_f32_from_e2m3_metal_(codes.w))));
     }
     static float load(device uchar const *row, uint index) { return nk_widened_load_<e2m3_t>(row, index); }
     static void store(device uchar *row, uint index, float value) {
@@ -303,8 +363,8 @@ struct e2m1x2_t {
     static constant constexpr uint dimensions_per_value = 2;
     static constant constexpr uint chunk_values = 32;
     static half4 widen(ushort4 codes) {
-        ushort4 const bits = ((codes & ushort(0x7)) << ushort(9)) | ((codes & ushort(0x8)) << ushort(12));
-        return as_type<half4>(bits) * half(16384);
+        return half4(as_type<float4>(uint4(nk_f32_from_e2m1_metal_(codes.x), nk_f32_from_e2m1_metal_(codes.y),
+                                           nk_f32_from_e2m1_metal_(codes.z), nk_f32_from_e2m1_metal_(codes.w))));
     }
     static float load(device uchar const *row, uint index) { return nk_widened_load_<e2m1x2_t>(row, index); }
     static void store(device uchar *row, uint index, float value) {

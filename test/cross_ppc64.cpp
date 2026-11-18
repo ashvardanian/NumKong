@@ -16,46 +16,32 @@ void run_cross_ppc64_cases() {
     auto const powervsx = nk_cap_powervsx_k;
     run_kernel_case("nk_dots_packed_f64_powervsx", test_dots_packed<f64_t>, powervsx, nk_dots_pack_size_f64_powervsx,
                     nk_dots_pack_f64_powervsx, nk_dots_packed_f64_powervsx);
-    run_kernel_case("nk_dots_pack_f64_powervsx",
-                    test_dots_pack_layout<f64_t, host_backend_t, nk_dots_pack_size_f64_powervsx,
-                                          nk_dots_packed_shape_f64_powervsx, nk_dots_pack_f64_powervsx>,
-                    powervsx);
+    run_kernel_case("nk_dots_pack_f64_powervsx", test_dots_pack_layout<f64_t, host_backend_t>, powervsx,
+                    nk_dots_pack_size_f64_powervsx, nk_dots_packed_shape_f64_powervsx, nk_dots_pack_f64_powervsx);
     run_kernel_case("nk_dots_packed_f32_powervsx", test_dots_packed<f32_t>, powervsx, nk_dots_pack_size_f32_powervsx,
                     nk_dots_pack_f32_powervsx, nk_dots_packed_f32_powervsx);
-    run_kernel_case("nk_dots_pack_f32_powervsx",
-                    test_dots_pack_layout<f32_t, host_backend_t, nk_dots_pack_size_f32_powervsx,
-                                          nk_dots_packed_shape_f32_powervsx, nk_dots_pack_f32_powervsx>,
-                    powervsx);
+    run_kernel_case("nk_dots_pack_f32_powervsx", test_dots_pack_layout<f32_t, host_backend_t>, powervsx,
+                    nk_dots_pack_size_f32_powervsx, nk_dots_packed_shape_f32_powervsx, nk_dots_pack_f32_powervsx);
     run_kernel_case("nk_dots_packed_bf16_powervsx", test_dots_packed<bf16_t>, powervsx, nk_dots_pack_size_bf16_powervsx,
                     nk_dots_pack_bf16_powervsx, nk_dots_packed_bf16_powervsx);
-    run_kernel_case("nk_dots_pack_bf16_powervsx",
-                    test_dots_pack_layout<bf16_t, host_backend_t, nk_dots_pack_size_bf16_powervsx,
-                                          nk_dots_packed_shape_bf16_powervsx, nk_dots_pack_bf16_powervsx>,
-                    powervsx);
+    run_kernel_case("nk_dots_pack_bf16_powervsx", test_dots_pack_layout<bf16_t, host_backend_t>, powervsx,
+                    nk_dots_pack_size_bf16_powervsx, nk_dots_packed_shape_bf16_powervsx, nk_dots_pack_bf16_powervsx);
     run_kernel_case("nk_dots_packed_f16_powervsx", test_dots_packed<f16_t>, powervsx, nk_dots_pack_size_f16_powervsx,
                     nk_dots_pack_f16_powervsx, nk_dots_packed_f16_powervsx);
-    run_kernel_case("nk_dots_pack_f16_powervsx",
-                    test_dots_pack_layout<f16_t, host_backend_t, nk_dots_pack_size_f16_powervsx,
-                                          nk_dots_packed_shape_f16_powervsx, nk_dots_pack_f16_powervsx>,
-                    powervsx);
+    run_kernel_case("nk_dots_pack_f16_powervsx", test_dots_pack_layout<f16_t, host_backend_t>, powervsx,
+                    nk_dots_pack_size_f16_powervsx, nk_dots_packed_shape_f16_powervsx, nk_dots_pack_f16_powervsx);
     run_kernel_case("nk_dots_packed_i8_powervsx", test_dots_packed<i8_t>, powervsx, nk_dots_pack_size_i8_powervsx,
                     nk_dots_pack_i8_powervsx, nk_dots_packed_i8_powervsx);
-    run_kernel_case("nk_dots_pack_i8_powervsx",
-                    test_dots_pack_layout<i8_t, host_backend_t, nk_dots_pack_size_i8_powervsx,
-                                          nk_dots_packed_shape_i8_powervsx, nk_dots_pack_i8_powervsx>,
-                    powervsx);
+    run_kernel_case("nk_dots_pack_i8_powervsx", test_dots_pack_layout<i8_t, host_backend_t>, powervsx,
+                    nk_dots_pack_size_i8_powervsx, nk_dots_packed_shape_i8_powervsx, nk_dots_pack_i8_powervsx);
     run_kernel_case("nk_dots_packed_u8_powervsx", test_dots_packed<u8_t>, powervsx, nk_dots_pack_size_u8_powervsx,
                     nk_dots_pack_u8_powervsx, nk_dots_packed_u8_powervsx);
-    run_kernel_case("nk_dots_pack_u8_powervsx",
-                    test_dots_pack_layout<u8_t, host_backend_t, nk_dots_pack_size_u8_powervsx,
-                                          nk_dots_packed_shape_u8_powervsx, nk_dots_pack_u8_powervsx>,
-                    powervsx);
+    run_kernel_case("nk_dots_pack_u8_powervsx", test_dots_pack_layout<u8_t, host_backend_t>, powervsx,
+                    nk_dots_pack_size_u8_powervsx, nk_dots_packed_shape_u8_powervsx, nk_dots_pack_u8_powervsx);
     run_kernel_case("nk_dots_packed_u1_powervsx", test_dots_packed<u1x8_t>, powervsx, nk_dots_pack_size_u1_powervsx,
                     nk_dots_pack_u1_powervsx, nk_dots_packed_u1_powervsx);
-    run_kernel_case("nk_dots_pack_u1_powervsx",
-                    test_dots_pack_layout<u1x8_t, host_backend_t, nk_dots_pack_size_u1_powervsx,
-                                          nk_dots_packed_shape_u1_powervsx, nk_dots_pack_u1_powervsx>,
-                    powervsx);
+    run_kernel_case("nk_dots_pack_u1_powervsx", test_dots_pack_layout<u1x8_t, host_backend_t>, powervsx,
+                    nk_dots_pack_size_u1_powervsx, nk_dots_packed_shape_u1_powervsx, nk_dots_pack_u1_powervsx);
 
     run_kernel_case("nk_dots_symmetric_f64_powervsx", test_dots_symmetric<f64_t>, powervsx,
                     nk_dots_symmetric_f64_powervsx);
@@ -123,34 +109,24 @@ void run_cross_ppc64_cases() {
     auto const powermma = nk_cap_powermma_k;
     run_kernel_case("nk_dots_packed_f32_powermma", test_dots_packed<f32_t>, powermma, nk_dots_pack_size_f32_powermma,
                     nk_dots_pack_f32_powermma, nk_dots_packed_f32_powermma);
-    run_kernel_case("nk_dots_pack_f32_powermma",
-                    test_dots_pack_layout<f32_t, host_backend_t, nk_dots_pack_size_f32_powermma,
-                                          nk_dots_packed_shape_f32_powermma, nk_dots_pack_f32_powermma>,
-                    powermma);
+    run_kernel_case("nk_dots_pack_f32_powermma", test_dots_pack_layout<f32_t, host_backend_t>, powermma,
+                    nk_dots_pack_size_f32_powermma, nk_dots_packed_shape_f32_powermma, nk_dots_pack_f32_powermma);
     run_kernel_case("nk_dots_packed_bf16_powermma", test_dots_packed<bf16_t>, powermma, nk_dots_pack_size_bf16_powermma,
                     nk_dots_pack_bf16_powermma, nk_dots_packed_bf16_powermma);
-    run_kernel_case("nk_dots_pack_bf16_powermma",
-                    test_dots_pack_layout<bf16_t, host_backend_t, nk_dots_pack_size_bf16_powermma,
-                                          nk_dots_packed_shape_bf16_powermma, nk_dots_pack_bf16_powermma>,
-                    powermma);
+    run_kernel_case("nk_dots_pack_bf16_powermma", test_dots_pack_layout<bf16_t, host_backend_t>, powermma,
+                    nk_dots_pack_size_bf16_powermma, nk_dots_packed_shape_bf16_powermma, nk_dots_pack_bf16_powermma);
     run_kernel_case("nk_dots_packed_f16_powermma", test_dots_packed<f16_t>, powermma, nk_dots_pack_size_f16_powermma,
                     nk_dots_pack_f16_powermma, nk_dots_packed_f16_powermma);
-    run_kernel_case("nk_dots_pack_f16_powermma",
-                    test_dots_pack_layout<f16_t, host_backend_t, nk_dots_pack_size_f16_powermma,
-                                          nk_dots_packed_shape_f16_powermma, nk_dots_pack_f16_powermma>,
-                    powermma);
+    run_kernel_case("nk_dots_pack_f16_powermma", test_dots_pack_layout<f16_t, host_backend_t>, powermma,
+                    nk_dots_pack_size_f16_powermma, nk_dots_packed_shape_f16_powermma, nk_dots_pack_f16_powermma);
     run_kernel_case("nk_dots_packed_i8_powermma", test_dots_packed<i8_t>, powermma, nk_dots_pack_size_i8_powermma,
                     nk_dots_pack_i8_powermma, nk_dots_packed_i8_powermma);
-    run_kernel_case("nk_dots_pack_i8_powermma",
-                    test_dots_pack_layout<i8_t, host_backend_t, nk_dots_pack_size_i8_powermma,
-                                          nk_dots_packed_shape_i8_powermma, nk_dots_pack_i8_powermma>,
-                    powermma);
+    run_kernel_case("nk_dots_pack_i8_powermma", test_dots_pack_layout<i8_t, host_backend_t>, powermma,
+                    nk_dots_pack_size_i8_powermma, nk_dots_packed_shape_i8_powermma, nk_dots_pack_i8_powermma);
     run_kernel_case("nk_dots_packed_u8_powermma", test_dots_packed<u8_t>, powermma, nk_dots_pack_size_u8_powermma,
                     nk_dots_pack_u8_powermma, nk_dots_packed_u8_powermma);
-    run_kernel_case("nk_dots_pack_u8_powermma",
-                    test_dots_pack_layout<u8_t, host_backend_t, nk_dots_pack_size_u8_powermma,
-                                          nk_dots_packed_shape_u8_powermma, nk_dots_pack_u8_powermma>,
-                    powermma);
+    run_kernel_case("nk_dots_pack_u8_powermma", test_dots_pack_layout<u8_t, host_backend_t>, powermma,
+                    nk_dots_pack_size_u8_powermma, nk_dots_packed_shape_u8_powermma, nk_dots_pack_u8_powermma);
 
     run_kernel_case("nk_dots_symmetric_f32_powermma", test_dots_symmetric<f32_t>, powermma,
                     nk_dots_symmetric_f32_powermma);

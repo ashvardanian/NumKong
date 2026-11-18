@@ -363,9 +363,49 @@ constexpr std::size_t shapes_pack_bytes_(std::size_t points) noexcept {
            3 * nk_size_round_up_to_multiple_(points * sizeof(typename in_type_::raw_t), nk_shapes_alignment_k);
 }
 
+/** Bytes every CPU Chamfer kernel reads, by the rule of @c shapes/serial.h: 11 aligned strides of
+ *  the smaller cloud in the distance type. */
+template <shapes_dtype in_type_>
+constexpr std::size_t chamfers_workspace_bytes_(std::size_t row_points, std::size_t column_points) noexcept {
+    std::size_t const shorter = row_points < column_points ? row_points : column_points;
+    return 11 * nk_size_round_up_to_multiple_(shorter * sizeof(typename in_type_::shapes_distance_t::raw_t),
+                                              nk_shapes_alignment_k);
+}
+
 /** The type the transport duals and the Gromov-Wasserstein line search run in: at least @c f64. */
 template <typename math_type_>
 using shapes_wide_ = std::conditional_t<(sizeof(math_type_) < sizeof(f64_t)), f64_t, math_type_>;
+
+/** Bytes the Wasserstein-Procrustes template and every CPU kernel read, by the rule of
+ *  @c shapes/serial.h: 3 point arrays, 6 tree arrays and the potentials, then 2 plans of 3 arrays
+ *  of @c 2*points-1 arcs, each array on an @c nk_shapes_alignment_k boundary. */
+template <typename math_type_>
+constexpr std::size_t wassersteinprocrustes_workspace_bytes_(std::size_t row_points,
+                                                             std::size_t column_points) noexcept {
+    std::size_t const points = row_points < column_points ? column_points : row_points;
+    std::size_t const points_bytes = nk_size_round_up_to_multiple_(3 * points * sizeof(math_type_),
+                                                                   nk_shapes_alignment_k);
+    std::size_t const nodes_bytes = nk_size_round_up_to_multiple_(2 * points * sizeof(std::uint32_t),
+                                                                  nk_shapes_alignment_k);
+    std::size_t const potential_bytes = nk_size_round_up_to_multiple_(2 * points * sizeof(shapes_wide_<math_type_>),
+                                                                      nk_shapes_alignment_k);
+    std::size_t const plan_bytes = nk_size_round_up_to_multiple_((points ? 2 * points - 1 : 0) * sizeof(std::uint32_t),
+                                                                 nk_shapes_alignment_k);
+    return 3 * points_bytes + 6 * nodes_bytes + potential_bytes + 6 * plan_bytes;
+}
+
+/** Bytes the Gromov-Wasserstein template and every CPU kernel read: the transport bytes, then the
+ *  plan, its gradient and a vertex's gradient, and the distances within each cloud. */
+template <typename math_type_>
+constexpr std::size_t gromovwassersteins_workspace_bytes_(std::size_t row_points, std::size_t column_points) noexcept {
+    using wide_t = shapes_wide_<math_type_>;
+    std::size_t const matrix_bytes = nk_size_round_up_to_multiple_(row_points * column_points * sizeof(wide_t),
+                                                                   nk_shapes_alignment_k);
+    std::size_t const distances_bytes = nk_size_round_up_to_multiple_(
+        (row_points * row_points + column_points * column_points) * sizeof(wide_t), nk_shapes_alignment_k);
+    return wassersteinprocrustes_workspace_bytes_<math_type_>(row_points, column_points) + 3 * matrix_bytes +
+           distances_bytes;
+}
 
 /** Converts @p value of the math type into an output, skipping @c double when both types match. */
 template <typename output_type_, typename math_type_>
@@ -403,6 +443,202 @@ template <typename math_type_>
 void shapes_flip_(unsigned flip, math_type_ *matrix) noexcept {
     for (int i = 0; i != 9; ++i) matrix[i] = math_type_(0.0);
     for (unsigned axis = 0; axis != 3; ++axis) matrix[axis * 4] = math_type_((flip >> axis) & 1 ? -1.0 : 1.0);
+}
+
+/** The unit complex number at 1 / @p order of the angle of @p real + i @p imaginary in (−π, π],
+ *  as the product of the halvings of that angle that the binary digits of 1 / @p order pick. */
+template <typename math_type_>
+void shapes_unit_root_(math_type_ real, math_type_ imaginary, int order, math_type_ *root) noexcept {
+    using math_t = math_type_;
+    math_t const zero(0.0), one(1.0), two(2.0);
+    if (order == 1) {
+        root[0] = real, root[1] = imaginary;
+        return;
+    }
+    math_t root_real = one, root_imaginary = zero;
+    int remainder = 1;
+    for (int digit = 0; digit != int(sizeof(math_t)) * 7; ++digit) {
+        // Halving through the larger of the half angle's cosine and sine keeps divisors big
+        math_t half_real, half_imaginary;
+        if (real >= zero) half_real = ((one + real) / two).sqrt(), half_imaginary = imaginary / (two * half_real);
+        else
+            half_imaginary = (imaginary < zero ? zero - one : one) * ((one - real) / two).sqrt(),
+            half_real = imaginary / (two * half_imaginary);
+        real = half_real, imaginary = half_imaginary, remainder *= 2;
+        if (remainder < order) continue;
+        remainder -= order;
+        math_t const next_real = root_real * real - root_imaginary * imaginary;
+        root_imaginary = root_imaginary * real + root_real * imaginary, root_real = next_real;
+    }
+    math_t const inverse = (root_real * root_real + root_imaginary * root_imaginary).rsqrt();
+    root[0] = root_real * inverse, root[1] = root_imaginary * inverse;
+}
+
+/** The centered point @p index of a cloud of @p in_type_ in @p math_type_ . */
+template <typename in_type_, typename math_type_>
+void shapes_centered_(typename in_type_::raw_t const *points, std::size_t index, math_type_ const *centroid,
+                      math_type_ *centered) noexcept {
+    for (std::size_t axis = 0; axis != 3; ++axis)
+        centered[axis] = math_type_(static_cast<double>(in_type_::from_raw(points[index * 3 + axis]))) - centroid[axis];
+}
+
+/** The dot product of two 3D vectors. */
+template <typename math_type_>
+math_type_ shapes_dot_(math_type_ const *left, math_type_ const *right) noexcept {
+    return left[0] * right[0] + left[1] * right[1] + left[2] * right[2];
+}
+
+/** Turns basis rows a and b about row c until the first harmonic above @p tie_tolerance , a sum
+ *  of wᵐ over w = x · a + i x · b, or of h × wᵐ over h = x · c, lies along a, and settles the m
+ *  choices of a by the next harmonic that tells them apart, as @c shapes/serial.h settles a tied
+ *  plane. First orients c by Σh³. */
+template <typename in_type_, typename math_type_>
+void shapes_turn_plane_(typename in_type_::raw_t const *points, std::size_t count, math_type_ const *centroid,
+                        math_type_ tie_tolerance, math_type_ *basis) noexcept {
+    using math_t = math_type_;
+    math_t const zero(0.0), one(1.0);
+    math_t centered[3], cubes = zero, cube_magnitudes = zero;
+    for (std::size_t index = 0; index != count; ++index) {
+        shapes_centered_<in_type_>(points, index, centroid, centered);
+        math_t const height = shapes_dot_(basis + 6, centered), distance = shapes_dot_(centered, centered).sqrt();
+        cubes = cubes + height * height * height, cube_magnitudes = cube_magnitudes + distance * distance * distance;
+    }
+    bool const oriented = cubes.abs() > tie_tolerance * cube_magnitudes;
+    if (oriented && cubes < zero)
+        for (int cell = 3; cell != 9; ++cell) basis[cell] = zero - basis[cell];
+    // Even entries sum wᵐ and odd ones h × wᵐ for m = 1 to 8, beside sums of |w|ᵐ and |x|ᵐ⁺¹
+    math_t harmonics[16][2], magnitudes[16];
+    for (int entry = 0; entry != 16; ++entry) harmonics[entry][0] = harmonics[entry][1] = magnitudes[entry] = zero;
+    for (std::size_t index = 0; index != count; ++index) {
+        shapes_centered_<in_type_>(points, index, centroid, centered);
+        math_t const along = shapes_dot_(basis, centered), across = shapes_dot_(basis + 3, centered);
+        math_t const height = shapes_dot_(basis + 6, centered), distance = shapes_dot_(centered, centered).sqrt();
+        math_t const radius = (along * along + across * across).sqrt();
+        math_t power_real = one, power_imaginary = zero, power_radius = one, power_distance = distance;
+        for (int entry = 0; entry != 16; entry += 2) {
+            math_t const next = power_real * along - power_imaginary * across;
+            power_imaginary = power_imaginary * along + power_real * across, power_real = next;
+            power_radius = power_radius * radius, power_distance = power_distance * distance;
+            harmonics[entry][0] = harmonics[entry][0] + power_real;
+            harmonics[entry][1] = harmonics[entry][1] + power_imaginary;
+            magnitudes[entry] = magnitudes[entry] + power_radius;
+            magnitudes[entry + 1] = magnitudes[entry + 1] + power_distance;
+            harmonics[entry + 1][0] = harmonics[entry + 1][0] + height * power_real;
+            harmonics[entry + 1][1] = harmonics[entry + 1][1] + height * power_imaginary;
+        }
+    }
+    // Unless c is oriented, flipping it conjugates every wᵐ sum and negates its twin, so a twin
+    // only chooses at odd m, and only harmonics flipping like the chosen root settle
+    int chosen = -1, settling = -1;
+    for (int entry = 0; entry != 16 && settling < 0; ++entry) {
+        int const twin = entry & 1, odd = (entry / 2) % 2 == 0;
+        if (!oriented && (chosen < 0 ? twin && !odd : twin != ((chosen & 1) && odd))) continue;
+        if (chosen >= 0 && (entry / 2 + 1) % (chosen / 2 + 1) == 0) continue;
+        math_t const strength = harmonics[entry][0] * harmonics[entry][0] + harmonics[entry][1] * harmonics[entry][1];
+        math_t const threshold = tie_tolerance * magnitudes[entry];
+        if (!(strength > threshold * threshold)) continue;
+        if (chosen < 0) chosen = entry;
+        else settling = entry;
+    }
+    if (chosen < 0) return;
+    int const order = chosen / 2 + 1;
+    math_t root[2];
+    math_t const inverse =
+        (harmonics[chosen][0] * harmonics[chosen][0] + harmonics[chosen][1] * harmonics[chosen][1]).rsqrt();
+    shapes_unit_root_(harmonics[chosen][0] * inverse, harmonics[chosen][1] * inverse, order, root);
+    if (settling >= 0) {
+        // The m candidates for a step by e^(2πi / m), the square of the m-th root of −1
+        math_t turn[2];
+        shapes_unit_root_(zero - one, zero, order, turn);
+        math_t const turn_real = turn[0] * turn[0] - turn[1] * turn[1],
+                     turn_imaginary = math_t(2.0) * turn[0] * turn[1];
+        math_t candidate[2] = {root[0], root[1]}, best_score = zero;
+        for (int choice = 0; choice != order; ++choice) {
+            // The settling harmonic as the candidate would leave it, × conj(candidate)ⁿ
+            math_t power[2] = {harmonics[settling][0], harmonics[settling][1]};
+            for (int step = 0; step != settling / 2 + 1; ++step) {
+                math_t const next = power[0] * candidate[0] + power[1] * candidate[1];
+                power[1] = power[1] * candidate[0] - power[0] * candidate[1], power[0] = next;
+            }
+            if (choice == 0 || power[0] > best_score)
+                best_score = power[0], root[0] = candidate[0], root[1] = candidate[1];
+            math_t const next = candidate[0] * turn_real - candidate[1] * turn_imaginary;
+            candidate[1] = candidate[1] * turn_real + candidate[0] * turn_imaginary, candidate[0] = next;
+        }
+    }
+    // w × conj(root) lays the chosen harmonic along a
+    for (int axis = 0; axis != 3; ++axis) {
+        math_t const along = basis[axis], across = basis[3 + axis];
+        basis[axis] = root[0] * along + root[1] * across, basis[3 + axis] = root[0] * across - root[1] * along;
+    }
+}
+
+/** Points basis row c at the point whose direction u maximizes Σ(x · u)³, or Σ(x · u)⁴ when no
+ *  cubic clears @p tie_tolerance , completes a proper basis and turns the plane about c, as
+ *  @c shapes/serial.h settles three tied eigenvalues. */
+template <typename in_type_, typename math_type_>
+void shapes_pick_axis_(typename in_type_::raw_t const *points, std::size_t count, math_type_ const *centroid,
+                       math_type_ tie_tolerance, math_type_ *basis) noexcept {
+    using math_t = math_type_;
+    math_t const zero(0.0);
+    math_t centered[3], candidate[3], cube_magnitudes = zero, best_cubes = zero, best_quartics = zero;
+    std::size_t cubes_index = count, quartics_index = count;
+    for (std::size_t candidate_index = 0; candidate_index != count; ++candidate_index) {
+        shapes_centered_<in_type_>(points, candidate_index, centroid, candidate);
+        math_t const length_squared = shapes_dot_(candidate, candidate), length = length_squared.sqrt();
+        cube_magnitudes = cube_magnitudes + length_squared * length;
+        if (!(length_squared > zero)) continue;
+        math_t cubes = zero, quartics = zero;
+        for (std::size_t index = 0; index != count; ++index) {
+            shapes_centered_<in_type_>(points, index, centroid, centered);
+            math_t const projection = shapes_dot_(centered, candidate), square = projection * projection;
+            cubes = cubes + square * projection, quartics = quartics + square * square;
+        }
+        cubes = cubes / (length_squared * length), quartics = quartics / (length_squared * length_squared);
+        if (cubes > best_cubes) best_cubes = cubes, cubes_index = candidate_index;
+        if (quartics > best_quartics) best_quartics = quartics, quartics_index = candidate_index;
+    }
+    std::size_t const chosen = best_cubes > tie_tolerance * cube_magnitudes ? cubes_index : quartics_index;
+    if (chosen == count) return;
+    math_t axis[3], least_alignment(2.0);
+    shapes_centered_<in_type_>(points, chosen, centroid, axis);
+    math_t const axis_inverse = shapes_dot_(axis, axis).rsqrt();
+    for (math_t &value : axis) value = value * axis_inverse;
+    // a starts from the row least aligned with c, which keeps most of its length
+    int start = 0;
+    for (int row = 0; row != 3; ++row)
+        if (math_t const alignment = shapes_dot_(basis + row * 3, axis).abs(); alignment < least_alignment)
+            least_alignment = alignment, start = row;
+    math_t const alignment = shapes_dot_(basis + start * 3, axis);
+    for (int cell = 0; cell != 3; ++cell) candidate[cell] = basis[start * 3 + cell] - alignment * axis[cell];
+    math_t const candidate_inverse = shapes_dot_(candidate, candidate).rsqrt();
+    for (int cell = 0; cell != 3; ++cell)
+        basis[cell] = candidate[cell] * candidate_inverse, basis[6 + cell] = axis[cell];
+    // b = c × a completes a proper basis
+    for (int cell = 0; cell != 3; ++cell)
+        basis[3 + cell] = axis[(cell + 1) % 3] * basis[(cell + 2) % 3] - axis[(cell + 2) % 3] * basis[(cell + 1) % 3];
+    shapes_turn_plane_<in_type_>(points, count, centroid, tie_tolerance, basis);
+}
+
+/** Settles the eigenvector columns of @p frame , sorted by the descending @p eigenvalues , where
+ *  neighbors tie within the serial tolerance: rounding alone picks tied eigenvectors, so higher
+ *  moments settle them as @c shapes/serial.h does. */
+template <typename in_type_, typename math_type_>
+void shapes_settle_ties_(typename in_type_::raw_t const *points, std::size_t count, math_type_ const *centroid,
+                         math_type_ const *eigenvalues, math_type_ *frame) noexcept {
+    math_type_ const tie_tolerance(std::is_same_v<in_type_, f16_t> ? 0x1p-7 : 0x1p-16);
+    bool const upper_tied = eigenvalues[0] - eigenvalues[1] <= tie_tolerance * eigenvalues[0];
+    bool const lower_tied = eigenvalues[1] - eigenvalues[2] <= tie_tolerance * eigenvalues[0];
+    if (!upper_tied && !lower_tied) return;
+    // Rows a and b span the tied plane and c the third axis, in a proper order
+    std::size_t const first = upper_tied ? 0 : 1;
+    math_type_ basis[9];
+    for (std::size_t row = 0; row != 3; ++row)
+        for (std::size_t cell = 0; cell != 3; ++cell) basis[row * 3 + cell] = frame[cell * 3 + (first + row) % 3];
+    if (upper_tied && lower_tied) shapes_pick_axis_<in_type_>(points, count, centroid, tie_tolerance, basis);
+    else shapes_turn_plane_<in_type_>(points, count, centroid, tie_tolerance, basis);
+    for (std::size_t row = 0; row != 3; ++row)
+        for (std::size_t cell = 0; cell != 3; ++cell) frame[cell * 3 + (first + row) % 3] = basis[row * 3 + cell];
 }
 
 /** Packs one cloud by the algorithm of @c shapes.h in @p math_type_, divided by its RMS distance
@@ -450,6 +686,7 @@ void shapes_pack_reference_(typename in_type_::raw_t const *points, std::size_t 
         quaternion_to_mat3x3_(quaternion, frame);
         math_t eigenvalues[3] = {covariance[0], covariance[2], covariance[5]};
         sort_eigenvectors_(eigenvalues, frame);
+        shapes_settle_ties_<in_type_>(points, count, centroid, eigenvalues, frame);
         mat3x3_to_quaternion_(frame, quaternion);
         quaternion_to_mat3x3_(quaternion, frame);
 
@@ -718,33 +955,41 @@ struct shapes_simplex_ {
     }
 
     /** Pivots by block pricing from a cursor restarting at arc 0, until no arc's reduced cost
-     *  falls below @c -tolerance. */
+     *  falls below @c -tolerance. The block holding such an arc enters its first arc within
+     *  @c tolerance of the block's least, as every capability does, so no rounding orders ties. */
     template <typename cost_type_>
     void solve(cost_type_ const &cost, dual_t tolerance) noexcept {
         std::size_t const arcs = rows * columns;
         std::size_t block = 10;
         while (block * block < arcs) ++block;
         dual_t const threshold = dual_t(0.0) - tolerance;
+        auto const reduced = [&](std::size_t arc) noexcept {
+            std::size_t const row = arc / columns, column = arc % columns;
+            return shapes_output_<dual_t>(cost(row, column)) - potential[row] + potential[rows + column];
+        };
         std::size_t cursor = 0;
         for (;;) {
             dual_t entering_cost {};
-            std::size_t entering = arcs, arc = cursor, in_block = 0;
+            std::size_t entering = arcs, arc = cursor, block_start = cursor, in_block = 0;
             bool found = false;
             for (std::size_t scanned = 0; scanned != arcs; ++scanned) {
-                std::size_t const row = arc / columns, column = arc % columns;
-                dual_t const reduced = shapes_output_<dual_t>(cost(row, column)) - potential[row] +
-                                       potential[rows + column];
-                if (reduced < entering_cost) entering_cost = reduced, entering = arc;
+                if (dual_t const value = reduced(arc); value < entering_cost) entering_cost = value, entering = arc;
                 arc = arc + 1 == arcs ? 0 : arc + 1;
                 if (++in_block == block || scanned + 1 == arcs) {
                     if (entering_cost < threshold) {
                         found = true;
                         break;
                     }
-                    in_block = 0;
+                    in_block = 0, block_start = arc;
                 }
             }
             if (!found) return;
+            dual_t const tie_cost = entering_cost + tolerance;
+            for (std::size_t tied = block_start; tied != entering; tied = tied + 1 == arcs ? 0 : tied + 1)
+                if (dual_t const value = reduced(tied); value < tie_cost) {
+                    entering_cost = value, entering = tied;
+                    break;
+                }
             cursor = arc;
             pivot_(entering / columns, entering % columns, entering_cost);
         }
@@ -841,7 +1086,11 @@ std::size_t shapes_transport_layout_(shapes_transport_workspace_<math_type_> &wo
                                      std::size_t row_points, std::size_t column_points) noexcept {
     std::size_t offset = 0;
     std::size_t const points = row_points < column_points ? column_points : row_points;
-    std::size_t const nodes = 2 * points, plan_values = 3 * nodes;
+    std::size_t const nodes = 2 * points;
+    std::size_t const plan_stride = nk_size_round_up_to_multiple_((points ? 2 * points - 1 : 0) * sizeof(std::uint32_t),
+                                                                  nk_shapes_alignment_k) /
+                                    sizeof(std::uint32_t);
+    std::size_t const plan_values = 3 * plan_stride;
     workspace.row_points = shapes_carve_<math_type_>(base, offset, 3 * points);
     workspace.column_points = shapes_carve_<math_type_>(base, offset, 3 * points);
     workspace.rotated_columns = shapes_carve_<math_type_>(base, offset, 3 * points);
@@ -1453,7 +1702,8 @@ status_t chamfers_packed(void const *const *a_packed, std::size_t rows, void con
  *      and @p column_points points.
  *  @param[in] row_points Most points in any row cloud.
  *  @param[in] column_points Most points in any column cloud.
- *  @param[in] capabilities Capabilities to pick from, or 0 for the template in @p distance_type_.
+ *  @param[in] capabilities Capabilities to pick from, or 0 for what every CPU kernel reads, as a
+ *      header-only build calls them directly.
  */
 template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
 expected<std::size_t> chamfers_workspace_size(std::size_t row_points, std::size_t column_points,
@@ -1477,7 +1727,7 @@ expected<std::size_t> chamfers_workspace_size(std::size_t row_points, std::size_
             return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
         }
     }
-    return {std::size_t(0), status_t::success_k};
+    return {chamfers_workspace_bytes_<in_type_>(row_points, column_points), status_t::success_k};
 }
 
 /**
@@ -1509,10 +1759,7 @@ expected<std::size_t> wassersteinprocrustes_workspace_size(
             return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
         }
     }
-    shapes_transport_workspace_<distance_type_> layout;
-    return {shapes_transport_layout_<distance_type_, nk_kernel_wassersteinprocrustes_packed_k>(
-                layout, nullptr, row_points, column_points),
-            status_t::success_k};
+    return {wassersteinprocrustes_workspace_bytes_<distance_type_>(row_points, column_points), status_t::success_k};
 }
 
 /**
@@ -1588,10 +1835,7 @@ expected<std::size_t> gromovwassersteins_workspace_size(
             return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
         }
     }
-    shapes_transport_workspace_<distance_type_> layout;
-    return {shapes_transport_layout_<distance_type_, nk_kernel_gromovwassersteins_packed_k>(layout, nullptr, row_points,
-                                                                                            column_points),
-            status_t::success_k};
+    return {gromovwassersteins_workspace_bytes_<distance_type_>(row_points, column_points), status_t::success_k};
 }
 
 /** Gromov-Wasserstein distances between every row and column pack, with the parameters of

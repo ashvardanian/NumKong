@@ -30,7 +30,7 @@
 #include "numkong/numkong.h"
 
 #include "cross.hpp"
-#include "harness_cuda.hpp"
+#include "backend_cuda.hpp"
 
 #if NUMKONG_ARCH_CUDA_
 
@@ -846,7 +846,7 @@ void bench_cross_blackwellultra([[maybe_unused]] bench_settings_t const &env,
 
 /** Prints why a baseline row is missing, when @p name passes the filter. */
 void print_skipped(bench_settings_t const &env, std::string const &name, char const *reason) {
-    if (env.filter.selects(name)) print(row_t {name, 0, {}, std::string_view(reason)});
+    if (env.regex_filter.selects(name)) print(row_t {name, 0, {}, std::string_view(reason)});
 }
 
 /** The codes behind a kernel operand: the pointer itself, or a block-scaled reference's elements,

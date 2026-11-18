@@ -226,9 +226,10 @@ auto device_transport_packs(backend_type_ const &backend, split_mix_generator_t 
 /** A backend's transport @p kernel against its template in the scalar's reference type on random
  *  and tied clouds of unequal sizes, within the bound the CPU capabilities meet: under a root, the
  *  roundings of a plan of up to n + m − 1 arcs, each at most the squared sum of both radii, and the
- *  simplex tolerance. Gromov-Wasserstein rings, whose turns tie, may settle in another local
- *  optimum than the template's: f16 points within their bound, and wider ones within a tenth of it,
- *  closer than the f16 ones land. */
+ *  simplex tolerance. Tied clouds keep wider types in the template's local optimum, as every solver
+ *  enters the first arc within the tolerance of a block's least, but f16 costs round in f32, far
+ *  above that tolerance, so f16 rings may settle in another local optimum: Wasserstein-Procrustes
+ *  ones within the root, Gromov-Wasserstein ones within the f32 rounding of their costs. */
 template <typename scalar_type_, nk_kernel_kind_t kind_, typename backend_type_, typename workspace_size_type_,
           typename kernel_type_>
 error_stats_t test_transport_packed(workspace_size_type_ workspace_size, kernel_type_ kernel) {
@@ -263,9 +264,6 @@ error_stats_t test_transport_packed(workspace_size_type_ workspace_size, kernel_
                      results.raw_values_data(), columns * sizeof(raw_distance_t), rotations.raw_values_data(),
                      static_cast<void *>(workspace.raw_values_data()), bytes);
         if (!stats.expect_status(backend.synchronize())) return stats;
-        nk_f64_t const layout_roundoff = !procrustes_k && layout == transport_layout_t::ring_k
-                                             ? nk::max_of(roundoff, half_ulp<f32_t>(1.0) / 10)
-                                             : roundoff;
         if constexpr (procrustes_k)
             stats.expect_status(nk::wassersteinprocrustes_packed<scalar_type_, reference_t, reference_t>(
                 row_packs.data(), rows, column_packs.data(), columns, expected.data(), columns * sizeof(reference_t),
@@ -283,13 +281,15 @@ error_stats_t test_transport_packed(workspace_size_type_ workspace_size, kernel_
                 nk_f64_t const reach = radius(row_packs[row]) + radius(column_packs[column]);
                 nk_f64_t const scale = reach * reach, tolerance = nk::shapes_transport_epsilon_k * scale;
                 nk_f64_t const reference = static_cast<nk_f64_t>(expected[row * columns + column]);
+                bool const rooted = std::is_same_v<scalar_type_, f16_t> && layout == transport_layout_t::ring_k;
                 nk_f64_t bound;
                 if constexpr (procrustes_k) {
                     nk_f64_t const squared = (terms + 32) * roundoff * scale + tolerance;
-                    bound = nk::min_of(std::sqrt(squared), squared / reference);
+                    bound = rooted ? std::sqrt(squared) : nk::min_of(std::sqrt(squared), squared / reference);
                 }
                 else {
-                    nk_f64_t const loss = 4 * ((terms + 64) * layout_roundoff * scale + tolerance);
+                    nk_f64_t const tie_roundoff = rooted ? nk::max_of(roundoff, half_ulp<f32_t>(1.0)) : roundoff;
+                    nk_f64_t const loss = 4 * ((terms + 64) * tie_roundoff * scale + tolerance);
                     bound = nk::min_of(0.5 * std::sqrt(loss), loss / (8 * reference));
                 }
                 stats.accumulate_bounded(distance_t::from_raw(results.raw_values_data()[row * columns + column]),

@@ -18,34 +18,29 @@ void run_cross_x8664amx_cases() {
     auto const sapphireamx = nk_cap_sapphireamx_k;
     run_kernel_case("nk_dots_packed_bf16_sapphireamx", test_dots_packed<bf16_t>, sapphireamx,
                     nk_dots_pack_size_bf16_sapphireamx, nk_dots_pack_bf16_sapphireamx, nk_dots_packed_bf16_sapphireamx);
-    run_kernel_case("nk_dots_pack_bf16_sapphireamx",
-                    test_dots_pack_layout<bf16_t, host_backend_t, nk_dots_pack_size_bf16_sapphireamx,
-                                          nk_dots_packed_shape_bf16_sapphireamx, nk_dots_pack_bf16_sapphireamx>,
-                    sapphireamx);
+    run_kernel_case("nk_dots_pack_bf16_sapphireamx", test_dots_pack_layout<bf16_t, host_backend_t>, sapphireamx,
+                    nk_dots_pack_size_bf16_sapphireamx, nk_dots_packed_shape_bf16_sapphireamx,
+                    nk_dots_pack_bf16_sapphireamx);
     run_kernel_case("nk_dots_packed_e5m2_sapphireamx", test_dots_packed<e5m2_t>, sapphireamx,
                     nk_dots_pack_size_e5m2_sapphireamx, nk_dots_pack_e5m2_sapphireamx, nk_dots_packed_e5m2_sapphireamx);
-    run_kernel_case("nk_dots_pack_e5m2_sapphireamx",
-                    test_dots_pack_layout<e5m2_t, host_backend_t, nk_dots_pack_size_e5m2_sapphireamx,
-                                          nk_dots_packed_shape_e5m2_sapphireamx, nk_dots_pack_e5m2_sapphireamx>,
-                    sapphireamx);
+    run_kernel_case("nk_dots_pack_e5m2_sapphireamx", test_dots_pack_layout<e5m2_t, host_backend_t>, sapphireamx,
+                    nk_dots_pack_size_e5m2_sapphireamx, nk_dots_packed_shape_e5m2_sapphireamx,
+                    nk_dots_pack_e5m2_sapphireamx);
     run_kernel_case("nk_dots_packed_e4m3_sapphireamx", test_dots_packed<e4m3_t>, sapphireamx,
                     nk_dots_pack_size_e4m3_sapphireamx, nk_dots_pack_e4m3_sapphireamx, nk_dots_packed_e4m3_sapphireamx);
-    run_kernel_case("nk_dots_pack_e4m3_sapphireamx",
-                    test_dots_pack_layout<e4m3_t, host_backend_t, nk_dots_pack_size_e4m3_sapphireamx,
-                                          nk_dots_packed_shape_e4m3_sapphireamx, nk_dots_pack_e4m3_sapphireamx>,
-                    sapphireamx);
+    run_kernel_case("nk_dots_pack_e4m3_sapphireamx", test_dots_pack_layout<e4m3_t, host_backend_t>, sapphireamx,
+                    nk_dots_pack_size_e4m3_sapphireamx, nk_dots_packed_shape_e4m3_sapphireamx,
+                    nk_dots_pack_e4m3_sapphireamx);
     run_kernel_case("nk_dots_packed_e3m2_sapphireamx", test_dots_packed<e3m2_t>, sapphireamx,
                     nk_dots_pack_size_e3m2_sapphireamx, nk_dots_pack_e3m2_sapphireamx, nk_dots_packed_e3m2_sapphireamx);
-    run_kernel_case("nk_dots_pack_e3m2_sapphireamx",
-                    test_dots_pack_layout<e3m2_t, host_backend_t, nk_dots_pack_size_e3m2_sapphireamx,
-                                          nk_dots_packed_shape_e3m2_sapphireamx, nk_dots_pack_e3m2_sapphireamx>,
-                    sapphireamx);
+    run_kernel_case("nk_dots_pack_e3m2_sapphireamx", test_dots_pack_layout<e3m2_t, host_backend_t>, sapphireamx,
+                    nk_dots_pack_size_e3m2_sapphireamx, nk_dots_packed_shape_e3m2_sapphireamx,
+                    nk_dots_pack_e3m2_sapphireamx);
     run_kernel_case("nk_dots_packed_e2m3_sapphireamx", test_dots_packed<e2m3_t>, sapphireamx,
                     nk_dots_pack_size_e2m3_sapphireamx, nk_dots_pack_e2m3_sapphireamx, nk_dots_packed_e2m3_sapphireamx);
-    run_kernel_case("nk_dots_pack_e2m3_sapphireamx",
-                    test_dots_pack_layout<e2m3_t, host_backend_t, nk_dots_pack_size_e2m3_sapphireamx,
-                                          nk_dots_packed_shape_e2m3_sapphireamx, nk_dots_pack_e2m3_sapphireamx>,
-                    sapphireamx);
+    run_kernel_case("nk_dots_pack_e2m3_sapphireamx", test_dots_pack_layout<e2m3_t, host_backend_t>, sapphireamx,
+                    nk_dots_pack_size_e2m3_sapphireamx, nk_dots_packed_shape_e2m3_sapphireamx,
+                    nk_dots_pack_e2m3_sapphireamx);
     run_kernel_case("nk_dots_packed_e2m1_sapphireamx", test_dots_packed<e2m1x2_t>, sapphireamx,
                     nk_dots_pack_size_e2m1_sapphireamx, nk_dots_pack_e2m1_sapphireamx, nk_dots_packed_e2m1_sapphireamx);
     run_kernel_case("nk_dots_packed_nvfp4_sapphireamx", test_dots_packed<nvfp4_t>, sapphireamx,
@@ -60,40 +55,29 @@ void run_cross_x8664amx_cases() {
     run_kernel_case("nk_dots_packed_mxfp8e5m2_sapphireamx", test_dots_packed<mxfp8e5m2_t>, sapphireamx,
                     nk_dots_pack_size_mxfp8e5m2_sapphireamx, nk_dots_pack_mxfp8e5m2_sapphireamx,
                     nk_dots_packed_mxfp8e5m2_sapphireamx);
-    run_kernel_case("nk_dots_pack_e2m1_sapphireamx",
-                    test_dots_pack_layout<e2m1x2_t, host_backend_t, nk_dots_pack_size_e2m1_sapphireamx,
-                                          nk_dots_packed_shape_e2m1_sapphireamx, nk_dots_pack_e2m1_sapphireamx>,
-                    sapphireamx);
-    run_kernel_case("nk_dots_pack_nvfp4_sapphireamx",
-                    test_dots_pack_layout<nvfp4_t, host_backend_t, nk_dots_pack_size_nvfp4_sapphireamx,
-                                          nk_dots_packed_shape_nvfp4_sapphireamx, nk_dots_pack_nvfp4_sapphireamx>,
-                    sapphireamx);
-    run_kernel_case("nk_dots_pack_mxfp4_sapphireamx",
-                    test_dots_pack_layout<mxfp4_t, host_backend_t, nk_dots_pack_size_mxfp4_sapphireamx,
-                                          nk_dots_packed_shape_mxfp4_sapphireamx, nk_dots_pack_mxfp4_sapphireamx>,
-                    sapphireamx);
-    run_kernel_case(
-        "nk_dots_pack_mxfp8e4m3_sapphireamx",
-        test_dots_pack_layout<mxfp8e4m3_t, host_backend_t, nk_dots_pack_size_mxfp8e4m3_sapphireamx,
-                              nk_dots_packed_shape_mxfp8e4m3_sapphireamx, nk_dots_pack_mxfp8e4m3_sapphireamx>,
-        sapphireamx);
-    run_kernel_case(
-        "nk_dots_pack_mxfp8e5m2_sapphireamx",
-        test_dots_pack_layout<mxfp8e5m2_t, host_backend_t, nk_dots_pack_size_mxfp8e5m2_sapphireamx,
-                              nk_dots_packed_shape_mxfp8e5m2_sapphireamx, nk_dots_pack_mxfp8e5m2_sapphireamx>,
-        sapphireamx);
+    run_kernel_case("nk_dots_pack_e2m1_sapphireamx", test_dots_pack_layout<e2m1x2_t, host_backend_t>, sapphireamx,
+                    nk_dots_pack_size_e2m1_sapphireamx, nk_dots_packed_shape_e2m1_sapphireamx,
+                    nk_dots_pack_e2m1_sapphireamx);
+    run_kernel_case("nk_dots_pack_nvfp4_sapphireamx", test_dots_pack_layout<nvfp4_t, host_backend_t>, sapphireamx,
+                    nk_dots_pack_size_nvfp4_sapphireamx, nk_dots_packed_shape_nvfp4_sapphireamx,
+                    nk_dots_pack_nvfp4_sapphireamx);
+    run_kernel_case("nk_dots_pack_mxfp4_sapphireamx", test_dots_pack_layout<mxfp4_t, host_backend_t>, sapphireamx,
+                    nk_dots_pack_size_mxfp4_sapphireamx, nk_dots_packed_shape_mxfp4_sapphireamx,
+                    nk_dots_pack_mxfp4_sapphireamx);
+    run_kernel_case("nk_dots_pack_mxfp8e4m3_sapphireamx", test_dots_pack_layout<mxfp8e4m3_t, host_backend_t>,
+                    sapphireamx, nk_dots_pack_size_mxfp8e4m3_sapphireamx, nk_dots_packed_shape_mxfp8e4m3_sapphireamx,
+                    nk_dots_pack_mxfp8e4m3_sapphireamx);
+    run_kernel_case("nk_dots_pack_mxfp8e5m2_sapphireamx", test_dots_pack_layout<mxfp8e5m2_t, host_backend_t>,
+                    sapphireamx, nk_dots_pack_size_mxfp8e5m2_sapphireamx, nk_dots_packed_shape_mxfp8e5m2_sapphireamx,
+                    nk_dots_pack_mxfp8e5m2_sapphireamx);
     run_kernel_case("nk_dots_packed_i8_sapphireamx", test_dots_packed<i8_t>, sapphireamx,
                     nk_dots_pack_size_i8_sapphireamx, nk_dots_pack_i8_sapphireamx, nk_dots_packed_i8_sapphireamx);
-    run_kernel_case("nk_dots_pack_i8_sapphireamx",
-                    test_dots_pack_layout<i8_t, host_backend_t, nk_dots_pack_size_i8_sapphireamx,
-                                          nk_dots_packed_shape_i8_sapphireamx, nk_dots_pack_i8_sapphireamx>,
-                    sapphireamx);
+    run_kernel_case("nk_dots_pack_i8_sapphireamx", test_dots_pack_layout<i8_t, host_backend_t>, sapphireamx,
+                    nk_dots_pack_size_i8_sapphireamx, nk_dots_packed_shape_i8_sapphireamx, nk_dots_pack_i8_sapphireamx);
     run_kernel_case("nk_dots_packed_u8_sapphireamx", test_dots_packed<u8_t>, sapphireamx,
                     nk_dots_pack_size_u8_sapphireamx, nk_dots_pack_u8_sapphireamx, nk_dots_packed_u8_sapphireamx);
-    run_kernel_case("nk_dots_pack_u8_sapphireamx",
-                    test_dots_pack_layout<u8_t, host_backend_t, nk_dots_pack_size_u8_sapphireamx,
-                                          nk_dots_packed_shape_u8_sapphireamx, nk_dots_pack_u8_sapphireamx>,
-                    sapphireamx);
+    run_kernel_case("nk_dots_pack_u8_sapphireamx", test_dots_pack_layout<u8_t, host_backend_t>, sapphireamx,
+                    nk_dots_pack_size_u8_sapphireamx, nk_dots_packed_shape_u8_sapphireamx, nk_dots_pack_u8_sapphireamx);
 
     run_kernel_case("nk_dots_symmetric_bf16_sapphireamx", test_dots_symmetric<bf16_t>, sapphireamx,
                     nk_dots_symmetric_bf16_sapphireamx);
@@ -255,10 +239,8 @@ void run_cross_x8664amx_cases() {
     auto const graniteamx = nk_cap_graniteamx_k;
     run_kernel_case("nk_dots_packed_f16_graniteamx", test_dots_packed<f16_t>, graniteamx,
                     nk_dots_pack_size_f16_graniteamx, nk_dots_pack_f16_graniteamx, nk_dots_packed_f16_graniteamx);
-    run_kernel_case("nk_dots_pack_f16_graniteamx",
-                    test_dots_pack_layout<f16_t, host_backend_t, nk_dots_pack_size_f16_graniteamx,
-                                          nk_dots_packed_shape_f16_graniteamx, nk_dots_pack_f16_graniteamx>,
-                    graniteamx);
+    run_kernel_case("nk_dots_pack_f16_graniteamx", test_dots_pack_layout<f16_t, host_backend_t>, graniteamx,
+                    nk_dots_pack_size_f16_graniteamx, nk_dots_packed_shape_f16_graniteamx, nk_dots_pack_f16_graniteamx);
     run_kernel_case("nk_dots_symmetric_f16_graniteamx", test_dots_symmetric<f16_t>, graniteamx,
                     nk_dots_symmetric_f16_graniteamx);
 
@@ -274,10 +256,9 @@ void run_cross_x8664amx_cases() {
 
     run_kernel_case("nk_dots_packed_e5m2_graniteamx", test_dots_packed<e5m2_t>, graniteamx,
                     nk_dots_pack_size_e5m2_graniteamx, nk_dots_pack_e5m2_graniteamx, nk_dots_packed_e5m2_graniteamx);
-    run_kernel_case("nk_dots_pack_e5m2_graniteamx",
-                    test_dots_pack_layout<e5m2_t, host_backend_t, nk_dots_pack_size_e5m2_graniteamx,
-                                          nk_dots_packed_shape_e5m2_graniteamx, nk_dots_pack_e5m2_graniteamx>,
-                    graniteamx);
+    run_kernel_case("nk_dots_pack_e5m2_graniteamx", test_dots_pack_layout<e5m2_t, host_backend_t>, graniteamx,
+                    nk_dots_pack_size_e5m2_graniteamx, nk_dots_packed_shape_e5m2_graniteamx,
+                    nk_dots_pack_e5m2_graniteamx);
     run_kernel_case("nk_dots_symmetric_e5m2_graniteamx", test_dots_symmetric<e5m2_t>, graniteamx,
                     nk_dots_symmetric_e5m2_graniteamx);
 
