@@ -177,11 +177,11 @@ error_stats_t test_sum(typename scalar_type_::sum_kernel_t kernel) {
     // Subnormal operands, sums that fall below the normals and sums that climb into them, held to
     // the same bound as every other sum
     if constexpr (requires { scalar_t::subnormal_min(); }) {
-        double const smallest = double(scalar_t::subnormal_min()), normal = double(scalar_t::positive_min());
+        nk_f64_t const smallest = nk_f64_t(scalar_t::subnormal_min()), normal = nk_f64_t(scalar_t::positive_min());
         for (std::size_t i = 0; i < count; i++) {
-            double const step = smallest * double(1 + i % 7);
-            a.values_data()[i] = scalar_t(i % 3 ? step : normal - step);
-            b.values_data()[i] = scalar_t(i % 2 ? step : -smallest * double(i % 5));
+            nk_f64_t const step = smallest * nk_f64_t(1 + i % 7);
+            a[i] = scalar_t(i % 3 ? step : normal - step);
+            b[i] = scalar_t(i % 2 ? step : -smallest * nk_f64_t(i % 5));
         }
         score(count);
     }

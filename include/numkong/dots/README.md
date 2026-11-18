@@ -59,6 +59,7 @@ Every capability sums each input group the same way, so `nk_dot_error_bound` hol
 | `e2m3`, `e2m1`, integers              | Exact             | sums fit 32 bits   |
 | `nvfp4`, `mxfp*`                      | Rebased F32, 2⁻²² | inputs are finite  |
 
+Block-scaled kernels meet `nk_accumulation_error_bound` over Σ|aᵢ · bᵢ|, the element products after their scales.
 Block-scaled rows and columns whose exponents spread past the rebasing window take an exact path instead.
 A NaN element, a NaN scale code or a non-finite tensor scale gives NaN, a zero scale code contributes zero, and a zero vector's dot is exactly zero.
 

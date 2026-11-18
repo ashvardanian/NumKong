@@ -4790,6 +4790,17 @@ check_tests_avoid_serial_references() {
         "            compare against the C++ reference templates and set up through the public dispatched exports:"
 }
 
+# Rejects a subscript on a call's result, as `matrix.row(i)[j]` or `vector.values_data()[i]`, because both hop
+# through a raw pointer where the container indexes itself: write `matrix(row, column)` or `vector[index]`, or
+# hold the view in a named local. A pointer-to-array declarator, `(*rows)[pitch]`, is not a call and passes.
+check_call_chained_subscript() {
+    local chained
+    chained=$(grep -E '[A-Za-z0-9_>]\([^()]*\)\[' "$staged_added_code_path" | grep -vE '\([*&][A-Za-z0-9_]*\)\[' || true)
+    [ -z "$chained" ] || reject_with_reason "$chained" \
+        "$staged_path subscripts a call result; write matrix(row, column) or results[index]," \
+        "            never results.data()[index]:"
+}
+
 run_project_checks() {
     case "$staged_path" in
     CHANGELOG*) ;;
@@ -4811,6 +4822,9 @@ run_project_checks() {
     *.c | *.h | *.cpp | *.hpp | *.cc | *.cu | *.cuh | *.hip | *.metal)
         check_ceiling_divisions_use_helpers
         ;;
+    esac
+    case "$staged_path" in
+    *.cpp | *.hpp | *.cc | *.cu | *.cuh | *.hip | *.metal) check_call_chained_subscript ;;
     esac
     case "$staged_path" in
     include/numkong/*/*.h | include/numkong/*/*.cuh)

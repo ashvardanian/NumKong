@@ -1516,9 +1516,9 @@ error_stats_t test_byte_views() {
     // The bytes read back as the same values, and as another dtype of the same width.
     nk::tensor_span<nk::f32_t, 2> const again = nk::as_writable_values<nk::f32_t>(bytes);
     stats.expect_true(again.extent(0) == 4 && again.extent(1) == 6 && again.stride_bytes(0) == 24, "values round trip");
-    stats.expect_true(again.data()[7] == matrix.data()[7], "values alias the bytes");
+    stats.expect_true(again(1, 1) == matrix(1, 1), "values alias the bytes");
     nk::tensor_view<std::uint32_t, 2> const words = nk::as_values<std::uint32_t>(nk::as_bytes(matrix));
-    stats.expect_true(words.extent(1) == 6 && words.data()[1] == 0x3F800000u, "bytes read as another dtype");
+    stats.expect_true(words.extent(1) == 6 && words(0, 1) == 0x3F800000u, "bytes read as another dtype");
     nk::tensor_view<nk::f16_t, 2> const halves = nk::as_values<nk::f16_t>(nk::as_bytes(matrix));
     stats.expect_true(halves.extent(1) == 12 && halves.stride_bytes(1) == 2, "a narrower dtype doubles the extent");
 

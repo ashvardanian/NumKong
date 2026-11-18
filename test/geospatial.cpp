@@ -32,10 +32,14 @@ error_stats_t test_sqeuclideans3d_i32(sqeuclideans3d_i32_kernel_t kernel) {
     split_mix_generator_t generator(case_stream_key());
     // Earth-fixed centimetres reach ±6.4e8 on the surface, so their differences fit 32 bits.
     std::uniform_int_distribution<nk_i32_t> coordinate(-680'000'000, 680'000'000);
+    nk::vector<nk_i32_t> a, b;
+    nk::vector<nk_u64_t> results;
     for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();)
         for (geospatial_shape_t const &shape : geospatial_shapes()) {
-            std::vector<nk_i32_t> a(shape.rows * 3), b(shape.columns * 3);
-            std::vector<nk_u64_t> results(shape.rows * shape.columns);
+            resize_vector(a, shape.rows * 3), resize_vector(b, shape.columns * 3);
+            resize_vector(results, shape.rows * shape.columns);
+            // A cell the kernel skips reads as zero, not as the previous shape's value.
+            std::memset(results.data(), 0, results.size() * sizeof(*results.data()));
             for (nk_i32_t &value : a) value = coordinate(generator);
             for (nk_i32_t &value : b) value = coordinate(generator);
             // A coincident pair pins the zero.
@@ -62,9 +66,13 @@ error_stats_t test_sqeuclideans3d_f64(sqeuclideans3d_f64_kernel_t kernel) {
     error_stats_t stats(nk_accumulation_error_bound(nk_f64_k));
     split_mix_generator_t generator(case_stream_key());
     std::uniform_real_distribution<double> coordinate(-1e7, 1e7);
+    nk::vector<nk_f64_t> a, b, results;
     for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();)
         for (geospatial_shape_t const &shape : geospatial_shapes()) {
-            std::vector<nk_f64_t> a(shape.rows * 3), b(shape.columns * 3), results(shape.rows * shape.columns);
+            resize_vector(a, shape.rows * 3), resize_vector(b, shape.columns * 3);
+            resize_vector(results, shape.rows * shape.columns);
+            // A cell the kernel skips reads as zero, not as the previous shape's value.
+            std::memset(results.data(), 0, results.size() * sizeof(*results.data()));
             for (nk_f64_t &value : a) value = coordinate(generator);
             for (nk_f64_t &value : b) value = coordinate(generator);
             if (!stats.expect_status(kernel(a.data(), shape.rows, b.data(), shape.columns, results.data(),

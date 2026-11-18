@@ -4390,6 +4390,14 @@ NUMKONG_INLINE nk_dtype_t nk_attention_output_dtype(nk_dtype_t dtype) {
     }
 }
 
+/** Returns the error bound of attention scores relative to Σ|qᵢ · kᵢ| over their @p depth products
+ *  after block and tensor scales, per @c nk_accumulation_error_bound of an F32 sum over depth + 1
+ *  roundings: the depth − 1 additions, the products and the softmax scale. */
+NUMKONG_INLINE nk_f64_t nk_attention_score_error_bound(nk_dtype_t dtype, nk_size_t depth) {
+    nk_unused_(dtype);
+    return (depth + 2) * nk_accumulation_error_bound(nk_f32_k);
+}
+
 /** Returns the error bound of RoPE outputs before they round into their type, relative to the two
  *  products each of them sums: 3 roundings in F32, which every input type rotates in, through the
  *  descale, the product and the sum. */

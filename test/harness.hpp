@@ -1547,6 +1547,19 @@ template <typename type_>
     return std::move(result.value);
 }
 
+/** Shapes @p vector to @p count values, growing its storage only when a case needs more. */
+template <typename value_type_, typename allocator_type_>
+void resize_vector(nk::vector<value_type_, allocator_type_> &vector, std::size_t count) {
+    if (nk::failed(vector.reserve(count)) || nk::failed(vector.resize(count))) std::abort();
+}
+
+/** Shapes @p matrix to @p rows × @p columns, growing its storage only when a case needs more. */
+template <typename value_type_>
+nk::matrix_span<value_type_> resize_matrix(nk::matrix<value_type_> &matrix, std::size_t rows, std::size_t columns) {
+    if (nk::failed(matrix.reserve(rows * columns)) || nk::failed(matrix.resize({rows, columns}))) std::abort();
+    return matrix.span();
+}
+
 /**
  *  @brief Fill buffer with random values, respecting the distribution setting.
  *

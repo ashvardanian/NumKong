@@ -4116,6 +4116,14 @@ uint offset(uint count) { return (count + 3) / 16; }
 float normalized(float count) { return (count + 15) / 16.0f; }
 FIXTURE
 
+assert_rejects "subscript on a call result" "subscripts a call result" include/numkong/probe.hpp <<'FIXTURE'
+inline int probe(matrix_t matrix) { return matrix.row(0)[1]; }
+FIXTURE
+
+assert_accepts "multi-index call, a dereference subscript, and a pointer-to-array parameter" include/numkong/probe.hpp <<'FIXTURE'
+inline int probe(matrix_t matrix, int *owner, int const(*rows)[4]) { return matrix(0, 1) + (*owner)[1] + rows[0][1]; }
+FIXTURE
+
 assert_rejects "CPython format-string shortcut" "calls a format-string shortcut of the CPython API" python/probe.c <<'FIXTURE'
 static PyObject *probe(PyObject *type, Py_ssize_t width) { return PyObject_CallFunction(type, "n", width); }
 FIXTURE

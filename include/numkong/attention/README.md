@@ -95,7 +95,9 @@ Probabilities enter P · V in the same format as V on matrix, tile and widening 
 An NVFP4 element times its UE4M3 block scale is an exact F16, so NVFP4 planes store those products and run each tier's F16 path, with both tensor scales in the pack header.
 MX scales span 254 binades, so each MX plane rebases its elements by its largest finite block exponent less 31, exact in BF16, runs each tier's BF16 path, and records that exponent in a small table past the planes.
 A plane whose block exponents span more than 89 binades keeps its raw codes and scale codes, and it and any query row past the window take serial's exact path outside the fast loop.
-Scores sum each query block in F32 and add the blocks into a wide sum, so query scales of any spread round once, and outputs apply their plane's power of two once per element.
+Block-scaled kernels meet `nk_accumulation_error_bound` over Σ|aᵢ · bᵢ|, the element products after their scales, a score's being Σ|qᵢ · kᵢ| as `nk_attention_score_error_bound` states.
+Serial's exact path, which planes and query rows past the 89 binades of `nk_attention_plane_window_k` take, sums each block on its own and adds the blocks into a wide sum.
+Outputs apply their plane's power of two once per element.
 
 ### Split Decode for Short Outputs
 

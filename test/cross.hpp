@@ -20,8 +20,10 @@
 #include <cstdint> // `std::int64_t`, `std::uint64_t`
 #include <cstring> // `std::memset`, `std::memcmp`
 
+#include <array>            // `std::array`
 #include <initializer_list> // `std::initializer_list`
 #include <random>           // `std::uniform_real_distribution`
+#include <span>             // `std::span`
 #include <vector>           // `std::vector`
 
 #include "numkong/attention.hpp" // `nk::attention_packed`, `nk::attention_pack`
@@ -106,11 +108,12 @@ std::size_t workspace_size_bytes(error_stats_t &stats,
 
 #pragma region Tolerances
 
-/** The family an attention output is judged in: the scale threshold, or that threshold floored by
- *  the weights. */
-constexpr comparison_family_t attention_family(attention_weights_t weights) noexcept {
-    return weights == attention_weights_t::unquantized_k ? comparison_family_t::normalized_reduction_k
-                                                         : comparison_family_t::bounded_k;
+/** The family an attention output over @p dtype is judged in: the scale threshold, or that
+ *  threshold floored by the weights or widened by the errors of block-scaled scores. */
+constexpr comparison_family_t attention_family(attention_weights_t weights, nk_dtype_t dtype) noexcept {
+    return weights == attention_weights_t::unquantized_k && !nk_block_scaled_format_of_dtype(dtype).block_size
+               ? comparison_family_t::normalized_reduction_k
+               : comparison_family_t::bounded_k;
 }
 
 /** The angular distance of a reference @p dot and squared norms by the rule of `spatials.h`: 0 for
@@ -155,38 +158,63 @@ void accumulate_spatial(error_stats_t &stats, result_type_ result, reference_typ
     }
 }
 
-/** Decodes @p rows rows of @p depth dimensions, @p row_stride_values values apart, into F64. */
+/** Decodes as many rows as @p decoded holds, @p row_stride_values values apart, into F64; the
+ *  stride is explicit, since a flat vector of packed sub-byte values carries no column stride. */
 template <typename scalar_type_, typename allocator_type_>
-std::vector<double> decode_rows(nk::vector<scalar_type_, allocator_type_> const &matrix, std::size_t rows,
-                                std::size_t depth, std::size_t row_stride_values) {
-    std::vector<double> decoded(rows * depth);
-    for (std::size_t row = 0; row < rows; row++)
+void decode_rows(nk::vector<scalar_type_, allocator_type_> const &matrix, std::size_t row_stride_values,
+                 nk::matrix_span<nk_f64_t> decoded) {
+    std::size_t const depth = decoded.extent(1);
+    for (std::size_t row = 0; row != decoded.extent(0); ++row)
         if (nk::failed(nk::cast<scalar_type_, f64_t>(std::span(matrix.values_data() + row * row_stride_values,
                                                                depth / nk::dimensions_per_value<scalar_type_>()),
-                                                     std::span(decoded.data() + row * depth, depth))))
-            std::fill_n(decoded.data() + row * depth, depth, std::numeric_limits<double>::quiet_NaN());
-    return decoded;
+                                                     decoded.row(row))))
+            std::fill_n(decoded.row(row).data(), depth, std::numeric_limits<nk_f64_t>::quiet_NaN());
 }
 
-/** Folds every attention output into @p stats: the scale threshold of the largest reference,
- *  floored by @p weights_. */
-template <attention_weights_t weights_, typename output_vector_, typename reference_vector_, typename values_vector_>
+/** Decodes rows like @c decode_rows, times their block scales and tensor scale for block-scaled
+ *  formats. */
+template <typename scalar_type_, typename codes_vector_type_, typename scales_type_>
+void decode_scaled_rows(codes_vector_type_ const &codes, scales_type_ const &scales,
+                        nk::matrix_span<nk_f64_t> decoded) {
+    constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
+    using scalar_t = typename nk::type_for<format.element_dtype>::type;
+    std::size_t const width = decoded.extent(1);
+    decode_rows(codes, width / nk::dimensions_per_value<scalar_t>(), decoded);
+    if constexpr (format.block_size != 0) {
+        nk_f64_t tensor_scale = 1;
+        if constexpr (format.tensor_scale_dtype == nk_f32_k)
+            tensor_scale = static_cast<nk_f64_t>(scales.tensor_scale[0]);
+        for (std::size_t row = 0; row != decoded.extent(0); ++row)
+            for (std::size_t column = 0; column != width; ++column)
+                decoded(row, column) *= tensor_scale *
+                                        static_cast<nk_f32_t>(scales.blocks(row, column / format.block_size));
+    }
+}
+
+/** Folds every attention output into @p stats: the scale threshold of the largest reference, or
+ *  that threshold floored by @p weights_ and widened by what the entry of @p score_errors for its
+ *  query token and head, shared by its @p depth channels, moves a softmax mean of @p values by. */
+template <attention_weights_t weights_, typename output_vector_, typename reference_vector_>
 void accumulate_attention(error_stats_t &stats, output_vector_ const &output, reference_vector_ const &reference,
-                          values_vector_ const &values) {
-    if constexpr (weights_ == attention_weights_t::unquantized_k) {
+                          nk::matrix_view<nk_f64_t> values, nk::matrix_view<nk_f64_t> score_errors, std::size_t depth) {
+    if (weights_ == attention_weights_t::unquantized_k && score_errors.empty()) {
         for (std::size_t index = 0; index < output.size_values(); index++)
             stats.accumulate(output[index], reference[index]);
+        return;
     }
-    else {
-        double largest_value = 0, largest_reference = 0;
-        for (double value : decode_rows(values, 1, values.size(), 0))
-            largest_value = nk::max_of(largest_value, std::fabs(value));
-        for (std::size_t index = 0; index < reference.size_values(); index++)
-            largest_reference = nk::max_of(largest_reference, std::fabs(static_cast<double>(reference[index])));
-        double const bound = nk::max_of(test_run.settings.scale_threshold * largest_reference,
-                                        std::ldexp(largest_value, -static_cast<int>(weights_) - 1));
-        for (std::size_t index = 0; index < output.size_values(); index++)
-            stats.accumulate_bounded(output[index], static_cast<double>(reference[index]), bound);
+    double largest_value = 0, largest_reference = 0;
+    for (auto const [position, value] : values) largest_value = nk::max_of(largest_value, std::fabs(value));
+    for (std::size_t index = 0; index < reference.size_values(); index++)
+        largest_reference = nk::max_of(largest_reference, std::fabs(static_cast<double>(reference[index])));
+    double const weights_floor = weights_ == attention_weights_t::unquantized_k
+                                     ? 0
+                                     : std::ldexp(largest_value, -static_cast<int>(weights_) - 1);
+    double const floor = nk::max_of(test_run.settings.scale_threshold * largest_reference, weights_floor);
+    for (std::size_t index = 0; index < output.size_values(); index++) {
+        // Scores off by ε scale weights by e^±2ε at most, moving the mean by (e^2ε − 1) · max|v|
+        double const score_error = score_errors.empty() ? 0 : score_errors[index / depth];
+        stats.accumulate_bounded(output[index], static_cast<double>(reference[index]),
+                                 floor + std::expm1(2 * score_error) * largest_value);
     }
 }
 
@@ -272,14 +300,14 @@ struct attention_segments {
     std::size_t count() const noexcept { return lengths.size(); }
 
     /** Key rows across every segment. */
-    std::size_t key_tokens() const noexcept { return key_offsets.values_data()[count()]; }
+    std::size_t key_tokens() const noexcept { return key_offsets[count()]; }
 
     /** Query rows across every segment. */
-    std::size_t query_tokens() const noexcept { return query_offsets.values_data()[count()]; }
+    std::size_t query_tokens() const noexcept { return query_offsets[count()]; }
 
     /** Query rows of @p segment. */
     std::size_t queries(std::size_t segment) const noexcept {
-        return query_offsets.values_data()[segment + 1] - query_offsets.values_data()[segment];
+        return query_offsets[segment + 1] - query_offsets[segment];
     }
 };
 
@@ -298,9 +326,9 @@ attention_segments<backend_type_> make_attention_segments(backend_type_ const &b
     for (auto length = lengths.begin(), queries = query_counts.begin(); length != lengths.end();
          ++length, ++queries, ++segment) {
         nk_u32_t const spare = segment < spare_rows.size() ? spare_rows[segment] : 0;
-        segments.lengths.values_data()[segment] = *length;
-        segments.key_offsets.values_data()[segment + 1] = segments.key_offsets.values_data()[segment] + *length + spare;
-        segments.query_offsets.values_data()[segment + 1] = segments.query_offsets.values_data()[segment] + *queries;
+        segments.lengths[segment] = *length;
+        segments.key_offsets[segment + 1] = segments.key_offsets[segment] + *length + spare;
+        segments.query_offsets[segment + 1] = segments.query_offsets[segment] + *queries;
     }
     return segments;
 }
@@ -450,23 +478,23 @@ inline attention_key_range_t attention_visible_keys(std::size_t row, std::size_t
 /** K and V of the @p count segments of @p lengths keys from the rows at @p key_offsets, packed into
  *  host memory by the serial `nk::` wrappers for @p format_type_. */
 template <typename format_type_, typename scalar_type_, typename allocator_type_, typename scales_type_>
-nk::vector<std::byte> serial_attention_pack(error_stats_t &stats, nk::vector<scalar_type_, allocator_type_> const &keys,
-                                            nk::vector<scalar_type_, allocator_type_> const &values,
-                                            scales_type_ const &key_scales, scales_type_ const &value_scales,
-                                            attention_layout_t const &layout, nk_u32_t const *key_offsets,
-                                            nk_u32_t const *lengths, std::size_t count) {
+void serial_attention_pack(error_stats_t &stats, nk::vector<scalar_type_, allocator_type_> const &keys,
+                           nk::vector<scalar_type_, allocator_type_> const &values, scales_type_ const &key_scales,
+                           scales_type_ const &value_scales, attention_layout_t const &layout,
+                           nk_u32_t const *key_offsets, nk_u32_t const *lengths, std::size_t count,
+                           nk::vector<std::byte> &packed) {
     std::size_t const stride = attention_row_bytes<scalar_type_>(layout.key_value_width());
     std::size_t key_tokens = 0;
     for (std::size_t segment = 0; segment < count; segment++) key_tokens += lengths[segment];
     auto const size = nk::attention_pack_size<format_type_>(layout.key_value_head_count, layout.depth, key_tokens,
                                                             count, 0);
     stats.expect_status(size.status);
-    auto packed = make_vector<std::byte>(size.value);
+    resize_vector(packed, size.value);
+    stats.expect_status(packed.fill_zeros());
     stats.expect_status(nk::attention_pack<format_type_>(layout.key_value_head_count, layout.depth, key_offsets,
                                                          lengths, count, key_scales.operand(keys.values_data()), stride,
                                                          value_scales.operand(values.values_data()), stride,
                                                          packed.raw_values_data(), 0, static_cast<std::size_t>(-1), 0));
-    return packed;
 }
 
 /** A forward reference: output rows and their natural log-sum-exps, −∞ on rows without keys. */
@@ -477,27 +505,28 @@ struct attention_reference_t {
 /** Unmasked reference: the serial kernel over a serial pack of every segment, every key visible. */
 template <typename format_type_, typename scalar_type_, typename allocator_type_, typename scales_type_,
           typename backend_type_>
-attention_reference_t reference_attention_unmasked(
-    error_stats_t &stats, nk::vector<scalar_type_, allocator_type_> const &queries,
-    nk::vector<scalar_type_, allocator_type_> const &keys, nk::vector<scalar_type_, allocator_type_> const &values,
-    scales_type_ const &query_scales, scales_type_ const &key_scales, scales_type_ const &value_scales,
-    attention_segments<backend_type_> const &segments, attention_layout_t const &layout) {
+void reference_attention_unmasked(error_stats_t &stats, nk::vector<scalar_type_, allocator_type_> const &queries,
+                                  nk::vector<scalar_type_, allocator_type_> const &keys,
+                                  nk::vector<scalar_type_, allocator_type_> const &values,
+                                  scales_type_ const &query_scales, scales_type_ const &key_scales,
+                                  scales_type_ const &value_scales, attention_segments<backend_type_> const &segments,
+                                  attention_layout_t const &layout, attention_reference_t &reference) {
     std::size_t const query_stride = attention_row_bytes<scalar_type_>(layout.query_width()),
                       output_stride = layout.query_width() * sizeof(f32_t);
-    attention_reference_t reference {
-        .output = make_vector<f32_t>(segments.query_tokens() * layout.query_width()),
-        .log_sum_exp = make_vector<f32_t>(segments.query_tokens() * layout.head_count),
-    };
-    auto const key_value_packed_reference = serial_attention_pack<format_type_>(
-        stats, keys, values, key_scales, value_scales, layout, segments.key_offsets.values_data(),
-        segments.lengths.values_data(), segments.count());
+    resize_vector(reference.output, segments.query_tokens() * layout.query_width());
+    resize_vector(reference.log_sum_exp, segments.query_tokens() * layout.head_count);
+    stats.expect_status(reference.output.fill_zeros());
+    stats.expect_status(reference.log_sum_exp.fill_zeros());
+    nk::vector<std::byte> key_value_packed_reference;
+    serial_attention_pack<format_type_>(stats, keys, values, key_scales, value_scales, layout,
+                                        segments.key_offsets.values_data(), segments.lengths.values_data(),
+                                        segments.count(), key_value_packed_reference);
     stats.expect_status(nk::attention_packed<format_type_, f32_t>(
         layout.head_count, layout.key_value_head_count, layout.depth, segments.query_offsets.values_data(),
         segments.query_tokens(), layout.scale, attention_all_keys_k, attention_all_keys_k,
         query_scales.operand(queries.values_data()), query_stride, key_value_packed_reference.raw_values_data(),
         reference.output.values_data(), output_stride, reference.log_sum_exp.values_data(), 0, attention_all_keys_k, {},
         0));
-    return reference;
 }
 
 /** Masked reference: the serial kernel per query row with every key visible, over a serial pack of
@@ -505,35 +534,36 @@ attention_reference_t reference_attention_unmasked(
  *  no key at all. */
 template <typename format_type_, typename scalar_type_, typename allocator_type_, typename scales_type_,
           typename backend_type_>
-attention_reference_t reference_attention_masked(
-    error_stats_t &stats, nk::vector<scalar_type_, allocator_type_> const &queries,
-    nk::vector<scalar_type_, allocator_type_> const &keys, nk::vector<scalar_type_, allocator_type_> const &values,
-    scales_type_ const &query_scales, scales_type_ const &key_scales, scales_type_ const &value_scales,
-    attention_segments<backend_type_> const &segments, attention_layout_t const &layout, std::size_t keys_before,
-    std::size_t keys_after) {
+void reference_attention_masked(error_stats_t &stats, nk::vector<scalar_type_, allocator_type_> const &queries,
+                                nk::vector<scalar_type_, allocator_type_> const &keys,
+                                nk::vector<scalar_type_, allocator_type_> const &values,
+                                scales_type_ const &query_scales, scales_type_ const &key_scales,
+                                scales_type_ const &value_scales, attention_segments<backend_type_> const &segments,
+                                attention_layout_t const &layout, std::size_t keys_before, std::size_t keys_after,
+                                attention_reference_t &reference) {
     std::size_t const query_stride = attention_row_bytes<scalar_type_>(layout.query_width()),
                       output_stride = layout.query_width() * sizeof(f32_t);
     std::size_t const query_values = layout.query_width() / nk::dimensions_per_value<scalar_type_>();
     nk_u32_t const single_query_offsets[2] = {0, 1};
-    attention_reference_t reference {
-        .output = make_vector<f32_t>(segments.query_tokens() * layout.query_width()),
-        .log_sum_exp = make_vector<f32_t>(segments.query_tokens() * layout.head_count),
-    };
+    resize_vector(reference.output, segments.query_tokens() * layout.query_width());
+    resize_vector(reference.log_sum_exp, segments.query_tokens() * layout.head_count);
+    stats.expect_status(reference.output.fill_zeros());
     stats.expect_status(reference.log_sum_exp.fill(f32_t(-std::numeric_limits<float>::infinity())));
+    nk::vector<std::byte> key_value_packed_reference;
     for (std::size_t segment = 0; segment < segments.count(); segment++) {
-        std::size_t const length = segments.lengths.values_data()[segment];
+        std::size_t const length = segments.lengths[segment];
         for (std::size_t row = 0; row < segments.queries(segment); row++) {
             auto const [key_begin, key_end] = attention_visible_keys(row, segments.queries(segment), length,
                                                                      keys_before, keys_after);
             if (key_begin == key_end) continue;
 
-            std::size_t const first_key = segments.key_offsets.values_data()[segment];
+            std::size_t const first_key = segments.key_offsets[segment];
             nk_u32_t const visible_offsets[2] = {static_cast<nk_u32_t>(first_key + key_begin),
                                                  static_cast<nk_u32_t>(first_key + key_end)};
             nk_u32_t const visible_length = static_cast<nk_u32_t>(key_end - key_begin);
-            auto const key_value_packed_reference = serial_attention_pack<format_type_>(
-                stats, keys, values, key_scales, value_scales, layout, visible_offsets, &visible_length, 1);
-            std::size_t const query_row = segments.query_offsets.values_data()[segment] + row;
+            serial_attention_pack<format_type_>(stats, keys, values, key_scales, value_scales, layout, visible_offsets,
+                                                &visible_length, 1, key_value_packed_reference);
+            std::size_t const query_row = segments.query_offsets[segment] + row;
             stats.expect_status(nk::attention_packed<format_type_, f32_t>(
                 layout.head_count, layout.key_value_head_count, layout.depth, single_query_offsets, 1, layout.scale,
                 attention_all_keys_k, attention_all_keys_k,
@@ -543,7 +573,6 @@ attention_reference_t reference_attention_masked(
                 reference.log_sum_exp.values_data() + query_row * layout.head_count, 0, attention_all_keys_k, {}, 0));
         }
     }
-    return reference;
 }
 
 /** Attention and its gradients in F64 over dense rows: the output and natural log-sum-exp a forward
@@ -551,92 +580,94 @@ attention_reference_t reference_attention_masked(
  *  output gradient, and the sums of the absolute values of each gradient's terms, which scale its
  *  rounding even where the terms cancel, as dP − D does for a row of one key. */
 struct attention_gradients_t {
-    std::vector<double> output, log_sum_exp, query_gradient, key_gradient, value_gradient;
-    std::vector<double> query_magnitude, key_magnitude, value_magnitude;
+    nk::vector<nk_f64_t> output, log_sum_exp, query_gradient, key_gradient, value_gradient;
+    nk::vector<nk_f64_t> query_magnitude, key_magnitude, value_magnitude;
 };
 
-/** Computes @c attention_gradients_t one row at a time, straight from the definition. */
+/** Computes @c attention_gradients_t into @p gradients one row at a time, straight from the
+ *  definition, sizing and resetting every member first. */
 template <typename backend_type_>
-attention_gradients_t reference_attention_gradients(std::vector<double> const &queries, std::vector<double> const &keys,
-                                                    std::vector<double> const &values,
-                                                    std::vector<double> const &output_gradient,
-                                                    attention_segments<backend_type_> const &segments,
-                                                    attention_layout_t const &layout, std::size_t keys_before,
-                                                    std::size_t keys_after) {
+void reference_attention_gradients(nk::matrix_view<nk_f64_t> queries, nk::matrix_view<nk_f64_t> keys,
+                                   nk::matrix_view<nk_f64_t> values, nk::matrix_view<nk_f64_t> output_gradient,
+                                   attention_segments<backend_type_> const &segments, attention_layout_t const &layout,
+                                   std::size_t keys_before, std::size_t keys_after, attention_gradients_t &gradients) {
     std::size_t const depth = layout.depth, group = layout.head_count / layout.key_value_head_count;
-    std::size_t const query_count = segments.query_tokens() * layout.query_width(),
-                      key_count = segments.key_tokens() * layout.key_value_width();
-    attention_gradients_t result {
-        .output = std::vector<double>(query_count),
-        .log_sum_exp = std::vector<double>(segments.query_tokens() * layout.head_count,
-                                           -std::numeric_limits<double>::infinity()),
-        .query_gradient = std::vector<double>(query_count),
-        .key_gradient = std::vector<double>(key_count),
-        .value_gradient = std::vector<double>(key_count),
-        .query_magnitude = std::vector<double>(query_count),
-        .key_magnitude = std::vector<double>(key_count),
-        .value_magnitude = std::vector<double>(key_count),
-    };
+    std::size_t const query_count = queries.numel(), key_count = keys.numel();
+    for (nk::vector<nk_f64_t> *member : {&gradients.output, &gradients.query_gradient, &gradients.query_magnitude})
+        resize_vector(*member, query_count), std::memset(member->values_data(), 0, member->size_bytes());
+    for (nk::vector<nk_f64_t> *member :
+         {&gradients.key_gradient, &gradients.value_gradient, &gradients.key_magnitude, &gradients.value_magnitude})
+        resize_vector(*member, key_count), std::memset(member->values_data(), 0, member->size_bytes());
+    resize_vector(gradients.log_sum_exp, segments.query_tokens() * layout.head_count);
+    std::fill_n(gradients.log_sum_exp.values_data(), gradients.log_sum_exp.size(),
+                -std::numeric_limits<nk_f64_t>::infinity());
     struct dot_t {
-        double sum, magnitude;
+        nk_f64_t sum, magnitude;
     };
-    auto const dot = [depth](double const *a, double const *b) {
+    auto const dot = [](nk::vector_view<nk_f64_t> a, nk::vector_view<nk_f64_t> b) {
         dot_t products {0, 0};
-        for (std::size_t channel = 0; channel < depth; channel++)
+        for (std::size_t channel = 0; channel < a.size(); channel++)
             products.sum += a[channel] * b[channel], products.magnitude += std::fabs(a[channel] * b[channel]);
         return products;
     };
-    std::vector<double> weights;
+    std::vector<nk_f64_t> weights;
     for (std::size_t segment = 0; segment < segments.count(); segment++)
         for (std::size_t head = 0; head < layout.head_count; head++)
             for (std::size_t row = 0; row < segments.queries(segment); row++) {
                 auto const [key_begin, key_end] = attention_visible_keys(
-                    row, segments.queries(segment), segments.lengths.values_data()[segment], keys_before, keys_after);
+                    row, segments.queries(segment), segments.lengths[segment], keys_before, keys_after);
                 if (key_begin == key_end) continue;
-                std::size_t const token = segments.query_offsets.values_data()[segment] + row;
-                std::size_t const query_offset = token * layout.query_width() + head * depth;
-                std::size_t const first_key_offset = (segments.key_offsets.values_data()[segment] + key_begin) *
-                                                         layout.key_value_width() +
-                                                     head / group * depth;
-                double const *query = queries.data() + query_offset, *gradient = output_gradient.data() + query_offset;
-                double *output = result.output.data() + query_offset;
+                std::size_t const token = segments.query_offsets[segment] + row,
+                                  first_key = segments.key_offsets[segment] + key_begin;
+                std::size_t const query_offset = token * layout.query_width() + head * depth,
+                                  key_column = head / group * depth;
+                nk::range_t const query_channels(head * depth, head * depth + depth),
+                    key_channels(key_column, key_column + depth);
+                nk::vector_view<nk_f64_t> const query = queries(token, query_channels, nk::slice).as_vector(),
+                                                gradient =
+                                                    output_gradient(token, query_channels, nk::slice).as_vector();
+                nk::vector_span<nk_f64_t> const output =
+                    gradients.output[nk::range(query_offset, query_offset + depth)];
 
                 weights.resize(key_end - key_begin);
                 for (std::size_t key = 0; key < weights.size(); key++)
                     weights[key] = layout.scale *
-                                   dot(query, keys.data() + first_key_offset + key * layout.key_value_width()).sum;
-                double const maximum = *std::max_element(weights.begin(), weights.end());
-                double sum = 0;
-                for (double &weight : weights) weight = std::exp(weight - maximum), sum += weight;
-                result.log_sum_exp[token * layout.head_count + head] = maximum + std::log(sum);
+                                   dot(query, keys(first_key + key, key_channels, nk::slice).as_vector()).sum;
+                nk_f64_t const maximum = *std::max_element(weights.begin(), weights.end());
+                nk_f64_t sum = 0;
+                for (nk_f64_t &weight : weights) weight = std::exp(weight - maximum), sum += weight;
+                gradients.log_sum_exp[token * layout.head_count + head] = maximum + std::log(sum);
                 for (std::size_t key = 0; key < weights.size(); key++) {
                     weights[key] /= sum;
-                    double const *value = values.data() + first_key_offset + key * layout.key_value_width();
+                    nk::vector_view<nk_f64_t> const value =
+                        values(first_key + key, key_channels, nk::slice).as_vector();
                     for (std::size_t channel = 0; channel < depth; channel++)
                         output[channel] += weights[key] * value[channel];
                 }
 
                 dot_t const output_products = dot(gradient, output);
                 for (std::size_t key = 0; key < weights.size(); key++) {
-                    std::size_t const key_offset = first_key_offset + key * layout.key_value_width();
-                    dot_t const value_products = dot(gradient, values.data() + key_offset);
-                    double const score_gradient = weights[key] * (value_products.sum - output_products.sum) *
-                                                  layout.scale;
-                    double const score_magnitude = weights[key] *
-                                                   (value_products.magnitude + output_products.magnitude) *
-                                                   layout.scale;
+                    std::size_t const key_offset = (first_key + key) * layout.key_value_width() + key_column;
+                    nk::vector_view<nk_f64_t> const key_row =
+                        keys(first_key + key, key_channels, nk::slice).as_vector();
+                    dot_t const value_products = dot(gradient,
+                                                     values(first_key + key, key_channels, nk::slice).as_vector());
+                    nk_f64_t const score_gradient = weights[key] * (value_products.sum - output_products.sum) *
+                                                    layout.scale;
+                    nk_f64_t const score_magnitude = weights[key] *
+                                                     (value_products.magnitude + output_products.magnitude) *
+                                                     layout.scale;
                     for (std::size_t channel = 0; channel < depth; channel++) {
-                        double const key_element = keys[key_offset + channel];
-                        result.query_gradient[query_offset + channel] += score_gradient * key_element;
-                        result.key_gradient[key_offset + channel] += score_gradient * query[channel];
-                        result.value_gradient[key_offset + channel] += weights[key] * gradient[channel];
-                        result.query_magnitude[query_offset + channel] += score_magnitude * std::fabs(key_element);
-                        result.key_magnitude[key_offset + channel] += score_magnitude * std::fabs(query[channel]);
-                        result.value_magnitude[key_offset + channel] += weights[key] * std::fabs(gradient[channel]);
+                        nk_f64_t const key_element = key_row[channel];
+                        gradients.query_gradient[query_offset + channel] += score_gradient * key_element;
+                        gradients.key_gradient[key_offset + channel] += score_gradient * query[channel];
+                        gradients.value_gradient[key_offset + channel] += weights[key] * gradient[channel];
+                        gradients.query_magnitude[query_offset + channel] += score_magnitude * std::fabs(key_element);
+                        gradients.key_magnitude[key_offset + channel] += score_magnitude * std::fabs(query[channel]);
+                        gradients.value_magnitude[key_offset + channel] += weights[key] * std::fabs(gradient[channel]);
                     }
                 }
             }
-    return result;
 }
 
 #pragma endregion Operands
@@ -717,9 +748,8 @@ auto random_scales(backend_type_ &backend, split_mix_generator_t &generator, std
         for (std::size_t row = 0; row != rows; ++row)
             for (std::size_t block = 0; block != blocks; ++block) {
                 if constexpr (operand_t::format.scale_dtype == nk_ue4m3_k)
-                    operand.blocks.data()[row * scale_stride + block] = scale_t::from_raw(finite_scales(generator));
-                else
-                    operand.blocks.data()[row * scale_stride + block] = scale_t(std::ldexp(1.0f, exponents(generator)));
+                    operand.blocks(row, block) = scale_t::from_raw(finite_scales(generator));
+                else operand.blocks(row, block) = scale_t(std::ldexp(1.0f, exponents(generator)));
             }
         if constexpr (operand_t::format.tensor_scale_dtype == nk_f32_k) {
             operand.tensor_scale = make_vector<f32_t>(backend, 1);
@@ -727,6 +757,28 @@ auto random_scales(backend_type_ &backend, split_mix_generator_t &generator, std
         }
     }
     return operand;
+}
+
+/** Rewrites the first block of @p rows rows of @p codes, @p stride_values values apart, into equal
+ *  halves, but the last @p cancelling_rows rows into opposite halves under a 2²⁹ scale, at the edge
+ *  of a 32-binade row beside three-binade blocks. Its products with any equal-halved block then sum
+ *  to exactly zero, however large they are. */
+template <typename scalar_type_, typename codes_vector_type_, typename scales_type_>
+void fill_cancelling_blocks(error_stats_t &stats, codes_vector_type_ &codes, scales_type_ &scales, std::size_t rows,
+                            std::size_t stride_values, std::size_t cancelling_rows) {
+    constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
+    using scalar_t = typename nk::type_for<format.element_dtype>::type;
+    std::size_t const half = format.block_size / 2, half_values = half / nk::dimensions_per_value<scalar_t>();
+    std::array<double, format.block_size> block {};
+    for (std::size_t row = 0; row != rows; ++row) {
+        scalar_t *first = codes.values_data() + row * stride_values;
+        bool const cancelling = row + cancelling_rows >= rows;
+        stats.expect_status(nk::cast<scalar_t, f64_t>(std::span(first, half_values), std::span(block.data(), half)));
+        for (std::size_t index = 0; index != half; ++index)
+            block[half + index] = cancelling ? -block[index] : block[index];
+        stats.expect_status(nk::cast<f64_t, scalar_t>(std::span(block), std::span(first, 2 * half_values)));
+        if (cancelling) scales.blocks(row, 0) = ue8m0_t::from_raw(127 + 29);
+    }
 }
 
 #pragma endregion Block Scales
@@ -919,6 +971,7 @@ error_stats_t test_dots_packed(backend_type_ backend, pack_size_kernel_type_ pac
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, dimensions_per_value);
     std::vector<dots_packed_case_t> const cases = dots_packed_cases<scalar_type_>();
+    nk::matrix<nk_f64_t> a_rows, b_rows;
 
     for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
         for (dots_packed_case_t const &test_case : cases) {
@@ -959,8 +1012,7 @@ error_stats_t test_dots_packed(backend_type_ backend, pack_size_kernel_type_ pac
                                                         wide ? 0x1.bp-70f : 0.75f, exponent_limit, -exponent_center);
             if constexpr (format.scale_dtype == nk_ue8m0_k)
                 if (wide && depth >= 2 * format.block_size)
-                    a_scales.blocks.data()[0] = ue8m0_t::from_raw(1),
-                    a_scales.blocks.data()[1] = ue8m0_t::from_raw(254);
+                    a_scales.blocks(0, 0) = ue8m0_t::from_raw(1), a_scales.blocks(0, 1) = ue8m0_t::from_raw(254);
 
             backend.call(pack_fn, b_scales.operand(b.raw_values_data()), columns, depth, b_stride,
                          b_packed.raw_values_data(), 0, columns);
@@ -994,12 +1046,13 @@ error_stats_t test_dots_packed(backend_type_ backend, pack_size_kernel_type_ pac
             // F64 dots compensate their sums, which the ill-conditioned case tells from plain F64 ones
             if constexpr (std::is_same_v<scalar_t, f64_t>)
                 if (test_case.operands == dots_operands_t::ill_conditioned_k) {
-                    std::vector<double> const a_rows = decode_rows(a, rows, depth, a_stride_values),
-                                              b_rows = decode_rows(b, columns, depth, b_stride_values);
+                    nk::matrix_span<nk_f64_t> const a_view = resize_matrix(a_rows, rows, depth),
+                                                    b_view = resize_matrix(b_rows, columns, depth);
+                    decode_rows(a, a_stride_values, a_view), decode_rows(b, b_stride_values, b_view);
                     auto const naive = [&](std::size_t row, std::size_t column) {
                         double sum = 0;
                         for (std::size_t index = 0; index < depth; index++)
-                            sum += a_rows[row * depth + index] * b_rows[column * depth + index];
+                            sum += a_view(row, index) * b_view(column, index);
                         return sum;
                     };
                     auto const computed = [&](std::size_t row, std::size_t column) {
@@ -1116,6 +1169,7 @@ inline std::vector<dots_symmetric_case_t> dots_symmetric_cases() {
 
 /** Symmetric GEMM, A × Aᵀ, over @c dots_symmetric_cases against the serial `nk::` reference, on and
  *  above the diagonal of the computed rows, with everything else in the output left untouched.
+ *  MX vectors of two blocks or more pass through @c fill_cancelling_blocks, the last cancelling.
  *  External baselines summing less precisely than NumKong pass their own @p term_error_bound. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename symmetric_kernel_type_>
 error_stats_t test_dots_symmetric(backend_type_ backend, symmetric_kernel_type_ symmetric_fn,
@@ -1147,7 +1201,11 @@ error_stats_t test_dots_symmetric(backend_type_ backend, symmetric_kernel_type_ 
             fill_random(generator, a);
             fill_padding_canary(a, count, row_bytes, stride), fill_canary(c);
             // An NVFP4 tensor scale whose square is an F32 subnormal, never rounded on the way
-            auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, stride, 0x1.4p-66f);
+            operand_scales<scalar_type_, backend_type_> scales = random_scales<scalar_type_>(backend, generator, count,
+                                                                                             depth, stride, 0x1.4p-66f);
+            if constexpr (format.scale_dtype == nk_ue8m0_k)
+                if (depth >= 2 * format.block_size)
+                    fill_cancelling_blocks<scalar_type_>(stats, a, scales, count, stride_values, 1);
 
             std::size_t const scratch_size = workspace_size_bytes(stats, symmetric_fn, count, depth, rows_begin,
                                                                   test_case.rows_end);
@@ -1517,7 +1575,7 @@ void expect_angular_edges(error_stats_t &stats, backend_type_ &backend, split_mi
     }
     auto scales = random_scales<scalar_type_>(backend, generator, rows, depth, stride, 1.0f);
     if constexpr (format.block_size != 0)
-        scales.blocks.data()[3 * scales.scale_stride] = decltype(scales)::scale_t::from_raw(
+        scales.blocks(3, 0) = operand_scales<scalar_type_, backend_type_>::scale_t::from_raw(
             format.scale_dtype == nk_ue4m3_k ? 0x7F : 0xFF);
     auto results = make_vector<result_t>(backend, rows * rows);
     if (!stats.expect_status(launch(scales.operand(codes.raw_values_data()), rows, depth, stride,
@@ -1534,7 +1592,8 @@ void expect_angular_edges(error_stats_t &stats, backend_type_ &backend, split_mi
 }
 
 /** Batched angular or euclidean distances, as @p kind_ picks, with B packed in two column windows.
- *  Row 0 of A is zero for euclidean, so row 0 of C reads every packed norm back as √‖b‖². */
+ *  Row 0 of A is zero for euclidean, so row 0 of C reads every packed norm back as √‖b‖². MX rows
+ *  of two blocks or more pass through @c fill_cancelling_blocks, the last row of A cancelling. */
 template <typename scalar_type_, typename backend_type_, nk_kernel_kind_t kind_, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename spatials_kernel_type_>
 error_stats_t test_spatials_packed(pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
@@ -1601,8 +1660,14 @@ error_stats_t test_spatials_packed(pack_size_kernel_type_ packed_size_fn, pack_k
             fill_random(generator, a);
             fill_random(generator, b);
             if constexpr (!angular) std::memset(a.raw_values_data(), 0, stride);
-            auto const a_scales = random_scales<scalar_type_>(backend, generator, rows, depth, stride, 1.5f),
-                       b_scales = random_scales<scalar_type_>(backend, generator, columns, depth, stride, 0.75f);
+            operand_scales<scalar_type_, backend_type_> a_scales = random_scales<scalar_type_>(backend, generator, rows,
+                                                                                               depth, stride, 1.5f),
+                                                        b_scales = random_scales<scalar_type_>(
+                                                            backend, generator, columns, depth, stride, 0.75f);
+            if constexpr (format.scale_dtype == nk_ue8m0_k)
+                if (depth >= 2 * format.block_size)
+                    fill_cancelling_blocks<scalar_type_>(stats, a, a_scales, rows, stride_values, 1),
+                        fill_cancelling_blocks<scalar_type_>(stats, b, b_scales, columns, stride_values, 0);
 
             // The norms of the second window's columns come from a pack not starting at zero
             backend.call(pack_fn, b_scales.operand(b.raw_values_data()), columns, depth, stride,
@@ -1654,7 +1719,8 @@ error_stats_t test_spatials_packed(pack_size_kernel_type_ packed_size_fn, pack_k
 }
 
 /** Symmetric angular or euclidean distances, as @p kind_ picks, over the upper triangle, zeros on
- *  the diagonal, and untouched below it. */
+ *  the diagonal, and untouched below it. MX vectors of two blocks or more pass through
+ *  @c fill_cancelling_blocks, the last one cancelling. */
 template <typename scalar_type_, typename backend_type_, nk_kernel_kind_t kind_, typename symmetric_kernel_type_>
 error_stats_t test_spatials_symmetric(symmetric_kernel_type_ symmetric_fn) {
     constexpr bool angular = kind_ == nk_kernel_angular_k;
@@ -1693,7 +1759,11 @@ error_stats_t test_spatials_symmetric(symmetric_kernel_type_ symmetric_fn) {
             auto c = make_vector<result_t>(backend, count * count);
             fill_random(generator, a);
             fill_canary(c);
-            auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, stride, 1.5f);
+            operand_scales<scalar_type_, backend_type_> scales = random_scales<scalar_type_>(backend, generator, count,
+                                                                                             depth, stride, 1.5f);
+            if constexpr (format.scale_dtype == nk_ue8m0_k)
+                if (depth >= 2 * format.block_size)
+                    fill_cancelling_blocks<scalar_type_>(stats, a, scales, count, stride_values, 1);
 
             std::size_t const scratch_size = workspace_size_bytes(stats, symmetric_fn, count, depth, 0, count);
             auto scratch = make_vector<std::byte>(backend, scratch_size);
@@ -1755,21 +1825,55 @@ error_stats_t test_euclideans_symmetric(kernels_types_... kernels) {
 
 #pragma region Attention
 
+/** Writes into @p errors the most a block-scaled score errs by per query token and head over the
+ *  keys it sees: the largest Σ|qᵢ · kᵢ| of the decoded @p queries and @p keys, times the softmax
+ *  scale and @c nk_attention_score_error_bound. */
+template <typename scalar_type_, typename backend_type_>
+void attention_score_errors(nk::matrix_view<nk_f64_t> queries, nk::matrix_view<nk_f64_t> keys,
+                            attention_segments<backend_type_> const &segments, attention_layout_t const &layout,
+                            std::size_t keys_before, std::size_t keys_after, nk::matrix_span<nk_f64_t> errors) {
+    std::size_t const depth = layout.depth, group = layout.head_count / layout.key_value_head_count;
+    nk_f64_t const bound = layout.scale * nk_attention_score_error_bound(scalar_type_::dtype(), depth);
+    for (std::size_t segment = 0; segment < segments.count(); segment++)
+        for (std::size_t row = 0; row < segments.queries(segment); row++) {
+            auto const [key_begin, key_end] = attention_visible_keys(
+                row, segments.queries(segment), segments.lengths[segment], keys_before, keys_after);
+            std::size_t const token = segments.query_offsets[segment] + row;
+            for (std::size_t head = 0; head < layout.head_count; head++) {
+                nk::range_t const query_channels(head * depth, head * depth + depth),
+                    key_channels(head / group * depth, head / group * depth + depth);
+                nk::vector_view<nk_f64_t> const query = queries(token, query_channels, nk::slice).as_vector();
+                nk_f64_t largest = 0;
+                for (std::size_t key = key_begin; key < key_end; key++) {
+                    nk::vector_view<nk_f64_t> const key_row =
+                        keys(segments.key_offsets[segment] + key, key_channels, nk::slice).as_vector();
+                    nk_f64_t magnitude = 0;
+                    for (std::size_t channel = 0; channel < depth; channel++)
+                        magnitude += std::fabs(query[channel] * key_row[channel]);
+                    largest = nk::max_of(largest, magnitude);
+                }
+                errors(token, head) = bound * largest;
+            }
+        }
+}
+
 /** Expects every log-sum-exp within the scale threshold of its reference, relative to its magnitude
- *  past 1, or within what @p weights_ rounding moves a sum of weights by, and exactly the
- *  reference's −∞ on rows that see no keys. */
+ *  past 1, or within what @p weights_ rounding moves a sum of weights by, plus its entry of
+ *  @p score_errors, and exactly the reference's −∞ on rows that see no keys. */
 template <attention_weights_t weights_ = attention_weights_t::unquantized_k, typename actual_vector_type_,
           typename expected_vector_type_>
-void expect_log_sum_exp(error_stats_t &stats, actual_vector_type_ const &actual,
-                        expected_vector_type_ const &expected) {
+void expect_log_sum_exp(error_stats_t &stats, actual_vector_type_ const &actual, expected_vector_type_ const &expected,
+                        nk::matrix_view<nk_f64_t> score_errors = {}) {
     double const rounding = weights_ == attention_weights_t::unquantized_k
                                 ? 0
                                 : std::log1p(std::ldexp(1.0, -static_cast<int>(weights_)));
     bool held = true;
     for (std::size_t index = 0; index < actual.size_values(); index++) {
         double const result = static_cast<double>(actual[index]), reference = static_cast<double>(expected[index]);
+        // Scores off by ε move a log-sum-exp by at most ε
         double const bound = nk::max_of(test_run.settings.scale_threshold * nk::max_of(1.0, std::fabs(reference)),
-                                        rounding);
+                                        rounding) +
+                             (score_errors.empty() ? 0 : score_errors[index]);
         held = held && (std::isinf(reference) ? result == reference : std::fabs(result - reference) <= bound);
     }
     stats.expect_true(held, "log-sum-exp");
@@ -1786,7 +1890,8 @@ void expect_log_sum_exp(error_stats_t &stats, actual_vector_type_ const &actual,
  *  queries, keys and values of two blocks or more spread their first two scales past the window
  *  an MX plane rebases across, as does the last query row against rebased planes. The fourth
  *  segment's MX query and key rows hold 2⁸ blocks but for a 2⁹⁷ first block in queries and second
- *  in keys, so its first head's score multiplier overflows while its scores stay finite. */
+ *  in keys, so its first head's score multiplier overflows while its scores stay finite.
+ *  Block-scaled outputs and log-sum-exps widen by @c attention_score_errors through the softmax. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t,
           attention_weights_t weights_ = attention_weights_t::unquantized_k, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename attention_kernel_type_>
@@ -1798,10 +1903,12 @@ error_stats_t test_attention_packed(pack_size_kernel_type_ packed_size_fn, pack_
     std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, 1);
 
     backend_type_ backend = make_backend<backend_type_>();
-    error_stats_t stats(attention_family(weights_));
+    error_stats_t stats(attention_family(weights_, scalar_type_::dtype()));
     split_mix_generator_t generator(case_stream_key());
 
     std::vector<attention_case_t> const cases = attention_cases();
+    attention_reference_t reference;
+    nk::matrix<nk_f64_t> value_values, query_values, key_values, score_errors;
 
     for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
         for (attention_case_t const &test_case : cases) {
@@ -1893,15 +2000,30 @@ error_stats_t test_attention_packed(pack_size_kernel_type_ packed_size_fn, pack_
             stats.expect_true(std::memcmp(log_sum_exps[0], log_sum_exps[1], log_sum_exp.size_bytes()) == 0,
                               "random task windows log-sum-exp differently from one call over the grid");
 
-            auto const reference = test_case.unmasked()
-                                       ? reference_attention_unmasked<scalar_type_>(stats, queries, keys, values,
-                                                                                    query_scales, key_scales,
-                                                                                    value_scales, segments, layout)
-                                       : reference_attention_masked<scalar_type_>(
-                                             stats, queries, keys, values, query_scales, key_scales, value_scales,
-                                             segments, layout, test_case.keys_before, test_case.keys_after);
-            accumulate_attention<weights_>(stats, output, reference.output, values);
-            expect_log_sum_exp<weights_>(stats, log_sum_exp, reference.log_sum_exp);
+            if (test_case.unmasked())
+                reference_attention_unmasked<scalar_type_>(stats, queries, keys, values, query_scales, key_scales,
+                                                           value_scales, segments, layout, reference);
+            else
+                reference_attention_masked<scalar_type_>(stats, queries, keys, values, query_scales, key_scales,
+                                                         value_scales, segments, layout, test_case.keys_before,
+                                                         test_case.keys_after, reference);
+            nk::matrix_span<nk_f64_t> const values_view = resize_matrix(value_values, key_tokens,
+                                                                        layout.key_value_width());
+            nk::matrix_span<nk_f64_t> const errors_view = resize_matrix(
+                score_errors, format.block_size ? query_tokens : 0, layout.head_count);
+            decode_scaled_rows<scalar_type_>(values, value_scales, values_view);
+            if constexpr (format.block_size != 0) {
+                nk::matrix_span<nk_f64_t> const queries_view = resize_matrix(query_values, query_tokens,
+                                                                             layout.query_width());
+                nk::matrix_span<nk_f64_t> const keys_view = resize_matrix(key_values, key_tokens,
+                                                                          layout.key_value_width());
+                decode_scaled_rows<scalar_type_>(queries, query_scales, queries_view);
+                decode_scaled_rows<scalar_type_>(keys, key_scales, keys_view);
+                attention_score_errors<scalar_type_>(queries_view, keys_view, segments, layout, test_case.keys_before,
+                                                     test_case.keys_after, errors_view);
+            }
+            accumulate_attention<weights_>(stats, output, reference.output, values_view, errors_view, layout.depth);
+            expect_log_sum_exp<weights_>(stats, log_sum_exp, reference.log_sum_exp, errors_view);
         }
     }
     return stats;
@@ -1936,6 +2058,9 @@ error_stats_t test_attention_packed_gradients(pack_size_kernel_type_ packed_size
     cases.push_back({130, 2, 192, 32, 0});
     auto const segments = make_attention_segments(backend, {60, 130, 0, 33, 5}, {60, 24, 2, 1, 9});
     std::size_t const query_tokens = segments.query_tokens(), key_tokens = segments.key_tokens();
+    attention_gradients_t reference;
+    attention_reference_t serial;
+    nk::matrix<nk_f64_t> query_values, key_values, value_values, output_gradient_values;
 
     for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
         for (attention_case_t const &test_case : cases) {
@@ -1966,29 +2091,32 @@ error_stats_t test_attention_packed_gradients(pack_size_kernel_type_ packed_size
             // 2⁻⁹⁰ and 2³ blocks keep the first K and V planes raw at magnitudes like the others
             if constexpr (format.scale_dtype == nk_ue8m0_k)
                 if (layout.depth >= 2 * format.block_size)
-                    for (auto *scales : {&key_scales, &value_scales})
-                        scales->blocks.data()[0] = ue8m0_t::from_raw(127 - 90),
-                        scales->blocks.data()[1] = ue8m0_t::from_raw(127 + 3);
-            auto const decode = [](auto const &codes, auto const &scales) {
-                std::vector<double> decoded(codes.size());
-                if (nk_cast_serial(scales.operand(codes.raw_values_data()), scalar_type_::dtype(), decoded.data(),
-                                   nk_f64_k, decoded.size(), nullptr) != nk_success_k)
-                    std::fill(decoded.begin(), decoded.end(), std::numeric_limits<double>::quiet_NaN());
-                return decoded;
-            };
-            attention_gradients_t const reference = reference_attention_gradients(
-                decode(queries, query_scales), decode(keys, key_scales), decode(values, value_scales),
-                decode_rows(output_gradient, query_tokens, layout.query_width(), layout.query_width()), segments,
-                layout, test_case.keys_before, test_case.keys_after);
+                    for (auto *scales : {&key_scales, &value_scales}) {
+                        scales->blocks(0, 0) = ue8m0_t::from_raw(127 - 90);
+                        scales->blocks(0, 1) = ue8m0_t::from_raw(127 + 3);
+                    }
+            nk::matrix_span<nk_f64_t> const queries_view = resize_matrix(query_values, query_tokens,
+                                                                         layout.query_width());
+            nk::matrix_span<nk_f64_t> const keys_view = resize_matrix(key_values, key_tokens, layout.key_value_width()),
+                                            values_view = resize_matrix(value_values, key_tokens,
+                                                                        layout.key_value_width());
+            nk::matrix_span<nk_f64_t> const output_gradient_view = resize_matrix(output_gradient_values, query_tokens,
+                                                                                 layout.query_width());
+            decode_scaled_rows<scalar_type_>(queries, query_scales, queries_view);
+            decode_scaled_rows<scalar_type_>(keys, key_scales, keys_view);
+            decode_scaled_rows<scalar_type_>(values, value_scales, values_view);
+            decode_rows(output_gradient, layout.query_width(), output_gradient_view);
+            reference_attention_gradients(queries_view, keys_view, values_view, output_gradient_view, segments, layout,
+                                          test_case.keys_before, test_case.keys_after, reference);
 
             // The serial forward, the bar for every other tier, against the F64 one
-            attention_reference_t const serial =
-                test_case.unmasked()
-                    ? reference_attention_unmasked<scalar_type_>(stats, queries, keys, values, query_scales, key_scales,
-                                                                 value_scales, segments, layout)
-                    : reference_attention_masked<scalar_type_>(stats, queries, keys, values, query_scales, key_scales,
-                                                               value_scales, segments, layout, test_case.keys_before,
-                                                               test_case.keys_after);
+            if (test_case.unmasked())
+                reference_attention_unmasked<scalar_type_>(stats, queries, keys, values, query_scales, key_scales,
+                                                           value_scales, segments, layout, serial);
+            else
+                reference_attention_masked<scalar_type_>(stats, queries, keys, values, query_scales, key_scales,
+                                                         value_scales, segments, layout, test_case.keys_before,
+                                                         test_case.keys_after, serial);
             expect_log_sum_exp(stats, serial.log_sum_exp, reference.log_sum_exp);
             double largest_output = 0;
             for (double value : reference.output) largest_output = nk::max_of(largest_output, std::fabs(value));
@@ -2022,8 +2150,8 @@ error_stats_t test_attention_packed_gradients(pack_size_kernel_type_ packed_size
             pack_attention_in_two_windows(backend, pack_fn, keys, values, key_scales, value_scales, segments, layout,
                                           key_value_packed);
             auto const accumulate_gradient = [&](backend_vector<f32_t, backend_type_> const &actual,
-                                                 std::size_t actual_width, std::vector<double> const &expected,
-                                                 std::vector<double> const &magnitudes, std::size_t width) {
+                                                 std::size_t actual_width, nk::vector<nk_f64_t> const &expected,
+                                                 nk::vector<nk_f64_t> const &magnitudes, std::size_t width) {
                 double largest = 0;
                 for (double magnitude : magnitudes) largest = nk::max_of(largest, magnitude);
                 for (std::size_t index = 0; index < expected.size(); index++)

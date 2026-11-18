@@ -723,6 +723,7 @@ To add a new operation family, for example `foo`:
    Compilers inline a pointer argument but not one stored in a struct whose address escapes, which then costs an indirect call per element.
    The public punned kernel types and the `_best` capability lists are the only function pointers.
    Block-scaled kernels rebase into F32 and fall back to the exact F32 path, never F64.
+   Block-scaled kernels meet `nk_accumulation_error_bound` over Σ|aᵢ · bᵢ|, the element products after their scales.
    A reduction accumulates one tier above the narrowest type it reads or writes, F32 for anything narrower than F32 and F64 for F32, and compensates only when input and output are both F64.
    Its element-wise steps run at their input's working precision, and family headers state the reduction type in a `nk_<family>_*_dtype` helper.
    SME kernels finish in predicated streaming SVE, never NEON, which faults in streaming mode.
