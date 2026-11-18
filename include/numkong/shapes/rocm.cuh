@@ -39,8 +39,7 @@ nk_define_shapes_pack_simt_(f16, f32, nk_f16_to_f32_simt_, nk_f32_to_f16_simt_, 
 
 /** The Chamfer distances between two packs of F32 points under each of the 8 flips on a team of 32
  *  lanes, which @c nk_chamfer_warp_packed_f32_rocm_ reduces. Distances up to @p limit are exact;
- *  past it, the team may stop early, leaving each flip's lower bound, the least of which also lies
- *  past @p limit . */
+ *  a flip past it may stop at a lower bound past @p limit , and the team stops once all have. */
 NUMKONG_DEVICE void nk_chamfer_flips_warp_packed_f32_rocm_(void const *a_packed, void const *b_packed, nk_f64_t limit,
                                                            unsigned lane, nk_f64_t *flip_distances) {
     nk_size_t const a_count = (nk_size_t)((nk_shapes_packed_header_f64_t const *)a_packed)->points;
@@ -54,6 +53,7 @@ NUMKONG_DEVICE void nk_chamfer_flips_warp_packed_f32_rocm_(void const *a_packed,
     nk_f32_t const *b_axes = nk_shapes_packed_axes_f32_simt_(b_packed, &b_stride);
     // Per flip, the finished directions' mean distances: F/n after one, F/n + B/m after both
     nk_f64_t means[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    unsigned live_flips = 0xFF; // Flips that may still end within the limit, alike on every lane
     for (int direction = 0; direction != 2; ++direction) {
         nk_f32_t const *outer_axes = direction ? b_axes : a_axes, *inner_axes = direction ? a_axes : b_axes;
         nk_size_t const outer_stride = direction ? b_stride : a_stride, inner_stride = direction ? a_stride : b_stride;
@@ -66,23 +66,19 @@ NUMKONG_DEVICE void nk_chamfer_flips_warp_packed_f32_rocm_(void const *a_packed,
             if (point < outer_count) {
                 nk_shapes_nearest_squares_f32_simt_(outer_axes[point], outer_axes[outer_stride + point],
                                                     outer_axes[2 * outer_stride + point], inner_axes, inner_stride,
-                                                    inner_count, distances);
+                                                    inner_count, live_flips, distances);
                 for (int flip = 0; flip != 8; ++flip) distances[flip] = __dsqrt_rn(distances[flip]);
             }
-            int exceeded = 1;
             for (int flip = 0; flip != 8; ++flip) {
                 for (unsigned offset = 16; offset; offset >>= 1)
                     distances[flip] += nk_shuffle_xor_f64_rocm_(distances[flip], offset);
                 sums[flip] += distances[flip];
-                exceeded &= sums[flip] > (2 * limit - means[flip]) * count;
+                // Rounded as the result is, so a flip ending within the limit never leaves
+                live_flips &= ~((unsigned)((means[flip] + sums[flip] / count) / 2 > limit) << flip);
             }
-            if (!exceeded) continue;
-            nk_f64_t partial = NUMKONG_F64_INF;
-            for (int flip = 0; flip != 8; ++flip) {
-                flip_distances[flip] = (means[flip] + sums[flip] / count) / 2;
-                partial = flip_distances[flip] < partial ? flip_distances[flip] : partial;
-            }
-            if (partial > limit) return;
+            if (live_flips) continue;
+            for (int flip = 0; flip != 8; ++flip) flip_distances[flip] = (means[flip] + sums[flip] / count) / 2;
+            return;
         }
         for (int flip = 0; flip != 8; ++flip) means[flip] += sums[flip] / count;
     }
@@ -102,8 +98,7 @@ NUMKONG_DEVICE nk_f64_t nk_chamfer_warp_packed_f32_rocm_(void const *a_packed, v
 
 /** The Chamfer distances between two packs of F16 points under each of the 8 flips on a team of 32
  *  lanes, which @c nk_chamfer_warp_packed_f16_rocm_ reduces. Distances up to @p limit are exact;
- *  past it, the team may stop early, leaving each flip's lower bound, the least of which also lies
- *  past @p limit . */
+ *  a flip past it may stop at a lower bound past @p limit , and the team stops once all have. */
 NUMKONG_DEVICE void nk_chamfer_flips_warp_packed_f16_rocm_(void const *a_packed, void const *b_packed, nk_f32_t limit,
                                                            unsigned lane, nk_f32_t *flip_distances) {
     nk_size_t const a_count = ((nk_shapes_packed_header_f32_t const *)a_packed)->points;
@@ -117,6 +112,7 @@ NUMKONG_DEVICE void nk_chamfer_flips_warp_packed_f16_rocm_(void const *a_packed,
     nk_f16_t const *b_axes = nk_shapes_packed_axes_f16_simt_(b_packed, &b_stride);
     // Per flip, the finished directions' mean distances: F/n after one, F/n + B/m after both
     nk_f32_t means[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    unsigned live_flips = 0xFF; // Flips that may still end within the limit, alike on every lane
     for (int direction = 0; direction != 2; ++direction) {
         nk_f16_t const *outer_axes = direction ? b_axes : a_axes, *inner_axes = direction ? a_axes : b_axes;
         nk_size_t const outer_stride = direction ? b_stride : a_stride, inner_stride = direction ? a_stride : b_stride;
@@ -131,23 +127,19 @@ NUMKONG_DEVICE void nk_chamfer_flips_warp_packed_f16_rocm_(void const *a_packed,
                     nk_shapes_coordinate_f16_simt_(outer_axes + point),
                     nk_shapes_coordinate_f16_simt_(outer_axes + outer_stride + point),
                     nk_shapes_coordinate_f16_simt_(outer_axes + 2 * outer_stride + point), inner_axes, inner_stride,
-                    inner_count, distances);
+                    inner_count, live_flips, distances);
                 for (int flip = 0; flip != 8; ++flip) distances[flip] = __fsqrt_rn(distances[flip]);
             }
-            int exceeded = 1;
             for (int flip = 0; flip != 8; ++flip) {
                 for (unsigned offset = 16; offset; offset >>= 1)
                     distances[flip] += nk_shuffle_xor_f32_rocm_(distances[flip], offset);
                 sums[flip] += distances[flip];
-                exceeded &= sums[flip] > (2 * limit - means[flip]) * count;
+                // Rounded as the result is, so a flip ending within the limit never leaves
+                live_flips &= ~((unsigned)((means[flip] + sums[flip] / count) / 2 > limit) << flip);
             }
-            if (!exceeded) continue;
-            nk_f32_t partial = NUMKONG_F32_INF;
-            for (int flip = 0; flip != 8; ++flip) {
-                flip_distances[flip] = (means[flip] + sums[flip] / count) / 2;
-                partial = flip_distances[flip] < partial ? flip_distances[flip] : partial;
-            }
-            if (partial > limit) return;
+            if (live_flips) continue;
+            for (int flip = 0; flip != 8; ++flip) flip_distances[flip] = (means[flip] + sums[flip] / count) / 2;
+            return;
         }
         for (int flip = 0; flip != 8; ++flip) means[flip] += sums[flip] / count;
     }
@@ -196,7 +188,7 @@ NUMKONG_DEVICE void nk_hausdorff_flips_warp_packed_f32_rocm_(void const *a_packe
             if (point < outer_count) {
                 nk_shapes_nearest_squares_f32_simt_(outer_axes[point], outer_axes[outer_stride + point],
                                                     outer_axes[2 * outer_stride + point], inner_axes, inner_stride,
-                                                    inner_count, nearest);
+                                                    inner_count, 0xFF, nearest);
                 for (int flip = 0; flip != 8; ++flip)
                     farthest[flip] = nearest[flip] > farthest[flip] ? nearest[flip] : farthest[flip];
             }
@@ -261,7 +253,7 @@ NUMKONG_DEVICE void nk_hausdorff_flips_warp_packed_f16_rocm_(void const *a_packe
                     nk_shapes_coordinate_f16_simt_(outer_axes + point),
                     nk_shapes_coordinate_f16_simt_(outer_axes + outer_stride + point),
                     nk_shapes_coordinate_f16_simt_(outer_axes + 2 * outer_stride + point), inner_axes, inner_stride,
-                    inner_count, nearest);
+                    inner_count, 0xFF, nearest);
                 for (int flip = 0; flip != 8; ++flip)
                     farthest[flip] = nearest[flip] > farthest[flip] ? nearest[flip] : farthest[flip];
             }

@@ -161,14 +161,16 @@ error_stats_t test_shapes_flips(kernel_type_ kernel) {
     auto const slab_columns = device_random_packed<scalar_type_>(backend, generator, 3, slabbed + 3, stats);
     nk_f64_t const roundoff = half_ulp<distance_t>(1.0);
     for (std::size_t row = 0; row != 3; ++row)
-        for (std::size_t column = 0; column != 3; ++column) {
-            if (!device(slab_rows.data() + row, 1, slab_columns.data() + column, 1, &unbounded)) return stats;
+        for (std::size_t column = 0; column != 4; ++column) {
+            // Last, the row's own cloud: at a limit of 0 only its identity flip runs to the end
+            void const *const *column_pack = column != 3 ? slab_columns.data() + column : slab_rows.data() + row;
+            if (!device(slab_rows.data() + row, 1, column_pack, 1, &unbounded)) return stats;
             raw_distance_t const exact = score[0];
             nk_f32_t exact_rotation[9];
             std::memcpy(exact_rotation, rotation, sizeof(exact_rotation));
-            nk_f64_t const reach = 3 * roundoff * (radius(slab_rows[row]) + radius(slab_columns[column]));
+            nk_f64_t const reach = 3 * roundoff * (radius(slab_rows[row]) + radius(*column_pack));
             for (raw_distance_t limit : {raw_distance_t(0), exact / 4, exact / 2, exact, exact * 2}) {
-                if (!device(slab_rows.data() + row, 1, slab_columns.data() + column, 1, &limit)) return stats;
+                if (!device(slab_rows.data() + row, 1, column_pack, 1, &limit)) return stats;
                 if (exact <= limit) {
                     stats.expect_true(
                         score[0] == exact && !std::memcmp(rotation, exact_rotation, sizeof(exact_rotation)),
@@ -177,7 +179,7 @@ error_stats_t test_shapes_flips(kernel_type_ kernel) {
                 }
                 stats.expect_true(score[0] > limit && (limit != 0 || score[0] < exact) && score[0] <= exact + reach,
                                   "a pair past its limit reported no lower bound past the limit");
-                stats.expect_true(shapes_rotation_is_flip<scalar_type_>(rotation, slab_rows[row], slab_columns[column]),
+                stats.expect_true(shapes_rotation_is_flip<scalar_type_>(rotation, slab_rows[row], *column_pack),
                                   "a stopped pair reported no flip of its frames");
             }
         }

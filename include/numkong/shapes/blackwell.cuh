@@ -316,11 +316,12 @@ NUMKONG_DEVICE void nk_rmsds_superpose_blackwell_(nk_rmsds_schedule_blackwell_t 
 
 #pragma region Chamfer and Hausdorff
 
-/** Lowers the least squared distance under each of the 8 flips by two inner points, their
- *  coordinates paired per axis in @p axis_pairs , rounded as @c nk_shapes_nearest_squares_f16_simt_
- *  rounds them, and their minimum taken with the old one in one instruction. */
+/** Lowers the least squared distance under each of the 8 flips whose bit @p live_flips holds by
+ *  two inner points, their coordinates paired per axis in @p axis_pairs , rounded as
+ *  @c nk_shapes_nearest_squares_f16_simt_ rounds them, and their minimum taken with the old one
+ *  in one instruction. */
 NUMKONG_DEVICE void nk_shapes_nearest_pair_f16_blackwell_(nk_f32_t const *outer_point, nk_u32_t const *axis_pairs,
-                                                          nk_f32_t *nearest) {
+                                                          unsigned live_flips, nk_f32_t *nearest) {
     nk_u64_t minus_squares[3], plus_squares[3];
     for (unsigned axis = 0; axis != 3; ++axis) {
         float2 const minus = nk_f16x2_sub_to_f32x2_blackwell_(axis_pairs[axis], outer_point[axis]);
@@ -335,6 +336,7 @@ NUMKONG_DEVICE void nk_shapes_nearest_pair_f16_blackwell_(nk_f32_t const *outer_
                                 nk_f32x2_add_blackwell_(minus_squares[0], plus_squares[1]),
                                 nk_f32x2_add_blackwell_(plus_squares[0], plus_squares[1])};
     for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip) {
+        if (!((live_flips >> flip) & 1)) continue;
         nk_u64_t const squares = nk_f32x2_add_blackwell_(planar[flip & 3],
                                                          (flip & 4) ? plus_squares[2] : minus_squares[2]);
         nearest[flip] = fminf(fminf(nk_f32x2_low_blackwell_(squares), nk_f32x2_high_blackwell_(squares)),
@@ -343,24 +345,26 @@ NUMKONG_DEVICE void nk_shapes_nearest_pair_f16_blackwell_(nk_f32_t const *outer_
 }
 
 /** The least squared distance from @p outer_point to the inner points of F16 under each of the 8
- *  axis flips, equal to @c nk_shapes_nearest_squares_f16_simt_ , two inner points per step. */
+ *  axis flips whose bit @p live_flips holds, equal to @c nk_shapes_nearest_squares_f16_simt_ , two
+ *  inner points per step. The other flips read 0, so they add nothing to a sum. */
 NUMKONG_DEVICE void nk_shapes_nearest_squares_f16_blackwell_(nk_f32_t const *outer_point, nk_f16_t const *inner_axes,
                                                              nk_size_t inner_stride, nk_size_t inner_count,
-                                                             nk_f32_t *nearest) {
+                                                             unsigned live_flips, nk_f32_t *nearest) {
     nk_u32_t const *inner_pairs = (nk_u32_t const *)inner_axes;
     nk_size_t const pair_stride = inner_stride / 2, pair_count = inner_count / 2;
-    for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip) nearest[flip] = NUMKONG_F32_INF;
+    for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip)
+        nearest[flip] = (live_flips >> flip) & 1 ? NUMKONG_F32_INF : 0;
     for (nk_size_t pair = 0; pair != pair_count; ++pair) {
         nk_u32_t const axis_pairs[3] = {inner_pairs[pair], inner_pairs[pair_stride + pair],
                                         inner_pairs[2 * pair_stride + pair]};
-        nk_shapes_nearest_pair_f16_blackwell_(outer_point, axis_pairs, nearest);
+        nk_shapes_nearest_pair_f16_blackwell_(outer_point, axis_pairs, live_flips, nearest);
     }
     if (!(inner_count & 1)) return;
     // An odd last point pairs with itself, and a repeated point leaves every minimum as it is
     nk_u32_t const axis_pairs[3] = {__byte_perm(inner_pairs[pair_count], 0, 0x1010),
                                     __byte_perm(inner_pairs[pair_stride + pair_count], 0, 0x1010),
                                     __byte_perm(inner_pairs[2 * pair_stride + pair_count], 0, 0x1010)};
-    nk_shapes_nearest_pair_f16_blackwell_(outer_point, axis_pairs, nearest);
+    nk_shapes_nearest_pair_f16_blackwell_(outer_point, axis_pairs, live_flips, nearest);
 }
 
 /** Writes the best flip's distance and, when asked, its rotation 𝑄ₐᵀ × S × 𝑄ᵦ, or the identity for
@@ -392,8 +396,8 @@ NUMKONG_DEVICE void nk_shapes_write_best_flip_blackwell_(nk_shapes_schedule_blac
 
 /** The Chamfer distance between two packs of F16 points under each of the 8 flips on a whole warp,
  *  each lane scanning two inner points per step. Every lane calls with the same packs and its own
- *  @p lane . Distances up to @p limit are exact; past it, the warp may stop early, leaving each
- *  flip's lower bound, the least of which also lies past @p limit . */
+ *  @p lane . Distances up to @p limit are exact; a flip past it may stop at a lower bound past
+ *  @p limit , and the warp stops once every flip has. */
 NUMKONG_DEVICE void nk_chamfer_flips_warp_packed_f16_blackwell_(void const *a_packed, void const *b_packed,
                                                                 nk_f32_t limit, unsigned lane,
                                                                 nk_f32_t *flip_distances) {
@@ -408,6 +412,7 @@ NUMKONG_DEVICE void nk_chamfer_flips_warp_packed_f16_blackwell_(void const *a_pa
     nk_f16_t const *b_axes = nk_shapes_packed_axes_f16_blackwell_(b_packed, &b_stride);
     // Per flip, the finished directions' mean distances: F/n after one, F/n + B/m after both
     nk_f32_t means[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    unsigned live_flips = 0xFF; // Flips that may still end within the limit, alike on every lane
     for (int direction = 0; direction != 2; ++direction) {
         nk_f16_t const *outer_axes = direction ? b_axes : a_axes, *inner_axes = direction ? a_axes : b_axes;
         nk_size_t const outer_stride = direction ? b_stride : a_stride, inner_stride = direction ? a_stride : b_stride;
@@ -421,23 +426,20 @@ NUMKONG_DEVICE void nk_chamfer_flips_warp_packed_f16_blackwell_(void const *a_pa
                 nk_f32_t const outer_point[3] = {nk_shapes_coordinate_f16_simt_(outer_axes + point),
                                                  nk_shapes_coordinate_f16_simt_(outer_axes + outer_stride + point),
                                                  nk_shapes_coordinate_f16_simt_(outer_axes + 2 * outer_stride + point)};
-                nk_shapes_nearest_squares_f16_blackwell_(outer_point, inner_axes, inner_stride, inner_count, distances);
+                nk_shapes_nearest_squares_f16_blackwell_(outer_point, inner_axes, inner_stride, inner_count, live_flips,
+                                                         distances);
                 for (int flip = 0; flip != 8; ++flip) distances[flip] = __fsqrt_rn(distances[flip]);
             }
-            int exceeded = 1;
             for (int flip = 0; flip != 8; ++flip) {
                 for (unsigned offset = 16; offset; offset >>= 1)
                     distances[flip] += nk_shuffle_xor_f32_cuda_(distances[flip], offset);
                 sums[flip] += distances[flip];
-                exceeded &= sums[flip] > (2 * limit - means[flip]) * count;
+                // Rounded as the result is, so a flip ending within the limit never leaves
+                live_flips &= ~((unsigned)((means[flip] + sums[flip] / count) / 2 > limit) << flip);
             }
-            if (!exceeded) continue;
-            nk_f32_t partial = NUMKONG_F32_INF;
-            for (int flip = 0; flip != 8; ++flip) {
-                flip_distances[flip] = (means[flip] + sums[flip] / count) / 2;
-                partial = flip_distances[flip] < partial ? flip_distances[flip] : partial;
-            }
-            if (partial > limit) return;
+            if (live_flips) continue;
+            for (int flip = 0; flip != 8; ++flip) flip_distances[flip] = (means[flip] + sums[flip] / count) / 2;
+            return;
         }
         for (int flip = 0; flip != 8; ++flip) means[flip] += sums[flip] / count;
     }
@@ -489,7 +491,8 @@ NUMKONG_DEVICE void nk_hausdorff_flips_warp_packed_f16_blackwell_(void const *a_
                 nk_f32_t const outer_point[3] = {nk_shapes_coordinate_f16_simt_(outer_axes + point),
                                                  nk_shapes_coordinate_f16_simt_(outer_axes + outer_stride + point),
                                                  nk_shapes_coordinate_f16_simt_(outer_axes + 2 * outer_stride + point)};
-                nk_shapes_nearest_squares_f16_blackwell_(outer_point, inner_axes, inner_stride, inner_count, nearest);
+                nk_shapes_nearest_squares_f16_blackwell_(outer_point, inner_axes, inner_stride, inner_count, 0xFF,
+                                                         nearest);
                 for (int flip = 0; flip != 8; ++flip)
                     farthest[flip] = nearest[flip] > farthest[flip] ? nearest[flip] : farthest[flip];
             }

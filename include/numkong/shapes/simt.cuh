@@ -2709,11 +2709,12 @@ NUMKONG_DEVICE nk_f32_t nk_shapes_coordinate_f16_simt_(nk_f16_t const *coordinat
 }
 
 /** The least squared distance from the outer point to the inner points of F32 under each of the 8
- *  axis flips, widened to F64 and rounded in the serial order, so each equals the serial one. */
+ *  axis flips whose bit @p live_flips holds, widened to F64 and rounded in the serial order, so
+ *  each equals the serial one. The other flips read 0, so they add nothing to a sum. */
 NUMKONG_DEVICE void nk_shapes_nearest_squares_f32_simt_(nk_f64_t outer_x, nk_f64_t outer_y, nk_f64_t outer_z,
                                                         nk_f32_t const *inner_axes, nk_size_t inner_stride,
-                                                        nk_size_t inner_count, nk_f64_t *nearest) {
-    for (int flip = 0; flip != 8; ++flip) nearest[flip] = NUMKONG_F64_INF;
+                                                        nk_size_t inner_count, unsigned live_flips, nk_f64_t *nearest) {
+    for (int flip = 0; flip != 8; ++flip) nearest[flip] = (live_flips >> flip) & 1 ? NUMKONG_F64_INF : 0;
     for (nk_size_t index = 0; index != inner_count; ++index) {
         nk_f64_t const inner_x = inner_axes[index], inner_y = inner_axes[inner_stride + index],
                        inner_z = inner_axes[2 * inner_stride + index];
@@ -2726,6 +2727,7 @@ NUMKONG_DEVICE void nk_shapes_nearest_squares_f32_simt_(nk_f64_t outer_x, nk_f64
         nk_f64_t const minus_zz = __dmul_rn(minus_z, minus_z), plus_zz = __dmul_rn(plus_z, plus_z);
         nk_f64_t const planar[4] = {minus_xx + minus_yy, plus_xx + minus_yy, minus_xx + plus_yy, plus_xx + plus_yy};
         for (int flip = 0; flip != 8; ++flip) {
+            if (!((live_flips >> flip) & 1)) continue;
             nk_f64_t const distance_squared = planar[flip & 3] + ((flip & 4) ? plus_zz : minus_zz);
             nearest[flip] = distance_squared < nearest[flip] ? distance_squared : nearest[flip];
         }
@@ -2733,12 +2735,13 @@ NUMKONG_DEVICE void nk_shapes_nearest_squares_f32_simt_(nk_f64_t outer_x, nk_f64
 }
 
 /** The least squared distance from the outer point to the inner points of F16 under each of the 8
- *  axis flips, widened to F32 and rounded in the serial order, so each equals the serial one. The
- *  minimum is @c fminf , one instruction where a select takes two, as no square is NaN or −0. */
+ *  axis flips whose bit @p live_flips holds, widened to F32 and rounded in the serial order, so
+ *  each equals the serial one. The other flips read 0, so they add nothing to a sum. The minimum is
+ *  @c fminf , one instruction where a select takes two, as no square is NaN or −0. */
 NUMKONG_DEVICE void nk_shapes_nearest_squares_f16_simt_(nk_f32_t outer_x, nk_f32_t outer_y, nk_f32_t outer_z,
                                                         nk_f16_t const *inner_axes, nk_size_t inner_stride,
-                                                        nk_size_t inner_count, nk_f32_t *nearest) {
-    for (int flip = 0; flip != 8; ++flip) nearest[flip] = NUMKONG_F32_INF;
+                                                        nk_size_t inner_count, unsigned live_flips, nk_f32_t *nearest) {
+    for (int flip = 0; flip != 8; ++flip) nearest[flip] = (live_flips >> flip) & 1 ? NUMKONG_F32_INF : 0;
     for (nk_size_t index = 0; index != inner_count; ++index) {
         nk_f32_t const inner_x = nk_shapes_coordinate_f16_simt_(inner_axes + index);
         nk_f32_t const inner_y = nk_shapes_coordinate_f16_simt_(inner_axes + inner_stride + index);
@@ -2752,7 +2755,8 @@ NUMKONG_DEVICE void nk_shapes_nearest_squares_f16_simt_(nk_f32_t outer_x, nk_f32
         nk_f32_t const minus_zz = __fmul_rn(minus_z, minus_z), plus_zz = __fmul_rn(plus_z, plus_z);
         nk_f32_t const planar[4] = {minus_xx + minus_yy, plus_xx + minus_yy, minus_xx + plus_yy, plus_xx + plus_yy};
         for (int flip = 0; flip != 8; ++flip)
-            nearest[flip] = fminf(planar[flip & 3] + ((flip & 4) ? plus_zz : minus_zz), nearest[flip]);
+            if ((live_flips >> flip) & 1)
+                nearest[flip] = fminf(planar[flip & 3] + ((flip & 4) ? plus_zz : minus_zz), nearest[flip]);
     }
 }
 
@@ -2801,7 +2805,7 @@ NUMKONG_DEVICE nk_f64_t nk_chamfer_packed_f32_simt_(void const *a_packed, void c
         for (nk_size_t point = 0; point != outer_count; ++point) {
             nk_shapes_nearest_squares_f32_simt_(outer_axes[point], outer_axes[outer_stride + point],
                                                 outer_axes[2 * outer_stride + point], inner_axes, inner_stride,
-                                                inner_count, nearest);
+                                                inner_count, 0xFF, nearest);
             int exceeded = 1;
             for (int flip = 0; flip != 8; ++flip) {
                 sums[flip] += __dsqrt_rn(nearest[flip]);
@@ -2844,7 +2848,7 @@ NUMKONG_DEVICE nk_f32_t nk_chamfer_packed_f16_simt_(void const *a_packed, void c
             nk_shapes_nearest_squares_f16_simt_(nk_shapes_coordinate_f16_simt_(outer_axes + point),
                                                 nk_shapes_coordinate_f16_simt_(outer_axes + outer_stride + point),
                                                 nk_shapes_coordinate_f16_simt_(outer_axes + 2 * outer_stride + point),
-                                                inner_axes, inner_stride, inner_count, nearest);
+                                                inner_axes, inner_stride, inner_count, 0xFF, nearest);
             int exceeded = 1;
             for (int flip = 0; flip != 8; ++flip) {
                 sums[flip] += __fsqrt_rn(nearest[flip]);
@@ -2887,7 +2891,7 @@ NUMKONG_DEVICE nk_f64_t nk_hausdorff_packed_f32_simt_(void const *a_packed, void
         for (nk_size_t point = 0; point != outer_count; ++point) {
             nk_shapes_nearest_squares_f32_simt_(outer_axes[point], outer_axes[outer_stride + point],
                                                 outer_axes[2 * outer_stride + point], inner_axes, inner_stride,
-                                                inner_count, nearest);
+                                                inner_count, 0xFF, nearest);
             nk_f64_t least = NUMKONG_F64_INF;
             for (int flip = 0; flip != 8; ++flip) {
                 farthest[flip] = nearest[flip] > farthest[flip] ? nearest[flip] : farthest[flip];
@@ -2924,7 +2928,7 @@ NUMKONG_DEVICE nk_f32_t nk_hausdorff_packed_f16_simt_(void const *a_packed, void
             nk_shapes_nearest_squares_f16_simt_(nk_shapes_coordinate_f16_simt_(outer_axes + point),
                                                 nk_shapes_coordinate_f16_simt_(outer_axes + outer_stride + point),
                                                 nk_shapes_coordinate_f16_simt_(outer_axes + 2 * outer_stride + point),
-                                                inner_axes, inner_stride, inner_count, nearest);
+                                                inner_axes, inner_stride, inner_count, 0xFF, nearest);
             nk_f32_t least = NUMKONG_F32_INF;
             for (int flip = 0; flip != 8; ++flip) {
                 farthest[flip] = nearest[flip] > farthest[flip] ? nearest[flip] : farthest[flip];
