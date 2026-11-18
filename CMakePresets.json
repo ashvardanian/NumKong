@@ -72,7 +72,7 @@
         "NUMKONG_BUILD_TEST": "OFF",
         "NUMKONG_BUILD_SHARED": "OFF",
         "NUMKONG_BUILD_SWIFT": "ON",
-        "CMAKE_OSX_DEPLOYMENT_TARGET": "12.0"
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "26.0"
       }
     },
     {

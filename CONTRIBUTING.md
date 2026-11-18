@@ -636,7 +636,7 @@ Each build adds its target to the artifact in `NUMKONG_SWIFT_DIRECTORY`, which d
 ```sh
 cmake --preset swift -B build_swift_iossim -D NUMKONG_SWIFT_DIRECTORY=$PWD/build_swift \
     -D CMAKE_SYSTEM_NAME=iOS -D CMAKE_OSX_SYSROOT=iphonesimulator -D CMAKE_OSX_ARCHITECTURES=arm64 \
-    -D CMAKE_OSX_DEPLOYMENT_TARGET=15.0 -D NUMKONG_TARGET_SME=0 -D NUMKONG_TARGET_SMEF64=0 \
+    -D CMAKE_OSX_DEPLOYMENT_TARGET=26.0 -D NUMKONG_TARGET_SME=0 -D NUMKONG_TARGET_SMEF64=0 \
     -D NUMKONG_TARGET_SMEBI32=0
 cmake --build build_swift_iossim
 ```

@@ -405,7 +405,8 @@ error_stats_t test_sub_byte_u1x8() {
     nk::vector_view<nk::u1x8_t> const bits = std::span<nk::u1x8_t>(v.values_data(), v.size_values());
     stats.expect_true(bits.size() == 64 && bits[7] == true, "u1x8_t view from a span must count dimensions");
     nk::tensor_view<nk::u1x8_t, 1> const bit_tensor = std::span<nk::u1x8_t const>(v.values_data(), v.size_values());
-    stats.expect_true(bit_tensor.extent(0) == 64 && bit_tensor.values() && bit_tensor.values().value.size() == 8,
+    auto const [bit_values, bit_values_status] = bit_tensor.values();
+    stats.expect_true(bit_tensor.extent(0) == 64 && nk::succeeded(bit_values_status) && bit_values.size() == 8,
                       "u1x8_t tensor from a span must count dimensions and give its values back");
     return stats;
 }
@@ -1285,11 +1286,15 @@ error_stats_t test_view_overloads() {
                       "dot of strided views");
     stats.expect_true(strided_view.values().status == nk::status_t::unexpected_dimensions_k,
                       "values of a strided view");
-    stats.expect_true(a_view.values() && a_view.values().value.size() == 8, "values of a contiguous view");
+    auto const [a_values, a_values_status] = a_view.values();
+    stats.expect_true(nk::succeeded(a_values_status) && a_values.size() == 8, "values of a contiguous view");
     nk::tensor_span<nk::f32_t, 1> const a_tensor = std::span<nk::f32_t>(a_data);
     nk::tensor_view<nk::f32_t, 1> const a_tensor_view = std::span<nk::f32_t const>(a_data);
-    stats.expect_true(a_tensor.extent(0) == 8 && a_tensor.values() && a_tensor.values().value.data() == a_data &&
-                          a_tensor_view.values() && a_tensor_view.values().value.size() == 8,
+    auto const [tensor_values, tensor_values_status] = a_tensor.values();
+    auto const [tensor_view_values, tensor_view_values_status] = a_tensor_view.values();
+    stats.expect_true(a_tensor.extent(0) == 8 && nk::succeeded(tensor_values_status) &&
+                          tensor_values.data() == a_data && nk::succeeded(tensor_view_values_status) &&
+                          tensor_view_values.size() == 8,
                       "a tensor from a span gives the same values back");
 
     // Sub-byte runs must fill whole storage values: 5 nibbles or 13 bits end mid-byte.
@@ -1481,7 +1486,8 @@ error_stats_t test_typed_pointer_ctors() {
 error_stats_t test_raw_values_data() {
     error_stats_t stats(comparison_family_t::exact_k);
     using raw_t = nk::bf16_t::raw_t;
-    auto owner = nk::tensor<nk::bf16_t>::zeros({2, 3}).value;
+    auto [owner, status] = nk::tensor<nk::bf16_t>::zeros({2, 3});
+    if (!stats.expect_status(status)) return stats;
     nk::tensor_view<nk::bf16_t> const view = owner.view();
     nk::tensor_span<nk::bf16_t> const span = owner.span();
     nk::vector_view<nk::bf16_t> const row = view.row(1).as_vector();

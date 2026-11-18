@@ -741,7 +741,9 @@ auto random_scales(backend_type_ &backend, split_mix_generator_t &generator, std
         std::size_t const blocks = depth / operand_t::format.block_size,
                           scale_stride = stride / operand_t::format.block_bytes;
         operand.scale_stride = scale_stride;
-        operand.blocks = operand_t::blocks_t::zeros({rows, scale_stride}, allocator_of<scale_t>(backend)).value;
+        auto [scales, status] = operand_t::blocks_t::zeros({rows, scale_stride}, allocator_of<scale_t>(backend));
+        if (nk::failed(status)) std::abort();
+        operand.blocks = std::move(scales);
         std::uniform_int_distribution<int> exponents(exponent_center - exponent_limit,
                                                      exponent_center + exponent_limit),
             finite_scales(1, 126);
@@ -1029,8 +1031,9 @@ error_stats_t test_dots_packed(backend_type_ backend, pack_size_kernel_type_ pac
             if (!stats.expect_status(backend.synchronize())) return stats;
 
             std::vector<reference_t> c_reference(rows * columns);
-            auto b_packed_reference = make_vector<std::byte>(
-                nk::dots_pack_size<scalar_type_>(columns, depth, no_tiers_k).value);
+            auto const [reference_bytes, size_status] = nk::dots_pack_size<scalar_type_>(columns, depth, no_tiers_k);
+            stats.expect_status(size_status);
+            nk::vector<std::byte> b_packed_reference = make_vector<std::byte>(reference_bytes);
             stats.expect_status(nk::dots_pack<scalar_type_>(b_scales.operand(b.values_data()), columns, depth, b_stride,
                                                             b_packed_reference.raw_values_data(), no_tiers_k, nullptr));
             stats.expect_status(nk::dots_packed<scalar_type_, reference_t>(
@@ -1389,9 +1392,11 @@ error_stats_t test_sets_packed(pack_size_kernel_type_ packed_size_fn, pack_kerne
             auto a = make_vector<scalar_t>(rows * stride_dimensions),
                  b = make_vector<scalar_t>(columns * stride_dimensions);
             auto c = make_vector<result_t>(rows * columns), c_reference = make_vector<result_t>(rows * columns);
-            auto b_packed = make_vector<std::byte>(pack_size_bytes(stats, packed_size_fn, columns, depth)),
-                 b_packed_reference = make_vector<std::byte>(
-                     nk::dots_pack_size<scalar_t>(columns, depth, no_tiers_k).value);
+            auto const [reference_bytes, size_status] = nk::dots_pack_size<scalar_t>(columns, depth, no_tiers_k);
+            stats.expect_status(size_status);
+            nk::vector<std::byte> b_packed = make_vector<std::byte>(
+                pack_size_bytes(stats, packed_size_fn, columns, depth));
+            nk::vector<std::byte> b_packed_reference = make_vector<std::byte>(reference_bytes);
             fill_random(generator, a);
             fill_random(generator, b);
             if constexpr (jaccard)
@@ -1688,8 +1693,9 @@ error_stats_t test_spatials_packed(pack_size_kernel_type_ packed_size_fn, pack_k
                          scratch.raw_values_data(), scratch_size);
             if (!stats.expect_status(backend.synchronize())) return stats;
 
-            auto b_packed_reference = make_vector<std::byte>(
-                nk::dots_pack_size<scalar_type_>(columns, depth, no_tiers_k).value);
+            auto const [reference_bytes, size_status] = nk::dots_pack_size<scalar_type_>(columns, depth, no_tiers_k);
+            stats.expect_status(size_status);
+            nk::vector<std::byte> b_packed_reference = make_vector<std::byte>(reference_bytes);
             auto dots_reference = make_vector<reference_t>(rows * columns);
             auto a_squared_norms = make_vector<reference_t>(rows), b_squared_norms = make_vector<reference_t>(columns);
             stats.expect_status(nk::dots_pack<scalar_type_>(b_scales.operand(b.values_data()), columns, depth, stride,

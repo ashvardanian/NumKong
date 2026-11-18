@@ -4124,6 +4124,34 @@ assert_accepts "multi-index call, a dereference subscript, and a pointer-to-arra
 inline int probe(matrix_t matrix, int *owner, int const(*rows)[4]) { return matrix(0, 1) + (*owner)[1] + rows[0][1]; }
 FIXTURE
 
+assert_rejects "value unwrapped from a call result" "unwraps a call result" include/numkong/probe.hpp <<'FIXTURE'
+inline int probe(text_t text) { return parse(text).value; }
+FIXTURE
+
+assert_accepts "structured binding and a trait value" include/numkong/probe.hpp <<'FIXTURE'
+inline int probe(text_t text) { auto [value, status] = parse(text); static_assert(std::is_same_v<int, int> && std::is_integral<int>::value); return value; }
+FIXTURE
+
+assert_rejects "const expected local" "declares an expected" include/numkong/probe.hpp <<'FIXTURE'
+    expected<report_t> const healed = heal_(plans_);
+FIXTURE
+
+assert_rejects "expected local spelling the return type twice" "declares an expected" include/numkong/probe.hpp <<'FIXTURE'
+    nk::expected<nk::matrix<f32_t>> made = nk::matrix<f32_t>::zeros({2, 3});
+FIXTURE
+
+assert_rejects "expected local with brace initializer" "declares an expected" include/numkong/probe.hpp <<'FIXTURE'
+    sz::expected<text_t> joined {text_t::make("a")};
+FIXTURE
+
+assert_accepts "expected local bound as a structure" include/numkong/probe.hpp <<'FIXTURE'
+    auto [made, status] = nk::matrix<f32_t>::zeros({2, 3});
+FIXTURE
+
+assert_accepts "expected return type of a declaration" include/numkong/probe.hpp <<'FIXTURE'
+expected<index_t> make(config_t const &config) noexcept;
+FIXTURE
+
 assert_rejects "CPython format-string shortcut" "calls a format-string shortcut of the CPython API" python/probe.c <<'FIXTURE'
 static PyObject *probe(PyObject *type, Py_ssize_t width) { return PyObject_CallFunction(type, "n", width); }
 FIXTURE

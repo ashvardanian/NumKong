@@ -4801,6 +4801,27 @@ check_call_chained_subscript() {
         "            never results.data()[index]:"
 }
 
+# Rejects `.value` read straight off a call's result, as `parse(text).value`, because an unchecked unwrap hides the
+# failure that the status code reports: bind the result with `auto [value, status] = parse(text);` and check `status`.
+# A trait's `::value` and a call to `.value(...)` are not member reads and pass.
+check_call_value_unwrap() {
+    local unwrapped
+    unwrapped=$(grep -E '\)\.value\b([^(]|$)' "$staged_added_code_path" || true)
+    [ -z "$unwrapped" ] || reject_with_reason "$unwrapped" \
+        "$staged_path unwraps a call result with .value; bind it as auto [value, status] = call(...)," \
+        "            and check the status:"
+}
+
+# Rejects a local declared as `expected<...>` from a call, because it spells the return type twice: bind the result
+# with `auto [value, status] = call(...);`. Return types, parameters and members have no `=` or `{` after the name.
+check_expected_local_binding() {
+    local declared
+    declared=$(grep -E '^\+[[:space:]]*([A-Za-z_]+::)?expected<.*>([[:space:]]+const)?[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]*(=|\{)' "$staged_added_code_path" |
+        grep -vE '^\+[[:space:]]*(return|using|typedef|template)\b' || true)
+    [ -z "$declared" ] || reject_with_reason "$declared" \
+        "$staged_path declares an expected<…> local; bind it as auto [value, status] = call(...):"
+}
+
 run_project_checks() {
     case "$staged_path" in
     CHANGELOG*) ;;
@@ -4824,7 +4845,11 @@ run_project_checks() {
         ;;
     esac
     case "$staged_path" in
-    *.cpp | *.hpp | *.cc | *.cu | *.cuh | *.hip | *.metal) check_call_chained_subscript ;;
+    *.cpp | *.hpp | *.cc | *.cu | *.cuh | *.hip | *.metal)
+        check_call_chained_subscript
+        check_call_value_unwrap
+        check_expected_local_binding
+        ;;
     esac
     case "$staged_path" in
     include/numkong/*/*.h | include/numkong/*/*.cuh)

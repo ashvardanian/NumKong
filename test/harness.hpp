@@ -1743,10 +1743,13 @@ typename backend_type_::template allocator<value_type_> allocator_of(backend_typ
 template <typename value_type_, typename backend_type_>
 using backend_vector = nk::vector<value_type_, typename backend_type_::template allocator<value_type_>>;
 
-/** A zeroed vector of @p count values in @p backend memory, empty when the allocation fails. */
+/** A zeroed vector of @p count values in @p backend memory, aborting on exhaustion. */
 template <typename value_type_, typename backend_type_>
 [[nodiscard]] backend_vector<value_type_, backend_type_> make_vector(backend_type_ const &backend, std::size_t count) {
-    return backend_vector<value_type_, backend_type_>::zeros(count, allocator_of<value_type_>(backend)).value;
+    auto [vector, status] = backend_vector<value_type_, backend_type_>::zeros(count,
+                                                                              allocator_of<value_type_>(backend));
+    if (nk::failed(status)) std::abort();
+    return std::move(vector);
 }
 
 #pragma endregion Backends

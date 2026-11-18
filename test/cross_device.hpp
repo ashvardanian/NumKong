@@ -243,10 +243,10 @@ error_stats_t test_transport_packed(workspace_size_type_ workspace_size, kernel_
     std::size_t const points = test_run.settings.shape_points, rows = 5, columns = 7, largest = points + 3;
     nk_size_t bytes = 0;
     stats.expect_status(workspace_size(largest, largest, &bytes));
-    std::size_t const reference_bytes =
-        procrustes_k
-            ? nk::wassersteinprocrustes_workspace_size<scalar_type_, reference_t>(largest, largest, no_tiers_k).value
-            : nk::gromovwassersteins_workspace_size<scalar_type_, reference_t>(largest, largest, no_tiers_k).value;
+    auto const [reference_bytes, size_status] =
+        procrustes_k ? nk::wassersteinprocrustes_workspace_size<scalar_type_, reference_t>(largest, largest, no_tiers_k)
+                     : nk::gromovwassersteins_workspace_size<scalar_type_, reference_t>(largest, largest, no_tiers_k);
+    stats.expect_status(size_status);
     auto workspace = make_vector<std::byte>(backend, bytes);
     auto reference_workspace = make_vector<std::byte>(nk::max_of<std::size_t>(reference_bytes, 1));
     std::span<std::byte> const reference_scratch(reinterpret_cast<std::byte *>(reference_workspace.raw_values_data()),

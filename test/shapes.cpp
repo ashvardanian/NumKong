@@ -209,18 +209,18 @@ nk::status_t shapes_oracle(nk::shapes_packed<scalar_type_> const &rows, nk::shap
             a, rows.size(), b, columns.size(), results, stride, rotations, reference_type_::positive_infinity(),
             no_tiers_k);
     else if constexpr (kind_ == wassersteinprocrustes_k) {
-        std::size_t const bytes = nk::wassersteinprocrustes_workspace_size<scalar_type_, reference_type_>(
-                                      rows.max_points(), columns.max_points(), no_tiers_k)
-                                      .value;
+        auto const [bytes, size_status] = nk::wassersteinprocrustes_workspace_size<scalar_type_, reference_type_>(
+            rows.max_points(), columns.max_points(), no_tiers_k);
+        if (nk::failed(size_status)) return size_status;
         auto workspace = make_vector<std::byte>(nk::max_of<std::size_t>(bytes, 1));
         return nk::wassersteinprocrustes_packed<scalar_type_, reference_type_, reference_type_>(
             a, rows.size(), b, columns.size(), results, stride, rotations,
             std::span<std::byte>(reinterpret_cast<std::byte *>(workspace.raw_values_data()), bytes), no_tiers_k);
     }
     else {
-        std::size_t const bytes = nk::gromovwassersteins_workspace_size<scalar_type_, reference_type_>(
-                                      rows.max_points(), columns.max_points(), no_tiers_k)
-                                      .value;
+        auto const [bytes, size_status] = nk::gromovwassersteins_workspace_size<scalar_type_, reference_type_>(
+            rows.max_points(), columns.max_points(), no_tiers_k);
+        if (nk::failed(size_status)) return size_status;
         auto workspace = make_vector<std::byte>(nk::max_of<std::size_t>(bytes, 1));
         return nk::gromovwassersteins_packed<scalar_type_, reference_type_, reference_type_>(
             a, rows.size(), b, columns.size(), results, stride, rotations,
@@ -489,7 +489,8 @@ error_stats_t test_shapes_packed(
                            raw_distance_t limit, std::size_t row_points, std::size_t column_points) {
         std::size_t const stride = columns_count * sizeof(raw_distance_t);
         if constexpr (kind_ == chamfers_k) {
-            std::size_t const bytes = nk::chamfers_workspace_size<scalar_type_>(row_points, column_points).value;
+            auto const [bytes, size_status] = nk::chamfers_workspace_size<scalar_type_>(row_points, column_points);
+            if (nk::failed(size_status)) return static_cast<nk_status_t>(size_status);
             auto workspace = make_vector<std::byte>(nk::max_of<std::size_t>(bytes, 1));
             return kernel(rows, rows_count, columns, columns_count, results, stride, rotations, &limit,
                           workspace.raw_values_data(), bytes, nullptr);
@@ -560,7 +561,9 @@ error_stats_t test_chamfers_packed_workspace(typename scalar_type_::chamfers_pac
     random_cloud<scalar_type_>(generator, test_run.settings.shape_points / 2 + 2, 0, column_clouds[0]);
     auto const rows = pack_clouds(row_clouds, stats);
     auto const columns = pack_clouds(column_clouds, stats);
-    std::size_t const bytes = nk::chamfers_workspace_size<scalar_type_>(rows.max_points(), columns.max_points()).value;
+    auto const [bytes, size_status] = nk::chamfers_workspace_size<scalar_type_>(rows.max_points(),
+                                                                                columns.max_points());
+    stats.expect_status(size_status);
     // The query sizes 11 strides for the kernels that widen a cloud, and all read at least 8
     std::size_t const short_bytes = bytes / 11 * 8 - 1;
     auto workspace = make_vector<std::byte>(bytes + nk_default_alignment_k);
@@ -626,12 +629,22 @@ template <typename scalar_type_>
 void test_shapes_workspace_sizes() {
     for (std::size_t const points : {1, 7, 16, 33})
         for (std::size_t const other : {std::size_t(1), points}) {
-            expect_equal(nk::wassersteinprocrustes_workspace_size<scalar_type_>(points, other, no_tiers_k).value,
-                         nk::wassersteinprocrustes_workspace_size<scalar_type_>(points, other, nk_cap_serial_k).value,
-                         "Procrustes of {} and {} points", points, other);
-            expect_equal(nk::gromovwassersteins_workspace_size<scalar_type_>(points, other, no_tiers_k).value,
-                         nk::gromovwassersteins_workspace_size<scalar_type_>(points, other, nk_cap_serial_k).value,
-                         "Gromov-Wasserstein of {} and {} points", points, other);
+            auto const [procrustes_bytes, procrustes_status] = nk::wassersteinprocrustes_workspace_size<scalar_type_>(
+                points, other, no_tiers_k);
+            auto const [serial_procrustes_bytes, serial_procrustes_status] =
+                nk::wassersteinprocrustes_workspace_size<scalar_type_>(points, other, nk_cap_serial_k);
+            if (expect_true(nk::succeeded(procrustes_status) && nk::succeeded(serial_procrustes_status),
+                            "Procrustes of {} and {} points sized", points, other))
+                expect_equal(procrustes_bytes, serial_procrustes_bytes, "Procrustes of {} and {} points", points,
+                             other);
+            auto const [gromov_bytes, gromov_status] = nk::gromovwassersteins_workspace_size<scalar_type_>(
+                points, other, no_tiers_k);
+            auto const [serial_gromov_bytes, serial_gromov_status] =
+                nk::gromovwassersteins_workspace_size<scalar_type_>(points, other, nk_cap_serial_k);
+            if (expect_true(nk::succeeded(gromov_status) && nk::succeeded(serial_gromov_status),
+                            "Gromov-Wasserstein of {} and {} points sized", points, other))
+                expect_equal(gromov_bytes, serial_gromov_bytes, "Gromov-Wasserstein of {} and {} points", points,
+                             other);
         }
 }
 
@@ -691,7 +704,9 @@ error_stats_t test_shapes_pack(typename scalar_type_::shapes_pack_size_kernel_t 
         bool same = owned && owned.value.size() == 2 && owned.value.max_points() == n &&
                     owned.value.points(1) == n / 2 + 1;
         for (std::size_t index = 0; same && index != 2; ++index) {
-            std::size_t const points = spans[index].size() / 3, bytes = nk::shapes_pack_size<scalar_t>(points).value;
+            std::size_t const points = spans[index].size() / 3;
+            auto const [bytes, size_status] = nk::shapes_pack_size<scalar_t>(points);
+            stats.expect_status(size_status);
             raw_t const *cloud = reinterpret_cast<raw_t const *>(spans[index].data());
             auto expected = make_vector<std::byte>(bytes);
             stats.expect_status(kind_ == pack_k
@@ -713,7 +728,8 @@ error_stats_t test_shapes_pack(typename scalar_type_::shapes_pack_size_kernel_t 
         random_cloud<scalar_t>(generator, n, offset, cloud);
         nk_size_t bytes = 0;
         stats.expect_status(pack_size(n, &bytes));
-        stats.expect_true(bytes == nk::shapes_pack_size<scalar_t>(n, no_tiers_k).value,
+        auto const [oracle_bytes, size_status] = nk::shapes_pack_size<scalar_t>(n, no_tiers_k);
+        stats.expect_true(nk::succeeded(size_status) && bytes == oracle_bytes,
                           "the pack size differs from the oracle's");
         auto packed = make_vector<std::byte>(bytes), oracle = make_vector<std::byte>(bytes);
         std::memset(packed.raw_values_data(), 0xFF, bytes);
