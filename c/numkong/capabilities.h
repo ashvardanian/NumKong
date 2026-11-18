@@ -1385,7 +1385,8 @@ NUMKONG_INLINE nk_capability_t nk_capabilities_detected_arm64_(void) {
     size_t size = sizeof(unsigned);
     unsigned supports_neon = 0, supports_fp16 = 0, supports_fhm = 0, supports_bf16 = 0, supports_dotprod = 0;
     unsigned supports_sme = 0, supports_smef64 = 0, supports_smebi32 = 0;
-    if (sysctlbyname("hw.optional.neon", &supports_neon, &size, NUMKONG_NULL, 0) != 0) supports_neon = 0;
+    // The Apple arm64 ABI requires NEON, even when the sysctl is denied.
+    if (sysctlbyname("hw.optional.neon", &supports_neon, &size, NUMKONG_NULL, 0) != 0) supports_neon = 1;
     if (sysctlbyname("hw.optional.arm.FEAT_FP16", &supports_fp16, &size, NUMKONG_NULL, 0) != 0) supports_fp16 = 0;
     if (sysctlbyname("hw.optional.arm.FEAT_FHM", &supports_fhm, &size, NUMKONG_NULL, 0) != 0) supports_fhm = 0;
     if (sysctlbyname("hw.optional.arm.FEAT_BF16", &supports_bf16, &size, NUMKONG_NULL, 0) != 0) supports_bf16 = 0;
