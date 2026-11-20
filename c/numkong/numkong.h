@@ -31,6 +31,7 @@
 #include "numkong/maxsim.h"       // MaxSim: Multi-Vector Maximum Similarity, like `nk_maxsim_packed_f32_best`
 #include "numkong/attention.h"    // Ragged Transformer attention, like `nk_attention_packed_bf16_best`
 #include "numkong/trigonometry.h" // Sin, Cos, Atan, like `nk_trig_sin_f64_best`
+#include "numkong/random.h"       // Stateful pseudo-random number generation
 
 #if defined(__cplusplus)
 extern "C" {

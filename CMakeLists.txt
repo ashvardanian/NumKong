@@ -722,7 +722,7 @@ if (NUMKONG_BUILD_PYTHON)
     python_add_library(
         numkong_python MODULE WITH_SOABI python/numkong.c python/tensor.c python/matrix.c python/types.c
         python/distance.c python/each.c python/trigonometry.c python/geospatial.c python/shapes.c python/attention.c
-        python/maxsim.c python/numpy_interop.c python/dlpack_interop.c src/parallel.c
+        python/maxsim.c python/random.c python/numpy_interop.c python/dlpack_interop.c src/parallel.c
     )
     set_target_properties(numkong_python PROPERTIES OUTPUT_NAME "_numkong")
     target_compile_features(numkong_python PRIVATE c_std_11)
