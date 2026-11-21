@@ -417,6 +417,14 @@ class Tensor(memoryview):
     def moments(
         self, axis: int | tuple[int, ...], *, keepdims: bool = False, **dispatch: Unpack[_Dispatch]
     ) -> tuple[Tensor, Tensor]: ...
+    @overload
+    def minmax(
+        self, axis: None = None, *, keepdims: bool = False, **dispatch: Unpack[_Dispatch]
+    ) -> tuple[float | int, int, float | int, int] | None: ...
+    @overload
+    def minmax(
+        self, axis: int | tuple[int, ...], *, keepdims: bool = False, **dispatch: Unpack[_Dispatch]
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]: ...
     def sum(
         self,
         axis: int | tuple[int, ...] | None = None,
@@ -1552,19 +1560,26 @@ def moments(
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
 ) -> tuple[Tensor, Tensor]: ...
+@overload
 def minmax(
     a: _BufferType,
     /,
     *,
+    axis: None = None,
+    keepdims: bool = False,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> tuple[float, int, float, int] | None:
-    """Find the smallest and largest elements with their indices.
-
-    Returns `(min_value, min_index, max_value, max_index)`, or None when every element is NaN.
-    """
-    ...
-
+) -> tuple[float | int, int, float | int, int] | None: ...
+@overload
+def minmax(
+    a: _BufferType,
+    /,
+    *,
+    axis: int | tuple[int, ...],
+    keepdims: bool = False,
+    dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
+) -> tuple[Tensor, Tensor, Tensor, Tensor]: ...
 def sum(
     a: _BufferType,
     /,

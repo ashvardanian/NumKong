@@ -568,6 +568,14 @@ assert int(i0) == 2
 assert float(np.asarray(mn)) == -1.0
 ```
 
+With explicit axes, `minmax` returns four tensors with the reduced shape.
+The index tensors contain flat offsets across the reduced axes in C order.
+
+```python
+minimum, argminimum, maximum, argmaximum = matrix.minmax(axis=0, keepdims=True)
+assert minimum.shape == argminimum.shape == maximum.shape == argmaximum.shape == (1, 3)
+```
+
 Fresh measurement for the rewritten docs:
 on an Apple M2 Pro, `np.argmin(matrix[:, 1])` on a row-major `2,000,000 x 3` `float32` array took about `1.63 ms` median.
 The equivalent NumKong `Tensor(... )[:, 1].argmin()` took about `0.67 ms` median.

@@ -224,6 +224,55 @@ def test_minmax_matches_numpy(capabilities, ndim: int, dtype: str, np_rng: np.ra
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype", ["uint8", "float16", "float32"])
+@pytest.mark.parametrize("keepdims", [False, True])
+def test_minmax_over_spatial_axes_matches_numpy(dtype, keepdims, np_rng):
+    """Reduce NHWC values and flat spatial offsets in one call."""
+    shape = (2, 3, 4, 9)
+    image = np_rng.permutation(math.prod(shape)).astype(dtype).reshape(shape)
+    flat = image.reshape(-1, shape[-1])
+    result_shape = (1, 1, 1, shape[-1]) if keepdims else (shape[-1],)
+    expected = (flat.min(0), flat.argmin(0).astype(np.int64), flat.max(0), flat.argmax(0).astype(np.int64))
+    actual = nk.minmax(image, axis=(0, 1, 2), keepdims=keepdims)
+    for output, reference in zip(actual, expected, strict=True):
+        assert isinstance(output, nk.Tensor)
+        assert np.asarray(output).dtype == reference.dtype
+        np.testing.assert_array_equal(np.asarray(output), reference.reshape(result_shape))
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_minmax_over_non_adjacent_axes_on_reversed_views():
+    """Interpret tuple indices in C order over the sorted reduced axes."""
+    values = np.arange(-60, 60, dtype=np.int16).reshape(4, 5, 6)
+    view = values[::2, :, ::-1]
+    tensor = nk.Tensor(values)[::2, :, ::-1]
+    flat = view.transpose(1, 0, 2).reshape(view.shape[1], -1)
+    expected = (flat.min(1), flat.argmin(1), flat.max(1), flat.argmax(1))
+    for output in (nk.minmax(view, axis=(-1, 0)), tensor.minmax((-1, 0))):
+        for actual, reference in zip(output, expected, strict=True):
+            np.testing.assert_array_equal(np.asarray(actual), reference)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_minmax_nan_and_empty_slices_follow_existing_reducers():
+    """Keep NaN sentinels and the existing empty-reduction result."""
+    image = np.array([[np.nan, 2, np.nan], [1, np.nan, np.nan], [3, 2, np.nan]], dtype=np.float32)
+    expected = ([1, 2, np.inf], [1, 0, -1], [3, 2, -np.inf], [2, 0, -1])
+    for actual, reference in zip(nk.minmax(image, axis=0), expected, strict=True):
+        np.testing.assert_array_equal(np.asarray(actual), reference)
+    for output in nk.minmax(np.empty((0, 3), dtype=np.float32), axis=0):
+        np.testing.assert_array_equal(np.asarray(output), np.zeros(3))
+    assert nk.minmax(image[:, 2]) is None
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_minmax_rejects_duplicate_reduction_axes():
+    """Check duplicate axes after normalizing negative indices."""
+    with pytest.raises(ValueError, match="duplicate axis"):
+        nk.minmax(np.zeros((2, 3, 4), dtype=np.uint8), axis=(0, -3))
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize(
     "dtype",
     [

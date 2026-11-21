@@ -212,7 +212,7 @@ PyObject *Tensor_reshape(PyObject *self, PyObject *const *args, Py_ssize_t nargs
 PyObject *Tensor_moments(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 /** Find min and max with indices. Returns (min_val, min_idx, max_val, max_idx) tuple. */
-PyObject *Tensor_minmax(PyObject *self, PyObject *args);
+PyObject *Tensor_minmax(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 /** Cast tensor to a different dtype. Returns a new tensor. */
 PyObject *Tensor_astype(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
