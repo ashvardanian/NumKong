@@ -2025,13 +2025,6 @@ static int impl_reduce_minmax(nk_tensor_view_t const *view, nk_capability_t capa
     return 0;
 }
 
-char const doc_method_moments[] =                          //
-    "Compute sum and sum-of-squares of all elements.\n\n"  //
-    "Returns:\n"                                           //
-    "  tuple: (sum, sum_of_squares) for all elements.\n\n" //
-    "Signature:\n"                                         //
-    "  >>> def moments(self, /): ...";
-
 static PyObject *impl_moments_from_view(nk_tensor_view_t const *view, nk_capability_t capabilities,
                                         nk_stream_t stream) {
     nk_scalar_buffer_t sum_buf, sumsq_buf;
@@ -2049,14 +2042,6 @@ static PyObject *impl_moments_from_view(nk_tensor_view_t const *view, nk_capabil
     Py_DECREF(sum_obj);
     Py_DECREF(sumsq_obj);
     return tuple;
-}
-
-PyObject *Tensor_moments(PyObject *self, PyObject *args) {
-    nk_unused_(args);
-    Tensor *t = (Tensor *)self;
-    if (!tensor_on_host(t)) return NULL;
-    nk_tensor_view_t view = {t->dtype, t->rank, t->shape, t->strides, t->data};
-    return impl_moments_from_view(&view, nk_cap_cpus_k, NULL);
 }
 
 char const doc_method_minmax[] =                                                              //
@@ -2134,8 +2119,7 @@ typedef struct {
     nk_stream_t stream;
 } reduce_args_t;
 
-/** Parse a single axis value, int, tuple of ints, or None, into the axes array. Returns 1 if axes
- *  were set, 0 if None, -1 on error. */
+/** Parse an integer axis, tuple of axes, or None. Returns -1 on error. */
 static int parse_axis_value(PyObject *value, reduce_args_t *parsed) {
     if (value == Py_None) {
         parsed->axis_count = 0;
@@ -2145,7 +2129,7 @@ static int parse_axis_value(PyObject *value, reduce_args_t *parsed) {
         parsed->axes[0] = PyLong_AsSsize_t(value);
         if (parsed->axes[0] == -1 && PyErr_Occurred()) return -1;
         parsed->axis_count = 1;
-        return 1;
+        return 0;
     }
     if (PyTuple_Check(value)) {
         Py_ssize_t const len = PyTuple_GET_SIZE(value);
@@ -2159,7 +2143,7 @@ static int parse_axis_value(PyObject *value, reduce_args_t *parsed) {
             if (parsed->axes[i] == -1 && PyErr_Occurred()) return -1;
         }
         parsed->axis_count = (size_t)len;
-        return 1;
+        return 0;
     }
     PyErr_SetString(PyExc_TypeError, "axis must be None, an integer, or a tuple of integers");
     return -1;
@@ -2194,22 +2178,14 @@ static int normalize_axes(reduce_args_t *parsed, size_t tensor_rank) {
 }
 
 /** Parse axis, keepdims, out, dtype, capabilities and stream from FASTCALL kwargs. */
-static int parse_reduce_kwargs(PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames, size_t tensor_rank,
-                               reduce_args_t *parsed) {
+static int parse_reduce_options(PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames, reduce_args_t *parsed) {
     parsed->axis_count = 0;
     parsed->keepdims = 0;
     parsed->out = NULL;
     parsed->dtype_override = nk_dtype_unknown_k;
     parsed->capabilities = nk_cap_cpus_k;
     parsed->stream = NULL;
-    int axis_set = 0;
-
-    // axis is positional-or-keyword (position 0)
-    if (nargs >= 1) {
-        int rc = parse_axis_value(args[0], parsed);
-        if (rc < 0) return -1;
-        axis_set = rc;
-    }
+    if (nargs >= 1 && parse_axis_value(args[0], parsed) < 0) return -1;
     if (nargs > 1) {
         PyErr_SetString(PyExc_TypeError, "at most 1 positional argument");
         return -1;
@@ -2220,9 +2196,7 @@ static int parse_reduce_kwargs(PyObject *const *args, Py_ssize_t nargs, PyObject
         PyObject *name = PyTuple_GET_ITEM(kwnames, i);
         PyObject *value = args[nargs + i];
         if (PyUnicode_CompareWithASCIIString(name, "axis") == 0) {
-            int rc = parse_axis_value(value, parsed);
-            if (rc < 0) return -1;
-            axis_set = rc;
+            if (parse_axis_value(value, parsed) < 0) return -1;
         }
         else if (PyUnicode_CompareWithASCIIString(name, "keepdims") == 0) {
             parsed->keepdims = PyObject_IsTrue(value);
@@ -2245,7 +2219,12 @@ static int parse_reduce_kwargs(PyObject *const *args, Py_ssize_t nargs, PyObject
         else if (!parse_dispatch_keyword(name, value, &parsed->capabilities, &parsed->stream)) return -1;
     }
 
-    if (!axis_set) return 0;
+    return 0;
+}
+
+static int parse_reduce_kwargs(PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames, size_t tensor_rank,
+                               reduce_args_t *parsed) {
+    if (parse_reduce_options(args, nargs, kwnames, parsed) < 0) return -1;
     return normalize_axes(parsed, tensor_rank);
 }
 
@@ -2281,8 +2260,13 @@ static int validate_reduce_out(Tensor *out, Py_ssize_t const *expected_shape, si
     return 0;
 }
 
-/** Callback reducing one 1D slice into @p out; -1 sets a Python error. */
+/** Callback reducing one slice into one or two scalar buffers; -1 sets a Python error. */
 typedef int (*reduce_slice_fn_t)(nk_tensor_view_t const *slice, reduce_args_t const *parsed, nk_scalar_buffer_t *out);
+
+typedef struct {
+    char *data;
+    size_t element_size;
+} reduce_output_t;
 
 /**
  *  @brief Walk all positions except the reduced axes, calling @p on_slice for each sub-view.
@@ -2291,8 +2275,9 @@ typedef int (*reduce_slice_fn_t)(nk_tensor_view_t const *slice, reduce_args_t co
  *  @return 0 on success, -1 with a Python error set by the first failing slice.
  */
 static int reduce_along_axes(char const *data, Py_ssize_t const *shape, Py_ssize_t const *strides, size_t rank,
-                             size_t dim, reduce_args_t const *parsed, size_t next_ax, nk_dtype_t dtype, char *out_data,
-                             size_t out_element_size, reduce_slice_fn_t on_slice, size_t *out_index) {
+                             size_t dim, reduce_args_t const *parsed, size_t next_ax, nk_dtype_t dtype,
+                             reduce_output_t const *outputs, size_t output_count, reduce_slice_fn_t on_slice,
+                             size_t *out_index) {
     Py_ssize_t const *axes = parsed->axes;
     size_t const axis_count = parsed->axis_count;
     if (dim >= rank) {
@@ -2304,21 +2289,32 @@ static int reduce_along_axes(char const *data, Py_ssize_t const *shape, Py_ssize
             sub_strides[i] = strides[axes[i]];
         }
         nk_tensor_view_t slice = {dtype, axis_count, sub_shape, sub_strides, (char *)data};
-        nk_scalar_buffer_t element = {0};
-        if (on_slice(&slice, parsed, &element) < 0) return -1;
-        memcpy(out_data + (*out_index) * out_element_size, &element, out_element_size);
+        nk_scalar_buffer_t elements[2] = {0};
+        if (on_slice(&slice, parsed, elements) < 0) return -1;
+        for (size_t i = 0; i < output_count; ++i)
+            memcpy(outputs[i].data + (*out_index) * outputs[i].element_size, elements + i, outputs[i].element_size);
         (*out_index)++;
         return 0;
     }
     // Skip a reduced dimension, which becomes part of the sub-view
     if (next_ax < axis_count && (size_t)axes[next_ax] == dim)
-        return reduce_along_axes(data, shape, strides, rank, dim + 1, parsed, next_ax + 1, dtype, out_data,
-                                 out_element_size, on_slice, out_index);
+        return reduce_along_axes(data, shape, strides, rank, dim + 1, parsed, next_ax + 1, dtype, outputs, output_count,
+                                 on_slice, out_index);
     // Iterate over a non-reduced dimension
     for (size_t i = 0; i < (size_t)shape[dim]; i++)
-        if (reduce_along_axes(data + i * strides[dim], shape, strides, rank, dim + 1, parsed, next_ax, dtype, out_data,
-                              out_element_size, on_slice, out_index) < 0)
+        if (reduce_along_axes(data + i * strides[dim], shape, strides, rank, dim + 1, parsed, next_ax, dtype, outputs,
+                              output_count, on_slice, out_index) < 0)
             return -1;
+    return 0;
+}
+
+static int validate_reduce_input_axes(nk_tensor_view_t const *view, reduce_args_t const *parsed) {
+    // Packed kernels walk whole bytes of the last axis, so every slice must span it.
+    if (nk_dimensions_per_value(view->dtype) > 1 && (size_t)parsed->axes[parsed->axis_count - 1] + 1 != view->rank) {
+        PyErr_Format(PyExc_NotImplementedError, "packed dtype '%s' can only reduce along axes that include the last",
+                     nk_dtype_python_name(view->dtype));
+        return -1;
+    }
     return 0;
 }
 
@@ -2327,12 +2323,7 @@ static int reduce_along_axes(char const *data, Py_ssize_t const *shape, Py_ssize
  *  instead of the recursive coordinate walker. */
 static PyObject *reduce_axis_dispatch(nk_tensor_view_t const *view, reduce_args_t const *parsed, nk_dtype_t out_dtype,
                                       reduce_slice_fn_t on_slice) {
-    // Packed kernels walk whole bytes of the last axis, so every slice must span it.
-    if (nk_dimensions_per_value(view->dtype) > 1 && (size_t)parsed->axes[parsed->axis_count - 1] + 1 != view->rank) {
-        PyErr_Format(PyExc_NotImplementedError, "packed dtype '%s' can only reduce along axes that include the last",
-                     nk_dtype_python_name(view->dtype));
-        return NULL;
-    }
+    if (validate_reduce_input_axes(view, parsed) < 0) return NULL;
     Py_ssize_t out_shape[NUMKONG_TENSOR_MAX_RANK];
     size_t out_rank = reduce_output_shape(view->shape, view->rank, parsed->axes, parsed->axis_count, parsed->keepdims,
                                           out_shape);
@@ -2380,8 +2371,9 @@ static PyObject *reduce_axis_dispatch(nk_tensor_view_t const *view, reduce_args_
     }
 
     size_t out_index = 0;
-    failed = reduce_along_axes(view->data, view->shape, view->strides, view->rank, 0, parsed, 0, view->dtype,
-                               result->data, nk_dtype_bytes_per_value(out_dtype), on_slice, &out_index) < 0;
+    reduce_output_t const output = {result->data, nk_dtype_bytes_per_value(out_dtype)};
+    failed = reduce_along_axes(view->data, view->shape, view->strides, view->rank, 0, parsed, 0, view->dtype, &output,
+                               1, on_slice, &out_index) < 0;
 finish:
     if (failed) {
         if (!parsed->out) Py_DECREF(result);
@@ -2389,6 +2381,116 @@ finish:
     }
     if (parsed->out) Py_INCREF((PyObject *)parsed->out);
     return (PyObject *)result;
+}
+
+static int moments_slice(nk_tensor_view_t const *slice, reduce_args_t const *parsed, nk_scalar_buffer_t *out) {
+    nk_dtype_t sum_dtype, sumsq_dtype;
+    return impl_reduce_moments(slice, parsed->capabilities, parsed->stream, out, &sum_dtype, out + 1, &sumsq_dtype);
+}
+
+NUMKONG_INLINE void moments_u8_c9(nk_u8_t const *pixels, size_t elements, Tensor *sum, Tensor *sumsq) {
+    nk_u64_t sums[9] = {0}, squares[9] = {0};
+    for (size_t pixel = 0; pixel < elements; pixel += 9)
+        for (size_t channel = 0; channel < 9; ++channel) {
+            nk_u64_t const value = pixels[pixel + channel];
+            sums[channel] += value;
+            squares[channel] += value * value;
+        }
+    memcpy(sum->data, sums, sizeof(sums));
+    memcpy(sumsq->data, squares, sizeof(squares));
+}
+
+NUMKONG_INLINE void moments_f32_pixels(char const *pixels, size_t elements, size_t channels, Tensor *sum,
+                                       Tensor *sumsq) {
+    nk_f64_t sums[9] = {0}, squares[9] = {0};
+    for (size_t pixel = 0; pixel < elements; pixel += channels)
+        for (size_t channel = 0; channel < channels; ++channel) {
+            nk_f32_t value;
+            memcpy(&value, pixels + (pixel + channel) * sizeof(value), sizeof(value));
+            nk_f64_t const wide = value;
+            sums[channel] += wide;
+            squares[channel] += wide * wide;
+        }
+    memcpy(sum->data, sums, channels * sizeof(*sums));
+    memcpy(sumsq->data, squares, channels * sizeof(*squares));
+}
+
+/** Reduce interleaved data once even when channel slices share cache lines. */
+static int try_moments_over_pixels(nk_tensor_view_t const *view, reduce_args_t const *parsed, Tensor *sum,
+                                   Tensor *sumsq) {
+    if (parsed->axis_count + 1 != view->rank || (size_t)parsed->axes[parsed->axis_count - 1] + 2 != view->rank ||
+        parsed->capabilities != nk_cap_cpus_k || parsed->stream || (view->dtype != nk_u8_k && view->dtype != nk_f32_k))
+        return 0;
+
+    size_t const channels = (size_t)view->shape[view->rank - 1];
+    // The strided SIMD kernel is faster for float32 RGB on x86.
+    int const apple_arm_rgb = NUMKONG_OS_APPLE_ && NUMKONG_ARCH_ARM64_ && channels == 3 && view->dtype == nk_f32_k;
+    if (channels != 9 && !apple_arm_rgb) return 0;
+    size_t elements;
+    Py_ssize_t stride;
+    size_t const element_size = nk_dtype_bytes_per_value(view->dtype);
+    if (uniform_stride_tail_dims(view->dtype, view->shape, view->strides, view->rank, &elements, &stride) !=
+            view->rank ||
+        stride != (Py_ssize_t)element_size)
+        return 0;
+
+    if (view->dtype == nk_u8_k) {
+        if (elements / channels > UINT64_MAX / (255u * 255u)) return 0;
+        moments_u8_c9((nk_u8_t const *)view->data, elements, sum, sumsq);
+    }
+    else if (channels == 3) moments_f32_pixels(view->data, elements, 3, sum, sumsq);
+    else moments_f32_pixels(view->data, elements, 9, sum, sumsq);
+    return 1;
+}
+
+static PyObject *moments_from_axes(nk_tensor_view_t const *view, reduce_args_t const *parsed) {
+    if (parsed->out) return (PyErr_SetString(PyExc_TypeError, "moments does not support out"), NULL);
+    if (!parsed->axis_count) return impl_moments_from_view(view, parsed->capabilities, parsed->stream);
+    if (validate_reduce_input_axes(view, parsed) < 0) return NULL;
+    nk_dtype_t const sum_dtype = nk_reduce_moments_sum_dtype(view->dtype);
+    nk_dtype_t const sumsq_dtype = nk_reduce_moments_sumsq_dtype(view->dtype);
+    if (sum_dtype == nk_dtype_unknown_k)
+        return (PyErr_Format(PyExc_NotImplementedError, "moments not supported for dtype '%s'",
+                             nk_dtype_to_pybuffer_typestr(view->dtype)),
+                NULL);
+
+    Py_ssize_t shape[NUMKONG_TENSOR_MAX_RANK];
+    size_t const rank = reduce_output_shape(view->shape, view->rank, parsed->axes, parsed->axis_count, parsed->keepdims,
+                                            shape);
+    Tensor *sum = Tensor_new(sum_dtype, rank, shape);
+    if (!sum) return NULL;
+    Tensor *sumsq = Tensor_new(sumsq_dtype, rank, shape);
+    if (!sumsq) {
+        Py_DECREF(sum);
+        return NULL;
+    }
+
+    PyObject *result = NULL;
+    reduce_output_t const outputs[] = {{sum->data, nk_dtype_bytes_per_value(sum_dtype)},
+                                       {sumsq->data, nk_dtype_bytes_per_value(sumsq_dtype)}};
+    size_t out_index = 0;
+    if (try_moments_over_pixels(view, parsed, sum, sumsq) ||
+        reduce_along_axes(view->data, view->shape, view->strides, view->rank, 0, parsed, 0, view->dtype, outputs, 2,
+                          moments_slice, &out_index) == 0)
+        result = PyTuple_Pack(2, sum, sumsq);
+    Py_DECREF(sum);
+    Py_DECREF(sumsq);
+    return result;
+}
+
+char const doc_method_moments[] =                                                          //
+    "Compute sum and sum-of-squares globally or along one or more axes.\n\n"               //
+    "When axis is None, return a pair of scalars. Otherwise return a pair of Tensors.\n\n" //
+    "Signature:\n"                                                                         //
+    "  >>> def moments(self, /, axis=None, *, keepdims=False): ...";
+
+PyObject *Tensor_moments(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
+    Tensor *t = (Tensor *)self;
+    reduce_args_t parsed;
+    if (!tensor_on_host(t) || parse_reduce_kwargs(args, nargs, kwnames, t->rank, &parsed) < 0) return NULL;
+    nk_dtype_t const dtype = parsed.dtype_override == nk_dtype_unknown_k ? t->dtype : parsed.dtype_override;
+    nk_tensor_view_t view = {dtype, t->rank, t->shape, t->strides, t->data};
+    return moments_from_axes(&view, &parsed);
 }
 
 static int sum_slice(nk_tensor_view_t const *slice, reduce_args_t const *parsed, nk_scalar_buffer_t *out) {
@@ -3015,7 +3117,7 @@ static PyObject *Tensor___array__(PyObject *self_obj, PyObject *const *args, Py_
 static PyMethodDef Tensor_methods[] = {
     {"copy", (PyCFunction)Tensor_copy, METH_FASTCALL | METH_KEYWORDS, doc_method_copy},
     {"reshape", (PyCFunction)Tensor_reshape, METH_FASTCALL, doc_method_reshape},
-    {"moments", Tensor_moments, METH_NOARGS, doc_method_moments},
+    {"moments", (PyCFunction)Tensor_moments, METH_FASTCALL | METH_KEYWORDS, doc_method_moments},
     {"minmax", Tensor_minmax, METH_NOARGS, doc_method_minmax},
     {"sum", (PyCFunction)Tensor_sum, METH_FASTCALL | METH_KEYWORDS, doc_method_sum},
     {"norm", (PyCFunction)Tensor_norm, METH_FASTCALL | METH_KEYWORDS, doc_method_norm},
@@ -4594,50 +4696,32 @@ PyObject *api_hash(PyObject *self, PyObject *const *args, Py_ssize_t const nargs
     return (PyObject *)result;
 }
 
-char const doc_reduce_moments[] =                                                       //
-    "Compute the sum and sum-of-squares, the moments, of all elements in an array.\n\n" //
-    "Args:\n"                                                                           //
-    "  a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"         //
-    "  dtype (str, optional): Override the presumed input element type.\n\n"            //
-    "Returns:\n"                                                                        //
-    "  tuple: (sum, sum_of_squares) for all elements.\n\n"                              //
-    "Signature:\n"                                                                      //
-    "  >>> def moments(a, /, *, dtype=None): ...";
+char const doc_reduce_moments[] =                                                                //
+    "Compute the sum and sum-of-squares globally or along one or more axes.\n\n"                 //
+    "Args:\n"                                                                                    //
+    "  a: Input Tensor, NumPy array, or any buffer-protocol object.\n"                           //
+    "  axis (int or tuple of ints, optional): Axes to reduce. None reduces every element.\n"     //
+    "  keepdims (bool, optional): Keep explicit reduced axes as size-1 dimensions.\n"            //
+    "  dtype (str, optional): Override the presumed input element type.\n\n"                     //
+    "Returns:\n"                                                                                 //
+    "  (sum, sum_of_squares) as scalars when axis is None, or as Tensors for explicit axes.\n\n" //
+    "Signature:\n"                                                                               //
+    "  >>> def moments(a, /, *, axis=None, keepdims=False, dtype=None): ...";
 
 PyObject *api_moments(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);
     if (nargs != 1) return (PyErr_SetString(PyExc_TypeError, "moments(a) takes exactly 1 positional argument"), NULL);
 
-    nk_dtype_t dtype_override = nk_dtype_unknown_k;
-    nk_capability_t capabilities = nk_cap_cpus_k;
-    nk_stream_t stream = NULL;
-    Py_ssize_t const kwcount = kwnames ? PyTuple_Size(kwnames) : 0;
-    for (Py_ssize_t i = 0; i < kwcount; i++) {
-        PyObject *name = PyTuple_GET_ITEM(kwnames, i);
-        if (PyUnicode_CompareWithASCIIString(name, "dtype") == 0) {
-            PyObject *value = args[nargs + i];
-            if (value != Py_None) {
-                dtype_override = py_object_to_nk_dtype(value);
-                if (dtype_override == nk_dtype_unknown_k) return NULL;
-            }
-        }
-        else if (!parse_dispatch_keyword(name, args[nargs + i], &capabilities, &stream)) return NULL;
-    }
-
     PyObject *a_obj = args[0];
-    if (PyObject_TypeCheck(a_obj, &TensorType)) {
-        Tensor *t = (Tensor *)a_obj;
-        if (!tensor_on_host(t)) return NULL;
-        nk_tensor_view_t view = {t->dtype, t->rank, t->shape, t->strides, t->data};
-        if (dtype_override != nk_dtype_unknown_k) view.dtype = dtype_override;
-        return impl_moments_from_view(&view, capabilities, stream);
-    }
+    if (PyObject_TypeCheck(a_obj, &TensorType)) return Tensor_moments(a_obj, args + 1, 0, kwnames);
 
+    reduce_args_t parsed;
+    if (parse_reduce_options(args + 1, 0, kwnames, &parsed) < 0) return NULL;
     Py_buffer buffer;
     nk_buffer_backing_t backing;
     nk_tensor_view_t view;
-    if (!parse_tensor_nd(a_obj, &buffer, &view, &backing, dtype_override)) return NULL;
-    PyObject *result = impl_moments_from_view(&view, capabilities, stream);
+    if (!parse_tensor_nd(a_obj, &buffer, &view, &backing, parsed.dtype_override)) return NULL;
+    PyObject *result = normalize_axes(&parsed, view.rank) < 0 ? NULL : moments_from_axes(&view, &parsed);
     PyBuffer_Release(&buffer);
     return result;
 }
