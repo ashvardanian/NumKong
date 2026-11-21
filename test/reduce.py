@@ -101,6 +101,44 @@ def test_moments_invalid_axis(axis, error):
         nk.moments(np.zeros((2, 3, 4), dtype=np.uint8), axis=axis)
 
 
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_moments_float64_retains_small_float16_contributions():
+    """Match float64 sums without widening the input buffer."""
+    tiny = np.nextafter(np.float16(np.finfo(np.float16).tiny), np.float16(0))
+    values = np.full((128, 128), tiny, dtype=np.float16)
+    values[0, 0] = 1
+    reference = values.astype(np.float64)
+    assert nk.moments(values, accumulator_dtype="float64") == (reference.sum(), (reference**2).sum())
+    assert nk.Tensor(values).moments(accumulator_dtype="float64") == (reference.sum(), (reference**2).sum())
+    assert nk.moments(values, accumulator_dtype=None) == nk.moments(values)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_moments_float64_keeps_dtype_and_shape_for_axis_views():
+    """Return double tensors for explicit axes over a reversed half view."""
+    values = (np.arange(60, dtype=np.float16).reshape(3, 4, 5) - 17) * np.float16(0.125)
+    view = values[:, ::-1, ::2]
+    reference = view.astype(np.float64)
+    sums, squares = nk.moments(view, axis=(0, 1), keepdims=True, accumulator_dtype="float64")
+    for actual, expected in (
+        (sums, reference.sum(axis=(0, 1), keepdims=True)),
+        (squares, (reference**2).sum(axis=(0, 1), keepdims=True)),
+    ):
+        assert np.asarray(actual).dtype == np.float64
+        np.testing.assert_array_equal(np.asarray(actual), expected)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_moments_float64_rejects_unsupported_input_and_options():
+    """Keep the opt-in restricted to half input and the moments API."""
+    with pytest.raises(ValueError, match="only for float16"):
+        nk.moments(np.zeros(3, dtype=np.float32), accumulator_dtype="float64")
+    with pytest.raises(ValueError, match="accumulator_dtype='float64'"):
+        nk.moments(np.zeros(3, dtype=np.float16), accumulator_dtype="float32")
+    with pytest.raises(TypeError, match="accumulator_dtype"):
+        nk.sum(np.zeros(3, dtype=np.float16), accumulator_dtype="float64")
+
+
 def baseline_sum(a, dtype=None):
     """Reference sum."""
     return np.sum(np.asarray(a))

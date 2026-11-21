@@ -1821,22 +1821,47 @@ static nk_status_t reduce_moments_recursive(                                 //
     return status;
 }
 
+static nk_status_t reduce_f16_moments_f64(void const *data, nk_size_t count, nk_size_t stride, void *sum_out,
+                                          void *sumsq_out, nk_stream_t stream) {
+    nk_unused_(stream);
+    char const *bytes = (char const *)data;
+    Py_ssize_t const step = (Py_ssize_t)stride;
+    nk_f64_t sum = 0, sumsq = 0;
+    for (nk_size_t i = 0; i < count; ++i) {
+        nk_f16_t stored;
+        nk_f32_t value;
+        memcpy(&stored, bytes + (Py_ssize_t)i * step, sizeof(stored));
+        nk_f16_to_f32_serial_(&stored, &value);
+        nk_f64_t const wide = value;
+        sum += wide;
+        sumsq += wide * wide;
+    }
+    *(nk_f64_t *)sum_out = sum;
+    *(nk_f64_t *)sumsq_out = sumsq;
+    return nk_success_k;
+}
+
 /** Reduce moments over an N-D tensor into typed scalar buffers; -1 sets a Python error. */
-static int impl_reduce_moments(nk_tensor_view_t const *view, nk_capability_t capabilities, nk_stream_t stream,
-                               nk_scalar_buffer_t *sum_out, nk_dtype_t *sum_dtype_out, nk_scalar_buffer_t *sumsq_out,
-                               nk_dtype_t *sumsq_dtype_out) {
+static int impl_reduce_moments_with_precision(nk_tensor_view_t const *view, nk_capability_t capabilities,
+                                              nk_stream_t stream, nk_dtype_t precision, nk_scalar_buffer_t *sum_out,
+                                              nk_dtype_t *sum_dtype_out, nk_scalar_buffer_t *sumsq_out,
+                                              nk_dtype_t *sumsq_dtype_out) {
 
     nk_reduce_moments_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_reduce_moments_k, view->dtype, capabilities, (nk_kernel_punned_t *)&kernel, &cap);
+    int const wide = precision == nk_f64_k;
+    if (wide) kernel = reduce_f16_moments_f64;
+    else
+        nk_find_kernel_punned(nk_kernel_reduce_moments_k, view->dtype, capabilities, (nk_kernel_punned_t *)&kernel,
+                              &cap);
     if (!kernel || !cap) {
         PyErr_Format(PyExc_NotImplementedError, "moments not supported for dtype '%s'",
                      nk_dtype_to_pybuffer_typestr(view->dtype));
         return -1;
     }
 
-    nk_dtype_t sum_dtype = nk_reduce_moments_sum_dtype(view->dtype);
-    nk_dtype_t sumsq_dtype = nk_reduce_moments_sumsq_dtype(view->dtype);
+    nk_dtype_t sum_dtype = wide ? nk_f64_k : nk_reduce_moments_sum_dtype(view->dtype);
+    nk_dtype_t sumsq_dtype = wide ? nk_f64_k : nk_reduce_moments_sumsq_dtype(view->dtype);
 
     nk_scalar_buffer_t sum_buf, sumsq_buf;
     memset(&sum_buf, 0, sizeof(sum_buf));
@@ -1855,6 +1880,13 @@ static int impl_reduce_moments(nk_tensor_view_t const *view, nk_capability_t cap
     *sum_dtype_out = sum_dtype;
     *sumsq_dtype_out = sumsq_dtype;
     return 0;
+}
+
+static int impl_reduce_moments(nk_tensor_view_t const *view, nk_capability_t capabilities, nk_stream_t stream,
+                               nk_scalar_buffer_t *sum_out, nk_dtype_t *sum_dtype_out, nk_scalar_buffer_t *sumsq_out,
+                               nk_dtype_t *sumsq_dtype_out) {
+    return impl_reduce_moments_with_precision(view, capabilities, stream, nk_dtype_unknown_k, sum_out, sum_dtype_out,
+                                              sumsq_out, sumsq_dtype_out);
 }
 
 /** Type-aware less-than comparison for scalar buffers. Uses native comparisons for standard types
@@ -2025,11 +2057,12 @@ static int impl_reduce_minmax(nk_tensor_view_t const *view, nk_capability_t capa
     return 0;
 }
 
-static PyObject *impl_moments_from_view(nk_tensor_view_t const *view, nk_capability_t capabilities,
-                                        nk_stream_t stream) {
+static PyObject *impl_moments_from_view(nk_tensor_view_t const *view, nk_capability_t capabilities, nk_stream_t stream,
+                                        nk_dtype_t precision) {
     nk_scalar_buffer_t sum_buf, sumsq_buf;
     nk_dtype_t sum_dtype, sumsq_dtype;
-    if (impl_reduce_moments(view, capabilities, stream, &sum_buf, &sum_dtype, &sumsq_buf, &sumsq_dtype) < 0)
+    if (impl_reduce_moments_with_precision(view, capabilities, stream, precision, &sum_buf, &sum_dtype, &sumsq_buf,
+                                           &sumsq_dtype) < 0)
         return NULL;
     PyObject *sum_obj = nk_scalar_buffer_to_py_number(&sum_buf, sum_dtype);
     if (!sum_obj) return NULL;
@@ -2112,6 +2145,9 @@ typedef struct {
     /** @c nk_dtype_unknown_k keeps the source dtype. */
     nk_dtype_t dtype_override;
 
+    /** @c nk_dtype_unknown_k keeps the default moments accumulator. */
+    nk_dtype_t accumulator_dtype;
+
     /** @c nk_cap_cpus_k unless overridden. */
     nk_capability_t capabilities;
 
@@ -2177,12 +2213,14 @@ static int normalize_axes(reduce_args_t *parsed, size_t tensor_rank) {
     return 0;
 }
 
-/** Parse axis, keepdims, out, dtype, capabilities and stream from FASTCALL kwargs. */
-static int parse_reduce_options(PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames, reduce_args_t *parsed) {
+/** Parse FASTCALL arguments. Moments also accepts an accumulator dtype. */
+static int parse_reduce_options(PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames, int moments,
+                                reduce_args_t *parsed) {
     parsed->axis_count = 0;
     parsed->keepdims = 0;
     parsed->out = NULL;
     parsed->dtype_override = nk_dtype_unknown_k;
+    parsed->accumulator_dtype = nk_dtype_unknown_k;
     parsed->capabilities = nk_cap_cpus_k;
     parsed->stream = NULL;
     if (nargs >= 1 && parse_axis_value(args[0], parsed) < 0) return -1;
@@ -2216,6 +2254,12 @@ static int parse_reduce_options(PyObject *const *args, Py_ssize_t nargs, PyObjec
                 if (parsed->dtype_override == nk_dtype_unknown_k) return -1;
             }
         }
+        else if (moments && PyUnicode_CompareWithASCIIString(name, "accumulator_dtype") == 0) {
+            if (value != Py_None) {
+                parsed->accumulator_dtype = py_object_to_nk_dtype(value);
+                if (parsed->accumulator_dtype == nk_dtype_unknown_k) return -1;
+            }
+        }
         else if (!parse_dispatch_keyword(name, value, &parsed->capabilities, &parsed->stream)) return -1;
     }
 
@@ -2224,7 +2268,7 @@ static int parse_reduce_options(PyObject *const *args, Py_ssize_t nargs, PyObjec
 
 static int parse_reduce_kwargs(PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames, size_t tensor_rank,
                                reduce_args_t *parsed) {
-    if (parse_reduce_options(args, nargs, kwnames, parsed) < 0) return -1;
+    if (parse_reduce_options(args, nargs, kwnames, 0, parsed) < 0) return -1;
     return normalize_axes(parsed, tensor_rank);
 }
 
@@ -2385,7 +2429,8 @@ finish:
 
 static int moments_slice(nk_tensor_view_t const *slice, reduce_args_t const *parsed, nk_scalar_buffer_t *out) {
     nk_dtype_t sum_dtype, sumsq_dtype;
-    return impl_reduce_moments(slice, parsed->capabilities, parsed->stream, out, &sum_dtype, out + 1, &sumsq_dtype);
+    return impl_reduce_moments_with_precision(slice, parsed->capabilities, parsed->stream, parsed->accumulator_dtype,
+                                              out, &sum_dtype, out + 1, &sumsq_dtype);
 }
 
 NUMKONG_INLINE void moments_u8_c9(nk_u8_t const *pixels, size_t elements, Tensor *sum, Tensor *sumsq) {
@@ -2445,10 +2490,19 @@ static int try_moments_over_pixels(nk_tensor_view_t const *view, reduce_args_t c
 
 static PyObject *moments_from_axes(nk_tensor_view_t const *view, reduce_args_t const *parsed) {
     if (parsed->out) return (PyErr_SetString(PyExc_TypeError, "moments does not support out"), NULL);
-    if (!parsed->axis_count) return impl_moments_from_view(view, parsed->capabilities, parsed->stream);
+    nk_dtype_t const precision = parsed->accumulator_dtype;
+    if (precision != nk_dtype_unknown_k && (view->dtype != nk_f16_k || precision != nk_f64_k)) {
+        PyErr_SetString(PyExc_ValueError, "moments accepts accumulator_dtype='float64' only for float16 input");
+        return NULL;
+    }
+    if (precision == nk_f64_k && !(parsed->capabilities & nk_cap_serial_k)) {
+        PyErr_SetString(PyExc_NotImplementedError, "FP64 accumulation requires the serial capability");
+        return NULL;
+    }
+    if (!parsed->axis_count) return impl_moments_from_view(view, parsed->capabilities, parsed->stream, precision);
     if (validate_reduce_input_axes(view, parsed) < 0) return NULL;
-    nk_dtype_t const sum_dtype = nk_reduce_moments_sum_dtype(view->dtype);
-    nk_dtype_t const sumsq_dtype = nk_reduce_moments_sumsq_dtype(view->dtype);
+    nk_dtype_t const sum_dtype = precision == nk_f64_k ? nk_f64_k : nk_reduce_moments_sum_dtype(view->dtype);
+    nk_dtype_t const sumsq_dtype = precision == nk_f64_k ? nk_f64_k : nk_reduce_moments_sumsq_dtype(view->dtype);
     if (sum_dtype == nk_dtype_unknown_k)
         return (PyErr_Format(PyExc_NotImplementedError, "moments not supported for dtype '%s'",
                              nk_dtype_to_pybuffer_typestr(view->dtype)),
@@ -2482,12 +2536,14 @@ char const doc_method_moments[] =                                               
     "Compute sum and sum-of-squares globally or along one or more axes.\n\n"               //
     "When axis is None, return a pair of scalars. Otherwise return a pair of Tensors.\n\n" //
     "Signature:\n"                                                                         //
-    "  >>> def moments(self, /, axis=None, *, keepdims=False): ...";
+    "  >>> def moments(self, /, axis=None, *, keepdims=False, accumulator_dtype=None): ...";
 
 PyObject *Tensor_moments(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     Tensor *t = (Tensor *)self;
     reduce_args_t parsed;
-    if (!tensor_on_host(t) || parse_reduce_kwargs(args, nargs, kwnames, t->rank, &parsed) < 0) return NULL;
+    if (!tensor_on_host(t) || parse_reduce_options(args, nargs, kwnames, 1, &parsed) < 0 ||
+        normalize_axes(&parsed, t->rank) < 0)
+        return NULL;
     nk_dtype_t const dtype = parsed.dtype_override == nk_dtype_unknown_k ? t->dtype : parsed.dtype_override;
     nk_tensor_view_t view = {dtype, t->rank, t->shape, t->strides, t->data};
     return moments_from_axes(&view, &parsed);
@@ -4696,17 +4752,18 @@ PyObject *api_hash(PyObject *self, PyObject *const *args, Py_ssize_t const nargs
     return (PyObject *)result;
 }
 
-char const doc_reduce_moments[] =                                                                //
-    "Compute the sum and sum-of-squares globally or along one or more axes.\n\n"                 //
-    "Args:\n"                                                                                    //
-    "  a: Input Tensor, NumPy array, or any buffer-protocol object.\n"                           //
-    "  axis (int or tuple of ints, optional): Axes to reduce. None reduces every element.\n"     //
-    "  keepdims (bool, optional): Keep explicit reduced axes as size-1 dimensions.\n"            //
-    "  dtype (str, optional): Override the presumed input element type.\n\n"                     //
-    "Returns:\n"                                                                                 //
-    "  (sum, sum_of_squares) as scalars when axis is None, or as Tensors for explicit axes.\n\n" //
-    "Signature:\n"                                                                               //
-    "  >>> def moments(a, /, *, axis=None, keepdims=False, dtype=None): ...";
+char const doc_reduce_moments[] =                                                                    //
+    "Compute the sum and sum-of-squares globally or along one or more axes.\n\n"                     //
+    "Args:\n"                                                                                        //
+    "  a: Input Tensor, NumPy array, or any buffer-protocol object.\n"                               //
+    "  axis (int or tuple of ints, optional): Axes to reduce. None reduces every element.\n"         //
+    "  keepdims (bool, optional): Keep explicit reduced axes as size-1 dimensions.\n"                //
+    "  dtype (str, optional): Override the presumed input element type.\n"                           //
+    "  accumulator_dtype (str, optional): 'float64' for float16 input, or None for the default.\n\n" //
+    "Returns:\n"                                                                                     //
+    "  (sum, sum_of_squares) as scalars when axis is None, or as Tensors for explicit axes.\n\n"     //
+    "Signature:\n"                                                                                   //
+    "  >>> def moments(a, /, *, axis=None, keepdims=False, dtype=None, accumulator_dtype=None): ...";
 
 PyObject *api_moments(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -4716,7 +4773,7 @@ PyObject *api_moments(PyObject *self, PyObject *const *args, Py_ssize_t const na
     if (PyObject_TypeCheck(a_obj, &TensorType)) return Tensor_moments(a_obj, args + 1, 0, kwnames);
 
     reduce_args_t parsed;
-    if (parse_reduce_options(args + 1, 0, kwnames, &parsed) < 0) return NULL;
+    if (parse_reduce_options(args + 1, 0, kwnames, 1, &parsed) < 0) return NULL;
     Py_buffer buffer;
     nk_buffer_backing_t backing;
     nk_tensor_view_t view;

@@ -543,6 +543,10 @@ assert sums.shape == sums_of_squares.shape == (3,)
 
 Pass `keepdims=True` to retain the specified axes with length one.
 
+For float16 input, `accumulator_dtype="float64"` computes both moments in float64 and reads the
+float16 buffer directly. This portable CPU mode uses the serial capability. The default mode uses
+the accumulator chosen by the input dtype.
+
 ## Min/Max Reductions
 
 Min/max reductions are in a separate section because they cover strided reduction cases.

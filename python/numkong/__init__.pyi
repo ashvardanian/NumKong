@@ -411,11 +411,21 @@ class Tensor(memoryview):
 
     @overload
     def moments(
-        self, axis: None = None, *, keepdims: bool = False, **dispatch: Unpack[_Dispatch]
+        self,
+        axis: None = None,
+        *,
+        keepdims: bool = False,
+        accumulator_dtype: Literal["float64"] | None = None,
+        **dispatch: Unpack[_Dispatch],
     ) -> tuple[float | int, float | int]: ...
     @overload
     def moments(
-        self, axis: int | tuple[int, ...], *, keepdims: bool = False, **dispatch: Unpack[_Dispatch]
+        self,
+        axis: int | tuple[int, ...],
+        *,
+        keepdims: bool = False,
+        accumulator_dtype: Literal["float64"] | None = None,
+        **dispatch: Unpack[_Dispatch],
     ) -> tuple[Tensor, Tensor]: ...
     def sum(
         self,
@@ -1540,6 +1550,7 @@ def moments(
     axis: None = None,
     keepdims: bool = False,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
+    accumulator_dtype: Literal["float64"] | None = None,
     **dispatch: Unpack[_Dispatch],
 ) -> tuple[float | int, float | int]: ...
 @overload
@@ -1550,6 +1561,7 @@ def moments(
     axis: int | tuple[int, ...],
     keepdims: bool = False,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
+    accumulator_dtype: Literal["float64"] | None = None,
     **dispatch: Unpack[_Dispatch],
 ) -> tuple[Tensor, Tensor]: ...
 def minmax(
