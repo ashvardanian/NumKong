@@ -335,6 +335,7 @@ PyObject *api_astype(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
 
 PyObject *api_moments(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_minmax(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+PyObject *api_histogram_u8(PyObject *self, PyObject *source);
 PyObject *api_sum(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_norm(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_min(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
@@ -360,6 +361,7 @@ extern char const doc_astype[];
 
 extern char const doc_reduce_moments[];
 extern char const doc_reduce_minmax[];
+extern char const doc_histogram_u8[];
 extern char const doc_reduce_sum[];
 extern char const doc_reduce_norm[];
 extern char const doc_reduce_min[];
