@@ -532,6 +532,9 @@ assert nk_sumsq > int(naive_sumsq)
 
 Same-width accumulation is a bad default for low-precision storage.
 
+`nk.histogram_u8(a)` counts all entries in a C-contiguous uint8 buffer into 256 uint64 bins.
+For example, `np.asarray(nk.histogram_u8(x))[255]` gives the number of 255 values in the array above.
+
 ## Min/Max Reductions
 
 Min/max reductions are in a separate section because they cover strided reduction cases.

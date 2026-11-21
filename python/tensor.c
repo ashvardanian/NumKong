@@ -4594,6 +4594,48 @@ PyObject *api_hash(PyObject *self, PyObject *const *args, Py_ssize_t const nargs
     return (PyObject *)result;
 }
 
+char const doc_histogram_u8[] =                                                                        //
+    "Count the occurrences of every byte in a C-contiguous uint8 array.\n\n"                           //
+    "Returns a 256-element uint64 Tensor ordered by input value. Empty input returns zero counts.\n\n" //
+    "Signature:\n"                                                                                     //
+    "  >>> def histogram_u8(a, /): ...";
+
+PyObject *api_histogram_u8(PyObject *self, PyObject *source) {
+    nk_unused_(self);
+    Py_buffer buffer;
+    if (PyObject_GetBuffer(source, &buffer, PyBUF_C_CONTIGUOUS | PyBUF_FORMAT) != 0) return NULL;
+    nk_dtype_t const input_dtype = PyObject_TypeCheck(source, &TensorType) ? ((Tensor *)source)->dtype
+                                                                           : resolve_nk_dtype_in_py_buffer(&buffer);
+    if (input_dtype != nk_u8_k || buffer.itemsize != 1) {
+        PyBuffer_Release(&buffer);
+        return (PyErr_SetString(PyExc_TypeError, "histogram_u8 requires uint8 input"), NULL);
+    }
+    Py_ssize_t const bins = 256;
+    Tensor *result = Tensor_new(nk_u64_k, 1, &bins);
+    if (!result) {
+        PyBuffer_Release(&buffer);
+        return NULL;
+    }
+
+    // Independent counters avoid a dependency chain when adjacent bytes have the same value.
+    nk_u64_t partial[4][256] = {{0}};
+    nk_u8_t const *values = (nk_u8_t const *)buffer.buf;
+    size_t const length = (size_t)buffer.len;
+    size_t position = 0;
+    for (; position + 4 <= length; position += 4) {
+        ++partial[0][values[position]];
+        ++partial[1][values[position + 1]];
+        ++partial[2][values[position + 2]];
+        ++partial[3][values[position + 3]];
+    }
+    for (; position < length; ++position) ++partial[0][values[position]];
+    nk_u64_t *counts = (nk_u64_t *)result->data;
+    for (size_t bin = 0; bin < 256; ++bin)
+        counts[bin] = partial[0][bin] + partial[1][bin] + partial[2][bin] + partial[3][bin];
+    PyBuffer_Release(&buffer);
+    return (PyObject *)result;
+}
+
 char const doc_reduce_moments[] =                                                       //
     "Compute the sum and sum-of-squares, the moments, of all elements in an array.\n\n" //
     "Args:\n"                                                                           //
