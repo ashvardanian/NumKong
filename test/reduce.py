@@ -42,6 +42,65 @@ def baseline_moments(a, dtype=None):
     return (np.sum(arr), np.sum(arr**2))
 
 
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(
+    ("dtype", "result_dtype"), [("uint8", "uint64"), ("float16", "float32"), ("float32", "float64")]
+)
+@pytest.mark.parametrize(("shape", "axes", "keepdims"), [((5, 7, 3), (0, 1), False), ((2, 5, 7, 9), (0, 1, 2), True)])
+def test_moments_over_pixels_matches_numpy(dtype, result_dtype, shape, axes, keepdims, np_rng):
+    """Reduce interleaved pixels into two tensors of wide per-channel statistics."""
+    pixels = np_rng.integers(0, 16, size=shape).astype(dtype)
+    sums, squares = nk.moments(pixels, axis=axes, keepdims=keepdims)
+    wide = pixels.astype(result_dtype)
+    for actual, expected in (
+        (sums, wide.sum(axis=axes, keepdims=keepdims)),
+        (squares, (wide * wide).sum(axis=axes, keepdims=keepdims)),
+    ):
+        assert isinstance(actual, nk.Tensor)
+        actual_array = np.asarray(actual)
+        assert actual_array.dtype == expected.dtype
+        np.testing.assert_array_equal(actual_array, expected)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("axis", [1, (-1, 0)])
+def test_moments_with_strided_input(axis):
+    """Accept signed input and negative strides, with distinct sum and square dtypes."""
+    values = np.arange(-30, 30, dtype=np.int16).reshape(3, 4, 5)
+    view = values[:, ::-1, ::2]
+    expected_sum = view.sum(axis=axis, dtype=np.int64)
+    expected_squares = (view.astype(np.int64) ** 2).sum(axis=axis, dtype=np.uint64)
+    for result in (
+        nk.moments(view, axis=axis),
+        nk.Tensor(values)[:, ::-1, ::2].moments(axis=axis),
+    ):
+        sums, squares = map(np.asarray, result)
+        assert sums.dtype == expected_sum.dtype
+        assert squares.dtype == expected_squares.dtype
+        np.testing.assert_array_equal(sums, expected_sum)
+        np.testing.assert_array_equal(squares, expected_squares)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(("shape", "axis", "out_shape"), [((0, 4, 3), (0, 1), (3,)), ((2, 0, 3), (0, 2), (0,))])
+def test_moments_empty_axis(shape, axis, out_shape):
+    """Empty reductions produce zero moments with the unreduced shape."""
+    sums, squares = nk.moments(np.empty(shape, dtype=np.float32), axis=axis)
+    expected = np.zeros(out_shape, dtype=np.float64)
+    np.testing.assert_array_equal(np.asarray(sums), expected)
+    np.testing.assert_array_equal(np.asarray(squares), expected)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(
+    ("axis", "error"), [((), ValueError), ((0, -3), ValueError), (3, ValueError), ("0", TypeError)]
+)
+def test_moments_invalid_axis(axis, error):
+    """Reject empty, repeated, out-of-range, and non-integer axes."""
+    with pytest.raises(error):
+        nk.moments(np.zeros((2, 3, 4), dtype=np.uint8), axis=axis)
+
+
 def baseline_sum(a, dtype=None):
     """Reference sum."""
     return np.sum(np.asarray(a))
@@ -162,6 +221,55 @@ def test_minmax_matches_numpy(capabilities, ndim: int, dtype: str, np_rng: np.ra
     assert int(nk_argmin) == ref_argmin
     assert_allclose(nk_max, ref_max, rtol=rtol, atol=atol)
     assert int(nk_argmax) == ref_argmax
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype", ["uint8", "float16", "float32"])
+@pytest.mark.parametrize("keepdims", [False, True])
+def test_minmax_over_spatial_axes_matches_numpy(dtype, keepdims, np_rng):
+    """Reduce NHWC values and flat spatial offsets in one call."""
+    shape = (2, 3, 4, 9)
+    image = np_rng.permutation(math.prod(shape)).astype(dtype).reshape(shape)
+    flat = image.reshape(-1, shape[-1])
+    result_shape = (1, 1, 1, shape[-1]) if keepdims else (shape[-1],)
+    expected = (flat.min(0), flat.argmin(0).astype(np.int64), flat.max(0), flat.argmax(0).astype(np.int64))
+    actual = nk.minmax(image, axis=(0, 1, 2), keepdims=keepdims)
+    for output, reference in zip(actual, expected, strict=True):
+        assert isinstance(output, nk.Tensor)
+        assert np.asarray(output).dtype == reference.dtype
+        np.testing.assert_array_equal(np.asarray(output), reference.reshape(result_shape))
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_minmax_over_non_adjacent_axes_on_reversed_views():
+    """Interpret tuple indices in C order over the sorted reduced axes."""
+    values = np.arange(-60, 60, dtype=np.int16).reshape(4, 5, 6)
+    view = values[::2, :, ::-1]
+    tensor = nk.Tensor(values)[::2, :, ::-1]
+    flat = view.transpose(1, 0, 2).reshape(view.shape[1], -1)
+    expected = (flat.min(1), flat.argmin(1), flat.max(1), flat.argmax(1))
+    for output in (nk.minmax(view, axis=(-1, 0)), tensor.minmax((-1, 0))):
+        for actual, reference in zip(output, expected, strict=True):
+            np.testing.assert_array_equal(np.asarray(actual), reference)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_minmax_nan_and_empty_slices_follow_existing_reducers():
+    """Keep NaN sentinels and the existing empty-reduction result."""
+    image = np.array([[np.nan, 2, np.nan], [1, np.nan, np.nan], [3, 2, np.nan]], dtype=np.float32)
+    expected = ([1, 2, np.inf], [1, 0, -1], [3, 2, -np.inf], [2, 0, -1])
+    for actual, reference in zip(nk.minmax(image, axis=0), expected, strict=True):
+        np.testing.assert_array_equal(np.asarray(actual), reference)
+    for output in nk.minmax(np.empty((0, 3), dtype=np.float32), axis=0):
+        np.testing.assert_array_equal(np.asarray(output), np.zeros(3))
+    assert nk.minmax(image[:, 2]) is None
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_minmax_rejects_duplicate_reduction_axes():
+    """Check duplicate axes after normalizing negative indices."""
+    with pytest.raises(ValueError, match="duplicate axis"):
+        nk.minmax(np.zeros((2, 3, 4), dtype=np.uint8), axis=(0, -3))
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
