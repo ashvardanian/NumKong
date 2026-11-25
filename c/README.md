@@ -73,15 +73,22 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(numkong)
 
-target_link_libraries(my_target PRIVATE numkong::header) # or numkong::static, numkong::shared
+target_link_libraries(my_target PRIVATE numkong::header) # or numkong::abi, numkong::cpp, numkong::static, numkong::shared
 ```
 
 Vendored:
 
 ```cmake
 add_subdirectory(external/NumKong)
-target_link_libraries(my_target PRIVATE numkong::header) # or numkong::static, numkong::shared
+target_link_libraries(my_target PRIVATE numkong::header) # or numkong::abi, numkong::cpp, numkong::static, numkong::shared
 ```
+
+Each target names what it reaches:
+
+- `numkong::abi` is the C headers of `c/`, with nothing to link.
+- `numkong::cpp` is the C++ SDK of `cpp/`, linking `numkong::abi` and `numkong::static`.
+- `numkong::header` is the whole library header-only: the C headers, the kernels of `include/` and the C++ SDK of `cpp/`, compiled into your own translation units.
+- `numkong::static` and `numkong::shared` are the compiled library.
 
 `numkong::static` and `numkong::shared` exist when `NUMKONG_BUILD_SHARED` is on, the default only for a top-level build.
 An installed NumKong provides the same targets through `find_package(numkong CONFIG REQUIRED)`.
@@ -777,7 +784,7 @@ When executors ship in your toolchain, replacing the `parallel_for` lambda above
 
 The build enforces C99 for the C layer and C++20 for the C++ layer.
 [CONTRIBUTING.md](../CONTRIBUTING.md#building) lists the CMake presets and options, and [its cross-compilation section](../CONTRIBUTING.md#cross-compilation) the toolchain files in `cmake/` with a recipe for each target.
-A translation unit linking `numkong::static` or `numkong::shared` sees declarations only, while `numkong::header` defines `NUMKONG_HEADER_ONLY=1` and compiles the kernels inline.
+A translation unit linking `numkong::cpp`, `numkong::static` or `numkong::shared` sees declarations only, while `numkong::header` defines `NUMKONG_HEADER_ONLY=1` and compiles the kernels inline.
 The library compiles every capability whose probe in `probes/` compiles, each scoped to its kernels by target pragmas, and dispatches between them by runtime detection.
 LASX, POWER9 and POWER10 scope that way only under GCC 15 or newer; Clang's intrinsics headers stay closed without `-mlasx`, `-mcpu=power9` or `-mcpu=power10`.
 Header-only units enable the capabilities their own flags name.

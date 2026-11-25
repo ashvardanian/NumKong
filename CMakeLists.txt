@@ -194,24 +194,56 @@ if (NOT numkong_ipo_supported_)
     message(STATUS "Link-time optimization not available: ${numkong_ipo_support_output_}")
 endif ()
 
-# Define the header-only library. The include path & sources wear `BUILD_INTERFACE` genexes, so the
-# target stays exportable: the installed package resolves headers under the install prefix instead.
+# What a consumer picks between, spelled as what they get:
+#
+# numkong::abi - the C headers of `c/`, declaring every public function, with nothing to link. numkong::cpp - the C++
+# SDK of `cpp/`, with the static library its wrappers dispatch through. numkong::header - the C headers, the kernels of
+# `include/` and the C++ SDK, compiled into the consumer's own units with `NUMKONG_HEADER_ONLY=1`. numkong::static and
+# numkong::shared - the compiled library, below.
+#
+# The include paths & sources wear `BUILD_INTERFACE` genexes, so the targets stay exportable: the installed package
+# resolves headers under the install prefix instead.
 include(GNUInstallDirs)
-file(GLOB numkong_header_sources_ c/numkong/*.h include/numkong/*.h include/numkong/*.hpp cpp/numkong/*.hpp)
+file(GLOB numkong_abi_sources_ c/numkong/*.h)
+file(GLOB numkong_kernel_sources_ include/numkong/*.h include/numkong/*.hpp)
+file(GLOB numkong_cpp_sources_ cpp/numkong/*.hpp)
+
+add_library(numkong_abi INTERFACE)
+add_library(numkong::abi ALIAS numkong_abi)
+set_target_properties(numkong_abi PROPERTIES EXPORT_NAME abi)
+# MSVC reads BOM-less UTF-8 in the system code page, so consumers of these Unicode-commented headers need `/utf-8`.
+target_compile_options(
+    numkong_abi INTERFACE "$<$<OR:$<COMPILE_LANG_AND_ID:C,MSVC>,$<COMPILE_LANG_AND_ID:CXX,MSVC>>:/utf-8>"
+)
+target_sources(numkong_abi INTERFACE "$<BUILD_INTERFACE:${numkong_abi_sources_}>")
+# The C headers include `numkong/metal.h` from `include/` whatever the flavor, so the build tree's path names both roots,
+# as the install prefix merges them into one.
+target_include_directories(
+    numkong_abi INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/c> $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+                          $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+target_compile_features(numkong_abi INTERFACE c_std_99)
+
+# MSVC's traditional preprocessor can't short-circuit `defined(__has_builtin) && __has_builtin(...)`.
+# The conforming preprocessor (/Zc:preprocessor, available since MSVC 2019 16.6) handles this.
+# Scoped via INTERFACE so it propagates only to targets that link against numkong.
+if (MSVC)
+    target_compile_options(numkong_abi INTERFACE /Zc:preprocessor)
+endif ()
+
+# The whole library header-only: the C headers of `numkong::abi` include the kernels of `include/` under
+# `NUMKONG_HEADER_ONLY`, and the C++ SDK of `cpp/` runs over them. The three roots are listed here, not only inherited
+# from `numkong::abi`, as `$<TARGET_PROPERTY:numkong::header,INTERFACE_INCLUDE_DIRECTORIES>` does not follow links.
 add_library(numkong_header INTERFACE)
 add_library(numkong::header ALIAS numkong_header)
 set_target_properties(numkong_header PROPERTIES EXPORT_NAME header)
-# MSVC reads BOM-less UTF-8 in the system code page, so consumers of these Unicode-commented headers need `/utf-8`.
-target_compile_options(
-    numkong_header INTERFACE "$<$<OR:$<COMPILE_LANG_AND_ID:C,MSVC>,$<COMPILE_LANG_AND_ID:CXX,MSVC>>:/utf-8>"
-)
-target_sources(numkong_header INTERFACE "$<BUILD_INTERFACE:${numkong_header_sources_}>")
+target_sources(numkong_header INTERFACE "$<BUILD_INTERFACE:${numkong_kernel_sources_};${numkong_cpp_sources_}>")
 target_include_directories(
     numkong_header
     INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/c> $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/cpp> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
-target_compile_features(numkong_header INTERFACE c_std_99)
+target_link_libraries(numkong_header INTERFACE numkong_abi)
 # Consumers of the header target compile every kernel themselves, and link no dispatch points.
 target_compile_definitions(numkong_header INTERFACE NUMKONG_HEADER_ONLY=1)
 if (APPLE)
@@ -228,13 +260,6 @@ if (APPLE)
         "$<${numkong_embed_compiler_}:$<INSTALL_INTERFACE:--embed-dir=${numkong_embed_install_dir_}>>"
     )
     target_compile_options(numkong_header INTERFACE ${numkong_embed_options_})
-endif ()
-
-# MSVC's traditional preprocessor can't short-circuit `defined(__has_builtin) && __has_builtin(...)`.
-# The conforming preprocessor (/Zc:preprocessor, available since MSVC 2019 16.6) handles this.
-# Scoped via INTERFACE so it propagates only to targets that link against numkong.
-if (MSVC)
-    target_compile_options(numkong_header INTERFACE /Zc:preprocessor)
 endif ()
 
 # Enable Clang C modules for incremental compilation. Build-tree only: the flags reference this
@@ -577,7 +602,9 @@ endif ()
 
 # The static library, which every binding but Swift links and a parent project reaches as `numkong::static`, and the
 # shared library, or the Emscripten JS module
-set(numkong_library_sources_ ${numkong_header_sources_} src/numkong.c ${numkong_library_units_})
+set(numkong_library_sources_ ${numkong_abi_sources_} ${numkong_kernel_sources_} ${numkong_cpp_sources_} src/numkong.c
+                             ${numkong_library_units_}
+)
 
 # Emscripten requires building as executable to generate JS bindings
 if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NUMKONG_BUILD_SHARED)
@@ -693,19 +720,17 @@ else ()
     endforeach ()
 endif ()
 
-# Every flavour of the library: C11, as `src/numkong.c` caches detection in <stdatomic.h> atomics, the warnings, and the
-# include paths its consumers and its own units read. A monoversioned build folds each dispatch table to the kernel of
-# the best enabled capability implementing its operation.
+# Every flavour of the library: C11, as `src/numkong.c` caches detection in <stdatomic.h> atomics, the warnings, the C
+# ABI it answers, and the include paths its consumers and its own units read. A monoversioned build folds each dispatch
+# table to the kernel of the best enabled capability implementing its operation.
 foreach (library_ ${numkong_libraries_})
     target_compile_features(${library_} PRIVATE c_std_11)
     target_link_libraries(${library_} PRIVATE $<BUILD_INTERFACE:numkong_warnings>)
-    target_compile_options(
-        ${library_} INTERFACE "$<$<OR:$<COMPILE_LANG_AND_ID:C,MSVC>,$<COMPILE_LANG_AND_ID:CXX,MSVC>>:/utf-8>"
-    )
+    target_link_libraries(${library_} PUBLIC numkong_abi)
     target_include_directories(
         ${library_}
-        PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/c> $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/cpp> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+        PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/cpp>
+               $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     )
     # The library's units reach their private `dispatch.h` by name.
     target_include_directories(${library_} PRIVATE "${PROJECT_SOURCE_DIR}/src")
@@ -713,6 +738,8 @@ foreach (library_ ${numkong_libraries_})
         target_compile_definitions(${library_} PRIVATE NUMKONG_MULTIVERSIONED=0)
     endif ()
 endforeach ()
+
+add_subdirectory(cpp)
 
 # The `numkong._numkong` extension, which scikit-build-core builds and packages from `pyproject.toml`.
 if (NUMKONG_BUILD_PYTHON)

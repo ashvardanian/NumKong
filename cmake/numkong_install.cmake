@@ -93,7 +93,7 @@ if (NUMKONG_INSTALL)
 
     install(DIRECTORY c/numkong include/numkong cpp/numkong DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
     install(DIRECTORY src/ DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/${PROJECT_NAME}/src)
-    install(TARGETS numkong_header EXPORT numkongTargets)
+    install(TARGETS numkong_abi numkong_cpp numkong_header EXPORT numkongTargets)
     install(EXPORT numkongTargets FILE numkongTargets.cmake NAMESPACE numkong::
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/numkong
     )
