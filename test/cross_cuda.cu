@@ -10,7 +10,7 @@
 #undef NDEBUG // ! A test's oracle must stay live in every build
 
 #include "cross_device.hpp"
-#include "geospatial.hpp" // `test_geodesics_pack`, `test_geodesics_packed`, `test_terrain_packed`
+#include "geospatial.hpp" // `test_geodesics_packed`, `test_terrain_packed`
 
 namespace ashvardanian::numkong::test {
 
@@ -340,18 +340,12 @@ void run_cross_cuda_cases() {
     run_kernel_case("nk_gromovwassersteins_packed_f16_cuda",
                     test_transport_packed<f16_t, nk_kernel_gromovwassersteins_packed_k, cuda_backend_t>, cuda,
                     nk_gromovwassersteins_workspace_size_f16_cuda, nk_gromovwassersteins_packed_f16_cuda);
-    run_kernel_case("nk_haversines_pack_f64_cuda",
-                    test_geodesics_pack<f64_t, nk_kernel_haversines_pack_k, cuda_backend_t>, cuda,
-                    nk_haversines_pack_size_f64_cuda, nk_haversines_pack_f64_cuda);
-    run_kernel_case("nk_vincentys_pack_f64_cuda",
-                    test_geodesics_pack<f64_t, nk_kernel_vincentys_pack_k, cuda_backend_t>, cuda,
-                    nk_vincentys_pack_size_f64_cuda, nk_vincentys_pack_f64_cuda);
     run_kernel_case("nk_haversines_packed_f64_cuda",
                     test_geodesics_packed<f64_t, nk_kernel_haversines_packed_k, cuda_backend_t>, cuda,
-                    nk_haversines_packed_f64_cuda);
+                    nk_haversines_pack_size_f64_cuda, nk_haversines_pack_f64_cuda, nk_haversines_packed_f64_cuda);
     run_kernel_case("nk_vincentys_packed_f64_cuda",
                     test_geodesics_packed<f64_t, nk_kernel_vincentys_packed_k, cuda_backend_t>, cuda,
-                    nk_vincentys_packed_f64_cuda);
+                    nk_vincentys_pack_size_f64_cuda, nk_vincentys_pack_f64_cuda, nk_vincentys_packed_f64_cuda);
     run_kernel_case("nk_clearances_packed_f32_cuda", test_terrain_packed<f32_t, cuda_backend_t>, cuda,
                     nk_terrain_pack_size_f32_cuda, nk_terrain_pack_f32_cuda, nk_terrain_heights_packed_f32_cuda,
                     nk_clearances_packed_f32_cuda);
