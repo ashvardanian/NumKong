@@ -37,8 +37,8 @@ namespace ashvardanian::numkong {
 /** The point types of shape packs: @c f64_t and @c f32_t compute in @c f64_t, and @c f16_t in
  *  @c f32_t. */
 template <typename in_type_>
-concept shapes_dtype = std::is_same_v<in_type_, f64_t> || std::is_same_v<in_type_, f32_t> ||
-                       std::is_same_v<in_type_, f16_t>;
+concept a_shapes_dtype = std::is_same_v<in_type_, f64_t> || std::is_same_v<in_type_, f32_t> ||
+                         std::is_same_v<in_type_, f16_t>;
 
 template <typename scalar_type_>
 scalar_type_ det3x3_(scalar_type_ const *m) {
@@ -365,7 +365,7 @@ constexpr std::size_t shapes_pack_bytes_(std::size_t points) noexcept {
 
 /** Bytes every CPU Chamfer kernel reads, by the rule of @c shapes/serial.h: 11 aligned strides of
  *  the smaller cloud in the distance type. */
-template <shapes_dtype in_type_>
+template <a_shapes_dtype in_type_>
 constexpr std::size_t chamfers_workspace_bytes_(std::size_t row_points, std::size_t column_points) noexcept {
     std::size_t const shorter = row_points < column_points ? row_points : column_points;
     return 11 * nk_size_round_up_to_multiple_(shorter * sizeof(typename in_type_::shapes_distance_t::raw_t),
@@ -1421,7 +1421,7 @@ status_t shapes_transport_reference_(void const *const *a_packed, std::size_t ro
  *  @param[in] capabilities Capabilities to pick from, or zero for the layout of @c shapes/serial.h.
  *  @tparam in_type_ Point type, @c f64_t, @c f32_t or @c f16_t.
  */
-template <shapes_dtype in_type_>
+template <a_shapes_dtype in_type_>
 expected<std::size_t> shapes_pack_size(std::size_t points,
                                        nk_capability_t capabilities = default_capabilities()) noexcept {
     nk_size_t bytes = shapes_pack_bytes_<in_type_>(points);
@@ -1445,7 +1445,7 @@ expected<std::size_t> shapes_pack_size(std::size_t points,
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *  @tparam math_type_ The template's arithmetic; kernels use @c in_type_::shapes_distance_t.
  */
-template <shapes_dtype in_type_, typename math_type_ = typename in_type_::shapes_distance_t>
+template <a_shapes_dtype in_type_, typename math_type_ = typename in_type_::shapes_distance_t>
 status_t shapes_pack(typename in_type_::raw_t const *points, std::size_t count, void *packed,
                      nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<math_type_, typename in_type_::shapes_distance_t>;
@@ -1463,7 +1463,7 @@ status_t shapes_pack(typename in_type_::raw_t const *points, std::size_t count, 
 
 /** Packs one cloud like @c shapes_pack, also dividing it by its RMS distance from the centroid,
  *  which the pack keeps as its scale, or by 1 when the cloud has no spread. */
-template <shapes_dtype in_type_, typename math_type_ = typename in_type_::shapes_distance_t>
+template <a_shapes_dtype in_type_, typename math_type_ = typename in_type_::shapes_distance_t>
 status_t shapes_pack_normalized(typename in_type_::raw_t const *points, std::size_t count, void *packed,
                                 nk_capability_t capabilities = default_capabilities(),
                                 nk_stream_t stream = nullptr) noexcept {
@@ -1496,7 +1496,7 @@ status_t shapes_pack_normalized(typename in_type_::raw_t const *points, std::siz
  *  @param[in] capabilities Capabilities to pick from, or zero for the layout of @c shapes/serial.h.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  */
-template <shapes_dtype in_type_>
+template <a_shapes_dtype in_type_>
 status_t shapes_packed_shape(void const *packed, std::size_t *points, typename in_type_::shapes_distance_t *centroid,
                              typename in_type_::shapes_distance_t *frame, typename in_type_::shapes_distance_t *scale,
                              typename in_type_::shapes_distance_t *spreads,
@@ -1543,7 +1543,7 @@ status_t shapes_packed_shape(void const *packed, std::size_t *points, typename i
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *  @tparam math_type_ The template's arithmetic; kernels use @c in_type_::shapes_distance_t.
  */
-template <shapes_dtype in_type_, typename math_type_ = typename in_type_::shapes_distance_t>
+template <a_shapes_dtype in_type_, typename math_type_ = typename in_type_::shapes_distance_t>
 status_t shapes_unpack(void const *packed, typename in_type_::raw_t *points,
                        nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<math_type_, typename in_type_::shapes_distance_t>;
@@ -1587,7 +1587,7 @@ status_t shapes_unpack(void const *packed, typename in_type_::raw_t *points,
  *  - @c unexpected_dimensions_k The packs differ in points.
  *  - @c missing_kernel_k
  */
-template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
+template <a_shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
 status_t rmsds_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed, std::size_t columns,
                       distance_type_ *results, std::size_t results_stride,
                       nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
@@ -1621,7 +1621,7 @@ status_t rmsds_packed(void const *const *a_packed, std::size_t rows, void const 
  *  @param[in] capabilities Capabilities to pick from, or 0 for the template in @p distance_type_.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  */
-template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
+template <a_shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
           typename rotation_type_ = f32_t>
 status_t hausdorffs_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
                            std::size_t columns, distance_type_ *results, std::size_t results_stride,
@@ -1666,7 +1666,7 @@ status_t hausdorffs_packed(void const *const *a_packed, std::size_t rows, void c
  *  @param[in] capabilities Capabilities to pick from, or 0 for the template in @p distance_type_.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  */
-template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
+template <a_shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
           typename rotation_type_ = f32_t>
 status_t chamfers_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
                          std::size_t columns, distance_type_ *results, std::size_t results_stride,
@@ -1705,7 +1705,7 @@ status_t chamfers_packed(void const *const *a_packed, std::size_t rows, void con
  *  @param[in] capabilities Capabilities to pick from, or 0 for what every CPU kernel reads, as a
  *      header-only build calls them directly.
  */
-template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
+template <a_shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
 expected<std::size_t> chamfers_workspace_size(std::size_t row_points, std::size_t column_points,
                                               nk_capability_t capabilities = default_capabilities()) noexcept {
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t>;
@@ -1737,7 +1737,7 @@ expected<std::size_t> chamfers_workspace_size(std::size_t row_points, std::size_
  *  @param[in] column_points Most points in any column cloud.
  *  @param[in] capabilities Capabilities to pick from, or 0 for the template in @p distance_type_.
  */
-template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
+template <a_shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
 expected<std::size_t> wassersteinprocrustes_workspace_size(
     std::size_t row_points, std::size_t column_points, nk_capability_t capabilities = default_capabilities()) noexcept {
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t>;
@@ -1785,7 +1785,7 @@ expected<std::size_t> wassersteinprocrustes_workspace_size(
  *  - @c unexpected_dimensions_k A short workspace.
  *  - @c missing_kernel_k
  */
-template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
+template <a_shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
           typename rotation_type_ = f32_t>
 status_t wassersteinprocrustes_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
                                       std::size_t columns, distance_type_ *results, std::size_t results_stride,
@@ -1813,7 +1813,7 @@ status_t wassersteinprocrustes_packed(void const *const *a_packed, std::size_t r
 }
 
 /** The workspace bytes of @c gromovwassersteins_packed, queried like the Procrustes workspace. */
-template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
+template <a_shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
 expected<std::size_t> gromovwassersteins_workspace_size(
     std::size_t row_points, std::size_t column_points, nk_capability_t capabilities = default_capabilities()) noexcept {
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t>;
@@ -1840,7 +1840,7 @@ expected<std::size_t> gromovwassersteins_workspace_size(
 
 /** Gromov-Wasserstein distances between every row and column pack, with the parameters of
  *  @c wassersteinprocrustes_packed and the workspace of @c gromovwassersteins_workspace_size. */
-template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
+template <a_shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
           typename rotation_type_ = f32_t>
 status_t gromovwassersteins_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
                                    std::size_t columns, distance_type_ *results, std::size_t results_stride,
@@ -1873,7 +1873,7 @@ status_t gromovwassersteins_packed(void const *const *a_packed, std::size_t rows
  *  One allocation holds the table of pack pointers, then the packs back to back, each on an
  *  @c nk_default_alignment_k boundary, so @c data() passes straight to every shape kernel.
  */
-template <shapes_dtype value_type_, typename allocator_type_ = aligned_allocator<char>>
+template <a_shapes_dtype value_type_, typename allocator_type_ = aligned_allocator<char>>
 class shapes_packed {
     using alloc_traits = std::allocator_traits<allocator_type_>;
 

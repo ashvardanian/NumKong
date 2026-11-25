@@ -127,7 +127,7 @@ The typed C++ wrappers usually read better unless you are building your own disp
 
 The C++ wrappers come in three layers.
 Raw-pointer overloads mirror the C ABI one to one, with explicit lengths, strides and task windows for sharded launches.
-Overloads over the `nk::vector_of` and matrix concepts accept any contiguous run, like `std::vector`, `std::array`, `std::span`, a C array or an `nk::vector_view`, and return their results.
+Overloads over the `nk::a_vector_of` and matrix concepts accept any contiguous run, like `std::vector`, `std::array`, `std::span`, a C array or an `nk::vector_view`, and return their results.
 Owning types, like `nk::tensor`, `nk::packed_matrix` and `nk::packed_attention`, allocate through your allocator for repeated workloads.
 
 ```cpp

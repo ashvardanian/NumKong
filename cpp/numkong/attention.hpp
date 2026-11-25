@@ -59,7 +59,7 @@ namespace ashvardanian::numkong {
  *  @tparam in_type_ Input element type (bf16_t, f16_t, e4m3_t, i8_t), or a block-scaled format
  *      whose queries are an @c operand_pointer reference.
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::attention_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::attention_result_t>
 status_t attention_packed(std::size_t head_count, std::size_t key_value_head_count, std::size_t depth,
                           std::uint32_t const *query_offsets, std::size_t query_token_count, f32_t scale,
                           std::size_t keys_before, std::size_t keys_after, operand_pointer<in_type_> queries,
@@ -189,7 +189,7 @@ status_t attention_packed(std::size_t head_count, std::size_t key_value_head_cou
  *  @param[in] keys_after Keys visible after each query's position, all of them for @c max.
  *  @param[in] capabilities Capabilities to pick from, or zero for the serial reference.
  */
-template <numeric_dtype in_type_>
+template <a_numeric_dtype in_type_>
 expected<std::size_t> attention_packed_workspace_size(std::size_t head_count, std::size_t key_value_head_count,
                                                       std::size_t depth, std::size_t query_token_count,
                                                       std::size_t keys_before, std::size_t keys_after,
@@ -271,7 +271,7 @@ expected<std::size_t> attention_packed_workspace_size(std::size_t head_count, st
  *  @tparam in_type_ Input element type, bf16_t, or a block-scaled format whose queries are an
  *      @c operand_pointer reference.
  */
-template <numeric_dtype in_type_>
+template <a_numeric_dtype in_type_>
 status_t attention_packed_gradients(
     std::size_t head_count, std::size_t key_value_head_count, std::size_t depth, std::uint32_t const *query_offsets,
     std::size_t query_token_count, f32_t scale, std::size_t keys_before, std::size_t keys_after,
@@ -395,7 +395,7 @@ status_t attention_packed_gradients(
  *  @param[in] keys_after Keys after each query that it saw in the forward pass.
  *  @param[in] capabilities Capabilities to pick from, or zero for the serial reference.
  */
-template <numeric_dtype in_type_>
+template <a_numeric_dtype in_type_>
 expected<std::size_t> attention_packed_gradients_workspace_size(
     std::size_t head_count, std::size_t key_value_head_count, std::size_t depth, std::size_t query_token_count,
     std::size_t keys_before, std::size_t keys_after, nk_capability_t capabilities = default_capabilities()) noexcept {
@@ -446,7 +446,7 @@ expected<std::size_t> attention_packed_gradients_workspace_size(
  *
  *  @tparam in_type_ Element type
  */
-template <numeric_dtype in_type_>
+template <a_numeric_dtype in_type_>
 status_t attention_rope(in_type_ const *x, f32_t const *cos, f32_t const *sin, in_type_ *y, std::size_t rows,
                         std::size_t head_count, std::size_t depth, std::size_t x_stride, std::size_t y_stride,
                         nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
@@ -497,7 +497,7 @@ namespace ashvardanian::numkong {
 
 /** Checks that @p queries and @p output are matching @b [tokens,heads,depth] layouts over the
  *  @p key_value_packed depth, whose head count divides theirs, covering every packed segment. */
-template <numeric_dtype value_type_, std::size_t max_rank_, typename allocator_type_, typename output_type_>
+template <a_numeric_dtype value_type_, std::size_t max_rank_, typename allocator_type_, typename output_type_>
 status_t attention_shapes_(tensor_view<value_type_, max_rank_> queries,
                            packed_attention<value_type_, allocator_type_> const &key_value_packed,
                            output_type_ const &output) noexcept {
@@ -518,7 +518,7 @@ status_t attention_shapes_(tensor_view<value_type_, max_rank_> queries,
  *  band, with the workspace, capabilities and stream of the pointer overload;
  *  @c unexpected_dimensions_k when the shapes disagree. The raw-pointer overload covers
  *  cross-attention and pooling. */
-template <numeric_dtype value_type_, std::size_t max_rank_, typename allocator_type_>
+template <a_numeric_dtype value_type_, std::size_t max_rank_, typename allocator_type_>
 status_t attention_packed(tensor_view<value_type_, max_rank_> queries,
                           packed_attention<value_type_, allocator_type_> const &key_value_packed,
                           tensor_span<typename value_type_::attention_result_t, max_rank_> output, f32_t scale,
@@ -538,7 +538,7 @@ status_t attention_packed(tensor_view<value_type_, max_rank_> queries,
 /** Allocating self-attention returning a fresh @b [tokens,heads,depth] tensor, with any workspace
  *  in its block; @c unexpected_dimensions_k when the shapes disagree, or else the failure of the
  *  allocation or of the kernel itself. */
-template <numeric_dtype value_type_, std::size_t max_rank_, typename packed_allocator_type_,
+template <a_numeric_dtype value_type_, std::size_t max_rank_, typename packed_allocator_type_,
           typename allocator_type_ = aligned_allocator<typename value_type_::attention_result_t>>
 expected<tensor<typename value_type_::attention_result_t, allocator_type_, max_rank_>> attention_packed(
     tensor_view<value_type_, max_rank_> queries,
@@ -567,7 +567,7 @@ expected<tensor<typename value_type_::attention_result_t, allocator_type_, max_r
 /** NeoX split-half RoPE of a @b [rows,channels] matrix into a matching span, which may alias it,
  *  channels being @p head_count times an even @p depth; @c unexpected_dimensions_k when the shapes
  *  or the tables are too small. */
-template <numeric_dtype value_type_>
+template <a_numeric_dtype value_type_>
 status_t attention_rope(matrix_view<value_type_> x, vector_view<f32_t> cos, vector_view<f32_t> sin,
                         matrix_span<value_type_> y, std::size_t head_count, std::size_t depth) noexcept {
     if (x.extent(0) != y.extent(0) || x.extent(1) != y.extent(1)) return status_t::unexpected_dimensions_k;

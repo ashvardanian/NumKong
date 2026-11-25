@@ -28,7 +28,7 @@ namespace ashvardanian::numkong {
  *  @tparam from_type_ Source element type.
  *  @tparam to_type_ Destination element type.
  */
-template <numeric_dtype from_type_, numeric_dtype to_type_>
+template <a_numeric_dtype from_type_, a_numeric_dtype to_type_>
 status_t cast(from_type_ const *from, std::size_t n, to_type_ *to,
               nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     if (!capabilities)
@@ -39,8 +39,8 @@ status_t cast(from_type_ const *from, std::size_t n, to_type_ *to,
 
 /** Elementwise type-cast of one run into another of equal dimensions; @c unexpected_dimensions_k
  *  when they differ or either run is strided or ends mid-value. */
-template <numeric_dtype from_type_, numeric_dtype to_type_, vector_of<from_type_> from_vector_type_,
-          mutable_vector_of<to_type_> to_vector_type_>
+template <a_numeric_dtype from_type_, a_numeric_dtype to_type_, a_vector_of<from_type_> from_vector_type_,
+          a_mutable_vector_of<to_type_> to_vector_type_>
 status_t cast(from_vector_type_ const &from, to_vector_type_ &&to,
               nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     auto from_values = contiguous_values_<from_type_ const>(from);

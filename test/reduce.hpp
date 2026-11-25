@@ -105,7 +105,7 @@ error_stats_t test_reduce_minmax(typename input_type_::reduce_minmax_kernel_t ke
     // Uniform inputs never win a strict comparison, yet only an all-NaN one lacks an index
     std::fill_n(buffer.values_data(), buffer.size_values(), nk::finite_max<input_type_>());
     if (!compare(sizeof(input_type_))) return stats;
-    if constexpr (nk::nan_capable_dtype<input_type_>) {
+    if constexpr (nk::a_nan_capable_dtype<input_type_>) {
         std::fill_n(buffer.values_data(), buffer.size_values(), input_type_::quiet_nan());
         if (!compare(sizeof(input_type_))) return stats;
     }

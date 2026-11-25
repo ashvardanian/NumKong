@@ -43,7 +43,7 @@ namespace ashvardanian::numkong {
  *  Elements are multiplied by their block's scale and the operand's tensor scale, a missing one
  *  reading as 1, before they are multiplied and summed.
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::dot_result_t>
 void dots_unpacked(operand_pointer<in_type_> a, operand_pointer<in_type_> b, result_type_ *c, std::size_t rows,
                    std::size_t column_count, std::size_t depth, std::size_t a_stride, std::size_t b_stride,
                    std::size_t c_stride) noexcept {
@@ -113,7 +113,7 @@ void dots_unpacked(operand_pointer<in_type_> a, operand_pointer<in_type_> b, res
  *  this is identical to @c dots_unpacked. For complex types this computes the standard Hermitian
  *  inner product matching <tt>cblas_{c,z}gemm</tt> with @c CblasConjTrans.
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::dot_result_t>
 void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_ *c, std::size_t rows,
                               std::size_t column_count, std::size_t depth, std::size_t a_stride, std::size_t b_stride,
                               std::size_t c_stride) noexcept {
@@ -141,7 +141,7 @@ void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_
  *  @param[in] depth Columns of A, rows of B
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::dot_result_t>
 expected<std::size_t> dots_packed_workspace_size(std::size_t rows, std::size_t column_count, std::size_t depth,
                                                  nk_capability_t capabilities = default_capabilities()) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::dot_result_t>;
@@ -186,7 +186,7 @@ expected<std::size_t> dots_packed_workspace_size(std::size_t rows, std::size_t c
  *  @param[in] rows_end Row of C after the last
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::dot_result_t>
 expected<std::size_t> dots_symmetric_workspace_size(std::size_t vector_count, std::size_t depth,
                                                     std::size_t rows_begin = 0,
                                                     std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
@@ -260,7 +260,7 @@ expected<std::size_t> dots_symmetric_workspace_size(std::size_t vector_count, st
  *  @tparam in_type_ Input type, a plain dtype or a block-scaled format
  *  @tparam result_type_ Accumulator/output type, defaults to @c in_type_::dot_result_t
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::dot_result_t>
 status_t dots_packed(operand_pointer<in_type_> a, void const *b_packed, result_type_ *c, std::size_t rows,
                      std::size_t column_count, std::size_t depth, std::size_t a_stride, std::size_t c_stride,
                      std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
@@ -357,7 +357,7 @@ status_t dots_packed(operand_pointer<in_type_> a, void const *b_packed, result_t
  *  @tparam in_type_ Input type, a plain dtype or a block-scaled format
  *  @tparam result_type_ Accumulator/output type, defaults to @c in_type_::dot_result_t
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::dot_result_t>
 status_t dots_symmetric(operand_pointer<in_type_> a, std::size_t vector_count, std::size_t depth, std::size_t a_stride,
                         result_type_ *c, std::size_t c_stride, std::size_t rows_begin = 0,
                         std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
@@ -440,7 +440,7 @@ status_t dots_symmetric(operand_pointer<in_type_> a, std::size_t vector_count, s
 }
 
 /** Returns the workspace bytes of @c hammings_packed, zero when no scratch is needed. */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::hamming_result_t>
 expected<std::size_t> hammings_packed_workspace_size(std::size_t rows, std::size_t column_count, std::size_t depth,
                                                      nk_capability_t capabilities = default_capabilities()) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::hamming_result_t>;
@@ -454,7 +454,7 @@ expected<std::size_t> hammings_packed_workspace_size(std::size_t rows, std::size
 }
 
 /** Returns the workspace bytes of @c hammings_symmetric, zero when no scratch is needed. */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::hamming_result_t>
 expected<std::size_t> hammings_symmetric_workspace_size(
     std::size_t vector_count, std::size_t depth, std::size_t rows_begin = 0,
     std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
@@ -472,7 +472,7 @@ expected<std::size_t> hammings_symmetric_workspace_size(
 }
 
 /** Returns the workspace bytes of @c jaccards_packed, zero when no scratch is needed. */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
 expected<std::size_t> jaccards_packed_workspace_size(std::size_t rows, std::size_t column_count, std::size_t depth,
                                                      nk_capability_t capabilities = default_capabilities()) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::jaccard_result_t>;
@@ -486,7 +486,7 @@ expected<std::size_t> jaccards_packed_workspace_size(std::size_t rows, std::size
 }
 
 /** Returns the workspace bytes of @c jaccards_symmetric, zero when no scratch is needed. */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
 expected<std::size_t> jaccards_symmetric_workspace_size(
     std::size_t vector_count, std::size_t depth, std::size_t rows_begin = 0,
     std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
@@ -524,7 +524,7 @@ expected<std::size_t> jaccards_symmetric_workspace_size(
  *  @tparam in_type_ Input element type (u1x8_t)
  *  @tparam result_type_ Output type (u32_t for Hamming distances)
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::hamming_result_t>
 status_t hammings_symmetric(in_type_ const *a, std::size_t vector_count, std::size_t depth, std::size_t a_stride,
                             result_type_ *c, std::size_t c_stride, std::size_t rows_begin = 0,
                             std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
@@ -582,7 +582,7 @@ status_t hammings_symmetric(in_type_ const *a, std::size_t vector_count, std::si
  *  @tparam in_type_ Input element type (u1x8_t)
  *  @tparam result_type_ Output type (u32_t for Hamming distances)
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::hamming_result_t>
 status_t hammings_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t rows,
                          std::size_t column_count, std::size_t depth, std::size_t a_stride = 0,
                          std::size_t c_stride = 0, std::span<std::byte> workspace = {},
@@ -634,7 +634,7 @@ status_t hammings_packed(in_type_ const *a, void const *b_packed, result_type_ *
 }
 
 /** Symmetric Jaccard distance matrix: C[i,j] = jaccard(A[i], A[j]). */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
 status_t jaccards_symmetric(in_type_ const *a, std::size_t vector_count, std::size_t depth, std::size_t a_stride,
                             result_type_ *c, std::size_t c_stride, std::size_t rows_begin = 0,
                             std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
@@ -673,7 +673,7 @@ status_t jaccards_symmetric(in_type_ const *a, std::size_t vector_count, std::si
 }
 
 /** Computes Jaccard distances between rows of A and columns of packed B. */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
 status_t jaccards_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t rows,
                          std::size_t column_count, std::size_t depth, std::size_t a_stride = 0,
                          std::size_t c_stride = 0, std::span<std::byte> workspace = {},
@@ -731,8 +731,8 @@ namespace ashvardanian::numkong {
 
 /** C = A × Aᵀ where C[i,j] = ⟨A[i], A[j]⟩, taking the pointer overload's trailing parameters.
  *  @c unexpected_dimensions_k unless the output is square over the input rows. */
-template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
-          mutable_matrix_of<typename value_type_::dot_result_t> output_matrix_>
+template <a_numeric_dtype value_type_, a_const_matrix_of<value_type_> input_matrix_,
+          a_mutable_matrix_of<typename value_type_::dot_result_t> output_matrix_>
 status_t dots_symmetric(input_matrix_ const &input, output_matrix_ &&output, std::size_t rows_begin = 0,
                         std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
                         std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
@@ -748,9 +748,9 @@ status_t dots_symmetric(input_matrix_ const &input, output_matrix_ &&output, std
 
 /** Allocating symmetric dot products: C = A × Aᵀ, with any workspace in the result's block. Empty
  *  for an empty input, or the allocation's or the kernel's failure. */
-template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
+template <a_numeric_dtype value_type_, a_const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::dot_result_t>>
-    requires(!mutable_matrix_of<allocator_type_, typename value_type_::dot_result_t>)
+    requires(!a_mutable_matrix_of<allocator_type_, typename value_type_::dot_result_t>)
 expected<matrix<typename value_type_::dot_result_t, allocator_type_>> dots_symmetric(
     input_matrix_ const &input, allocator_type_ alloc = {}, nk_capability_t capabilities = default_capabilities(),
     nk_stream_t stream = nullptr) noexcept {
@@ -775,8 +775,8 @@ expected<matrix<typename value_type_::dot_result_t, allocator_type_>> dots_symme
 
 /** Symmetric Hamming distances: C[i,j] = hamming(A[i], A[j]), trailing like @c dots_symmetric.
  *  @c unexpected_dimensions_k unless the output is square over the input rows. */
-template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
-          mutable_matrix_of<typename value_type_::hamming_result_t> output_matrix_>
+template <a_numeric_dtype value_type_, a_const_matrix_of<value_type_> input_matrix_,
+          a_mutable_matrix_of<typename value_type_::hamming_result_t> output_matrix_>
 status_t hammings_symmetric(input_matrix_ const &input, output_matrix_ &&output, std::size_t rows_begin = 0,
                             std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
                             std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
@@ -792,9 +792,9 @@ status_t hammings_symmetric(input_matrix_ const &input, output_matrix_ &&output,
 
 /** Allocating symmetric Hamming distances, with any workspace in the result's block. Empty for an
  *  empty input, or the allocation's or the kernel's failure. */
-template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
+template <a_numeric_dtype value_type_, a_const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::hamming_result_t>>
-    requires(!mutable_matrix_of<allocator_type_, typename value_type_::hamming_result_t>)
+    requires(!a_mutable_matrix_of<allocator_type_, typename value_type_::hamming_result_t>)
 expected<matrix<typename value_type_::hamming_result_t, allocator_type_>> hammings_symmetric(
     input_matrix_ const &input, allocator_type_ alloc = {}, nk_capability_t capabilities = default_capabilities(),
     nk_stream_t stream = nullptr) noexcept {
@@ -819,8 +819,8 @@ expected<matrix<typename value_type_::hamming_result_t, allocator_type_>> hammin
 
 /** Symmetric Jaccard distances: C[i,j] = jaccard(A[i], A[j]), trailing like @c dots_symmetric.
  *  @c unexpected_dimensions_k unless the output is square over the input rows. */
-template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
-          mutable_matrix_of<typename value_type_::jaccard_result_t> output_matrix_>
+template <a_numeric_dtype value_type_, a_const_matrix_of<value_type_> input_matrix_,
+          a_mutable_matrix_of<typename value_type_::jaccard_result_t> output_matrix_>
 status_t jaccards_symmetric(input_matrix_ const &input, output_matrix_ &&output, std::size_t rows_begin = 0,
                             std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
                             std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
@@ -836,9 +836,9 @@ status_t jaccards_symmetric(input_matrix_ const &input, output_matrix_ &&output,
 
 /** Allocating symmetric Jaccard distances, with any workspace in the result's block. Empty for an
  *  empty input, or the allocation's or the kernel's failure. */
-template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
+template <a_numeric_dtype value_type_, a_const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::jaccard_result_t>>
-    requires(!mutable_matrix_of<allocator_type_, typename value_type_::jaccard_result_t>)
+    requires(!a_mutable_matrix_of<allocator_type_, typename value_type_::jaccard_result_t>)
 expected<matrix<typename value_type_::jaccard_result_t, allocator_type_>> jaccards_symmetric(
     input_matrix_ const &input, allocator_type_ alloc = {}, nk_capability_t capabilities = default_capabilities(),
     nk_stream_t stream = nullptr) noexcept {
@@ -867,8 +867,8 @@ expected<matrix<typename value_type_::jaccard_result_t, allocator_type_>> jaccar
 
 /** Packed dot products: C = A × B_packedᵀ, taking the pointer overload's trailing parameters.
  *  @c unexpected_dimensions_k for an empty pack, a rank below 2 or a mismatched shape. */
-template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
-          mutable_matrix_of<typename value_type_::dot_result_t> output_matrix_>
+template <a_numeric_dtype value_type_, a_packed_matrix packed_type_, a_const_matrix_of<value_type_> input_matrix_,
+          a_mutable_matrix_of<typename value_type_::dot_result_t> output_matrix_>
 status_t dots_packed(input_matrix_ const &a, packed_type_ const &packed_b, output_matrix_ &&c,
                      std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
                      nk_stream_t stream = nullptr) noexcept {
@@ -885,9 +885,9 @@ status_t dots_packed(input_matrix_ const &a, packed_type_ const &packed_b, outpu
 /** Allocating packed dot products into one block with any workspace.
  *  @c unexpected_dimensions_k for an empty pack or a rank below 2, else the failure of the
  *  allocation or of the kernel itself. */
-template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
+template <a_numeric_dtype value_type_, a_packed_matrix packed_type_, a_const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::dot_result_t>>
-    requires(!mutable_matrix_of<allocator_type_, typename value_type_::dot_result_t>)
+    requires(!a_mutable_matrix_of<allocator_type_, typename value_type_::dot_result_t>)
 expected<matrix<typename value_type_::dot_result_t, allocator_type_>> dots_packed(
     input_matrix_ const &a, packed_type_ const &packed_b, allocator_type_ alloc = {},
     nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
@@ -910,8 +910,8 @@ expected<matrix<typename value_type_::dot_result_t, allocator_type_>> dots_packe
 
 /** Packed Hamming distances: C = hamming(A, B_packed), trailing like @c dots_packed.
  *  @c unexpected_dimensions_k for an empty pack, a rank below 2 or a mismatched shape. */
-template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
-          mutable_matrix_of<typename value_type_::hamming_result_t> output_matrix_>
+template <a_numeric_dtype value_type_, a_packed_matrix packed_type_, a_const_matrix_of<value_type_> input_matrix_,
+          a_mutable_matrix_of<typename value_type_::hamming_result_t> output_matrix_>
 status_t hammings_packed(input_matrix_ const &a, packed_type_ const &packed_b, output_matrix_ &&c,
                          std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
                          nk_stream_t stream = nullptr) noexcept {
@@ -928,9 +928,9 @@ status_t hammings_packed(input_matrix_ const &a, packed_type_ const &packed_b, o
 /** Allocating packed Hamming distances into one block with any workspace.
  *  @c unexpected_dimensions_k for an empty pack or a rank below 2, else the failure of the
  *  allocation or of the kernel itself. */
-template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
+template <a_numeric_dtype value_type_, a_packed_matrix packed_type_, a_const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::hamming_result_t>>
-    requires(!mutable_matrix_of<allocator_type_, typename value_type_::hamming_result_t>)
+    requires(!a_mutable_matrix_of<allocator_type_, typename value_type_::hamming_result_t>)
 expected<matrix<typename value_type_::hamming_result_t, allocator_type_>> hammings_packed(
     input_matrix_ const &a, packed_type_ const &packed_b, allocator_type_ alloc = {},
     nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
@@ -953,8 +953,8 @@ expected<matrix<typename value_type_::hamming_result_t, allocator_type_>> hammin
 
 /** Packed Jaccard distances: C = jaccard(A, B_packed), trailing like @c dots_packed.
  *  @c unexpected_dimensions_k for an empty pack, a rank below 2 or a mismatched shape. */
-template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
-          mutable_matrix_of<typename value_type_::jaccard_result_t> output_matrix_>
+template <a_numeric_dtype value_type_, a_packed_matrix packed_type_, a_const_matrix_of<value_type_> input_matrix_,
+          a_mutable_matrix_of<typename value_type_::jaccard_result_t> output_matrix_>
 status_t jaccards_packed(input_matrix_ const &a, packed_type_ const &packed_b, output_matrix_ &&c,
                          std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
                          nk_stream_t stream = nullptr) noexcept {
@@ -971,9 +971,9 @@ status_t jaccards_packed(input_matrix_ const &a, packed_type_ const &packed_b, o
 /** Allocating packed Jaccard distances into one block with any workspace.
  *  @c unexpected_dimensions_k for an empty pack or a rank below 2, else the failure of the
  *  allocation or of the kernel itself. */
-template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
+template <a_numeric_dtype value_type_, a_packed_matrix packed_type_, a_const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::jaccard_result_t>>
-    requires(!mutable_matrix_of<allocator_type_, typename value_type_::jaccard_result_t>)
+    requires(!a_mutable_matrix_of<allocator_type_, typename value_type_::jaccard_result_t>)
 expected<matrix<typename value_type_::jaccard_result_t, allocator_type_>> jaccards_packed(
     input_matrix_ const &a, packed_type_ const &packed_b, allocator_type_ alloc = {},
     nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {

@@ -37,7 +37,7 @@ namespace ashvardanian::numkong {
  *  @param[out] results The @b [rows,columns] distances, @p results_stride bytes apart.
  *  @param[in] results_stride Bytes between the rows of @p results.
  */
-template <numeric_dtype precision_type_>
+template <a_numeric_dtype precision_type_>
 void haversines(f64_t const *a_latitudes, f64_t const *a_longitudes, std::size_t rows, f64_t const *b_latitudes,
                 f64_t const *b_longitudes, std::size_t columns, f64_t *results, std::size_t results_stride) noexcept {
     precision_type_ const earth_radius = precision_type_(NUMKONG_EARTH_MEAN_RADIUS);
@@ -63,7 +63,7 @@ void haversines(f64_t const *a_latitudes, f64_t const *a_longitudes, std::size_t
 /** Geodesic metres on the WGS-84 ellipsoid between two points, given the sines and cosines of
  *  their reduced latitudes and the @p longitude_difference from the first to the second, through
  *  Vincenty's inverse formula in @p precision_type_. */
-template <numeric_dtype precision_type_>
+template <a_numeric_dtype precision_type_>
 precision_type_ vincenty_reference_(precision_type_ sin_reduced_first, precision_type_ cos_reduced_first,
                                     precision_type_ sin_reduced_second, precision_type_ cos_reduced_second,
                                     precision_type_ longitude_difference) noexcept {
@@ -136,7 +136,7 @@ precision_type_ vincenty_reference_(precision_type_ sin_reduced_first, precision
 /** Geodesic metres on the WGS-84 ellipsoid between every row and every column point, through
  *  Vincenty's inverse formula in @p precision_type_, with the reduced latitudes taken through
  *  atan2 to stay finite at the poles; parameters as @c haversines. */
-template <numeric_dtype precision_type_>
+template <a_numeric_dtype precision_type_>
 void vincentys(f64_t const *a_latitudes, f64_t const *a_longitudes, std::size_t rows, f64_t const *b_latitudes,
                f64_t const *b_longitudes, std::size_t columns, f64_t *results, std::size_t results_stride) noexcept {
     using precision_t = precision_type_;
@@ -172,8 +172,8 @@ void vincentys(f64_t const *a_latitudes, f64_t const *a_longitudes, std::size_t 
  *  @tparam result_type_ The reference's arithmetic; the kernels output exact @c u64_t squares for
  *      @c i32_t and @c f64_t ones for @c f64_t.
  */
-template <numeric_dtype in_type_,
-          numeric_dtype result_type_ = std::conditional_t<std::is_same_v<in_type_, i32_t>, u64_t, f64_t>>
+template <a_numeric_dtype in_type_,
+          a_numeric_dtype result_type_ = std::conditional_t<std::is_same_v<in_type_, i32_t>, u64_t, f64_t>>
     requires(std::is_same_v<in_type_, i32_t> || std::is_same_v<in_type_, f64_t>)
 status_t sqeuclideans3d(in_type_ const *a, std::size_t rows, in_type_ const *b, std::size_t columns,
                         result_type_ *results, std::size_t results_stride,
@@ -218,7 +218,7 @@ constexpr std::size_t geodesics_pack_bytes_(std::size_t points) noexcept {
 
 /** Packs @p count points as unit vectors on the mean sphere, evaluated in @p precision_type_ and
  *  rounded once, by the layout of @c geospatial/serial.h. */
-template <numeric_dtype precision_type_>
+template <a_numeric_dtype precision_type_>
 void haversines_pack_reference_(f64_t const *latitudes, f64_t const *longitudes, std::size_t count,
                                 void *packed) noexcept {
     std::size_t const axis_stride = nk_size_round_up_to_multiple_(count, nk_default_alignment_k / sizeof(f64_t));
@@ -239,7 +239,7 @@ void haversines_pack_reference_(f64_t const *latitudes, f64_t const *longitudes,
 /** Packs @p count points as their longitudes and the sines and cosines of their reduced latitudes,
  *  evaluated in @p precision_type_ through atan2 as @c vincentys does, by the layout of
  *  @c geospatial/serial.h. */
-template <numeric_dtype precision_type_>
+template <a_numeric_dtype precision_type_>
 void vincentys_pack_reference_(f64_t const *latitudes, f64_t const *longitudes, std::size_t count,
                                void *packed) noexcept {
     using precision_t = precision_type_;
@@ -260,7 +260,7 @@ void vincentys_pack_reference_(f64_t const *latitudes, f64_t const *longitudes, 
 
 /** Great-circle metres between every row and every column point of two Haversine packs, through
  *  the chord formula of @c geospatial/serial.h in @p precision_type_. */
-template <numeric_dtype precision_type_>
+template <a_numeric_dtype precision_type_>
 void haversines_packed_reference_(void const *a_packed, void const *b_packed, f64_t *results,
                                   std::size_t results_stride) noexcept {
     using precision_t = precision_type_;
@@ -288,7 +288,7 @@ void haversines_packed_reference_(void const *a_packed, void const *b_packed, f6
 
 /** Geodesic metres on the WGS-84 ellipsoid between every row and every column point of two
  *  Vincenty packs, through @c vincenty_reference_ in @p precision_type_. */
-template <numeric_dtype precision_type_>
+template <a_numeric_dtype precision_type_>
 void vincentys_packed_reference_(void const *a_packed, void const *b_packed, f64_t *results,
                                  std::size_t results_stride) noexcept {
     using precision_t = precision_type_;
@@ -396,7 +396,7 @@ inline expected<std::size_t> haversines_pack_size(std::size_t points,
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *  @tparam precision_type_ The template's arithmetic; the kernels compute in @c f64_t.
  */
-template <numeric_dtype precision_type_ = f64_t>
+template <a_numeric_dtype precision_type_ = f64_t>
 status_t haversines_pack(f64_t const *latitudes, f64_t const *longitudes, std::size_t count, void *packed,
                          nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     if constexpr (std::is_same_v<precision_type_, f64_t>)
@@ -417,7 +417,7 @@ status_t haversines_pack(f64_t const *latitudes, f64_t const *longitudes, std::s
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *  @tparam precision_type_ The template's arithmetic; the kernels compute in @c f64_t.
  */
-template <numeric_dtype precision_type_ = f64_t>
+template <a_numeric_dtype precision_type_ = f64_t>
 status_t haversines_packed(void const *a_packed, void const *b_packed, f64_t *results, std::size_t results_stride,
                            nk_capability_t capabilities = default_capabilities(),
                            nk_stream_t stream = nullptr) noexcept {
@@ -440,7 +440,7 @@ inline expected<std::size_t> vincentys_pack_size(std::size_t points,
 
 /** Packs points as their longitudes and the sines and cosines of their reduced latitudes, for
  *  @c vincentys_packed, taking what @c haversines_pack takes. */
-template <numeric_dtype precision_type_ = f64_t>
+template <a_numeric_dtype precision_type_ = f64_t>
 status_t vincentys_pack(f64_t const *latitudes, f64_t const *longitudes, std::size_t count, void *packed,
                         nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     if constexpr (std::is_same_v<precision_type_, f64_t>)
@@ -453,7 +453,7 @@ status_t vincentys_pack(f64_t const *latitudes, f64_t const *longitudes, std::si
 
 /** Geodesic metres on the WGS-84 ellipsoid between every row and every column point of two Vincenty
  *  packs, taking what @c haversines_packed takes. */
-template <numeric_dtype precision_type_ = f64_t>
+template <a_numeric_dtype precision_type_ = f64_t>
 status_t vincentys_packed(void const *a_packed, void const *b_packed, f64_t *results, std::size_t results_stride,
                           nk_capability_t capabilities = default_capabilities(),
                           nk_stream_t stream = nullptr) noexcept {

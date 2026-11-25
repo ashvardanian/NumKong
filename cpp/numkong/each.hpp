@@ -27,7 +27,7 @@ namespace ashvardanian::numkong {
  *
  *  @tparam in_type_ Element type
  */
-template <numeric_dtype in_type_>
+template <a_numeric_dtype in_type_>
 status_t add(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ *c,
              nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     if (capabilities) {
@@ -85,7 +85,7 @@ status_t add(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ *c,
  *  @tparam in_type_ Element type
  *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to @c in_type_
  */
-template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
+template <a_numeric_dtype in_type_, a_numeric_dtype precision_type_ = in_type_>
 status_t scale(in_type_ const *a, std::size_t d, typename in_type_::scale_t const *alpha,
                typename in_type_::scale_t const *beta, in_type_ *c,
                nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
@@ -170,7 +170,7 @@ status_t scale(in_type_ const *a, std::size_t d, typename in_type_::scale_t cons
  *  @tparam in_type_ Element type
  *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to @c in_type_
  */
-template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
+template <a_numeric_dtype in_type_, a_numeric_dtype precision_type_ = in_type_>
 status_t blend(in_type_ const *a, in_type_ const *b, std::size_t d, typename in_type_::scale_t const *alpha,
                typename in_type_::scale_t const *beta, in_type_ *c,
                nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
@@ -257,7 +257,7 @@ status_t blend(in_type_ const *a, in_type_ const *b, std::size_t d, typename in_
  *  @tparam in_type_ Element type
  *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to @c in_type_
  */
-template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
+template <a_numeric_dtype in_type_, a_numeric_dtype precision_type_ = in_type_>
 status_t fma(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_t d,
              typename in_type_::scale_t const *alpha, typename in_type_::scale_t const *beta, in_type_ *out,
              nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
@@ -349,7 +349,7 @@ status_t fma(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_
  *
  *  @tparam in_type_ Element type
  */
-template <numeric_dtype in_type_>
+template <a_numeric_dtype in_type_>
 status_t swiglu(in_type_ const *gate, in_type_ const *up, in_type_ *y, std::size_t rows, std::size_t columns,
                 std::size_t gate_stride, std::size_t up_stride, std::size_t y_stride, f32_t gate_scale = 1.0f,
                 f32_t output_scale = 1.0f, nk_capability_t capabilities = default_capabilities(),
@@ -409,7 +409,7 @@ status_t swiglu(in_type_ const *gate, in_type_ const *up, in_type_ *y, std::size
  *
  *  @tparam in_type_ Element type
  */
-template <numeric_dtype in_type_>
+template <a_numeric_dtype in_type_>
 status_t rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::size_t rows, std::size_t groups,
                  std::size_t columns, std::size_t x_stride, std::size_t y_stride, f32_t epsilon,
                  nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
@@ -467,8 +467,8 @@ namespace ashvardanian::numkong {
 
 /** Elementwise cᵢ = aᵢ + bᵢ over runs of equal dimensions; @c unexpected_dimensions_k when they
  *  differ or any run is strided or ends mid-value. */
-template <numeric_dtype in_type_, vector_of<in_type_> a_type_, vector_of<in_type_> b_type_,
-          mutable_vector_of<in_type_> output_type_>
+template <a_numeric_dtype in_type_, a_vector_of<in_type_> a_type_, a_vector_of<in_type_> b_type_,
+          a_mutable_vector_of<in_type_> output_type_>
 status_t add(a_type_ const &a, b_type_ const &b, output_type_ &&output,
              nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
@@ -484,7 +484,7 @@ status_t add(a_type_ const &a, b_type_ const &b, output_type_ &&output,
 }
 
 /** Elementwise cᵢ = α × aᵢ + β, failing like the concept @c add. */
-template <numeric_dtype in_type_, vector_of<in_type_> a_type_, mutable_vector_of<in_type_> output_type_>
+template <a_numeric_dtype in_type_, a_vector_of<in_type_> a_type_, a_mutable_vector_of<in_type_> output_type_>
     requires(!requires(a_type_ const &tensor) { tensor.rank(); }) // tensors take the tensor overload below
 status_t scale(a_type_ const &a, typename in_type_::scale_t alpha, typename in_type_::scale_t beta,
                output_type_ &&output, nk_capability_t capabilities = default_capabilities(),
@@ -499,8 +499,8 @@ status_t scale(a_type_ const &a, typename in_type_::scale_t alpha, typename in_t
 }
 
 /** Elementwise cᵢ = α × aᵢ + β × bᵢ, failing like the concept @c add. */
-template <numeric_dtype in_type_, vector_of<in_type_> a_type_, vector_of<in_type_> b_type_,
-          mutable_vector_of<in_type_> output_type_>
+template <a_numeric_dtype in_type_, a_vector_of<in_type_> a_type_, a_vector_of<in_type_> b_type_,
+          a_mutable_vector_of<in_type_> output_type_>
     requires(!requires(a_type_ const &tensor) { tensor.rank(); })
 status_t blend(a_type_ const &a, b_type_ const &b, typename in_type_::scale_t alpha, typename in_type_::scale_t beta,
                output_type_ &&output, nk_capability_t capabilities = default_capabilities(),
@@ -518,8 +518,8 @@ status_t blend(a_type_ const &a, b_type_ const &b, typename in_type_::scale_t al
 }
 
 /** Elementwise outᵢ = α × aᵢ × bᵢ + β × cᵢ, failing like the concept @c add. */
-template <numeric_dtype in_type_, vector_of<in_type_> a_type_, vector_of<in_type_> b_type_, vector_of<in_type_> c_type_,
-          mutable_vector_of<in_type_> output_type_>
+template <a_numeric_dtype in_type_, a_vector_of<in_type_> a_type_, a_vector_of<in_type_> b_type_,
+          a_vector_of<in_type_> c_type_, a_mutable_vector_of<in_type_> output_type_>
     requires(!requires(a_type_ const &tensor) { tensor.rank(); })
 status_t fma(a_type_ const &a, b_type_ const &b, c_type_ const &c, typename in_type_::scale_t alpha,
              typename in_type_::scale_t beta, output_type_ &&output,
@@ -544,7 +544,7 @@ status_t fma(a_type_ const &a, b_type_ const &b, c_type_ const &c, typename in_t
 
 /** Fused SwiGLU over @b [rows,columns] matrices into a matching output span — @p up empty means
  *  SiLU; @c unexpected_dimensions_k when the shapes disagree. */
-template <numeric_dtype value_type_>
+template <a_numeric_dtype value_type_>
 status_t swiglu(matrix_view<value_type_> gate, matrix_view<value_type_> up, matrix_span<value_type_> output,
                 f32_t gate_scale = 1.0f, f32_t output_scale = 1.0f) noexcept {
     bool const has_up = !up.empty();
@@ -561,7 +561,7 @@ status_t swiglu(matrix_view<value_type_> gate, matrix_view<value_type_> up, matr
 
 /** Allocating SwiGLU returning a fresh matrix — @p up empty means SiLU; empty for an empty
  *  @p gate, or the allocation's or the kernel's failure. */
-template <numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<value_type_>>
+template <a_numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, 2>> swiglu(matrix_view<value_type_> gate, matrix_view<value_type_> up,
                                                          f32_t gate_scale = 1.0f, f32_t output_scale = 1.0f,
                                                          allocator_type_ alloc = {}) noexcept {
@@ -578,7 +578,7 @@ expected<tensor<value_type_, allocator_type_, 2>> swiglu(matrix_view<value_type_
 /** Grouped RMSNorm over a matrix of @c rows rows, @p groups groups and @c columns columns, into a
  *  matching output span; @c unexpected_dimensions_k when the shapes, the groups or @p gamma
  *  disagree with each other. */
-template <numeric_dtype value_type_>
+template <a_numeric_dtype value_type_>
 status_t rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma, matrix_span<value_type_> output,
                  std::size_t groups, f32_t epsilon) noexcept {
     if (input.extent(0) != output.extent(0) || input.extent(1) != output.extent(1))
@@ -594,7 +594,7 @@ status_t rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma, matri
 
 /** Allocating grouped RMSNorm returning a fresh matrix, empty for an empty @p input, or the
  *  allocation's or the kernel's failure. */
-template <numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<value_type_>>
+template <a_numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, 2>> rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma,
                                                           std::size_t groups, f32_t epsilon,
                                                           allocator_type_ alloc = {}) noexcept {
@@ -609,7 +609,7 @@ expected<tensor<value_type_, allocator_type_, 2>> rmsnorm(matrix_view<value_type
 }
 
 /** Scale: output[i] = α × input[i] + β. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
 status_t scale(tensor_view<value_type_, max_rank_> input, typename value_type_::scale_t alpha,
                typename value_type_::scale_t beta, tensor_span<value_type_, max_rank_> output) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
@@ -620,7 +620,7 @@ status_t scale(tensor_view<value_type_, max_rank_> input, typename value_type_::
 
 /** Allocating scale: result[i] = α × input[i] + β; empty for an empty @p input, or the
  *  allocation's or the kernel's failure. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, max_rank_>> scale(tensor_view<value_type_, max_rank_> input,
                                                                 typename value_type_::scale_t alpha,
@@ -637,7 +637,7 @@ expected<tensor<value_type_, allocator_type_, max_rank_>> scale(tensor_view<valu
 }
 
 /** Blend: each output is α times the left operand plus β times the right operand. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
 status_t blend(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_rank_> rhs,
                typename value_type_::scale_t alpha, typename value_type_::scale_t beta,
                tensor_span<value_type_, max_rank_> output) noexcept {
@@ -652,7 +652,7 @@ status_t blend(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_,
 /** Allocating blend: each result is α times the left operand plus β times the right operand;
  *  @c unexpected_dimensions_k when the operands disagree, empty for empty ones, or the
  *  allocation's or the kernel's failure. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, max_rank_>> blend(tensor_view<value_type_, max_rank_> lhs,
                                                                 tensor_view<value_type_, max_rank_> rhs,
@@ -671,7 +671,7 @@ expected<tensor<value_type_, allocator_type_, max_rank_>> blend(tensor_view<valu
 }
 
 /** FMA: each output is α times the product of both operands plus β times the addend. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
 status_t fma(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_rank_> rhs,
              tensor_view<value_type_, max_rank_> addend, typename value_type_::scale_t alpha,
              typename value_type_::scale_t beta, tensor_span<value_type_, max_rank_> output) noexcept {
@@ -685,7 +685,7 @@ status_t fma(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, m
 
 /** Allocating FMA: each result is α times the product of both operands plus β times the addend;
  *  fails like the allocating @c blend. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, max_rank_>> fma(tensor_view<value_type_, max_rank_> lhs,
                                                               tensor_view<value_type_, max_rank_> rhs,
@@ -707,7 +707,7 @@ expected<tensor<value_type_, allocator_type_, max_rank_>> fma(tensor_view<value_
 }
 
 /** Elementwise addition: each output is the sum of the two operands. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
 status_t add(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_rank_> rhs,
              tensor_span<value_type_, max_rank_> output) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
@@ -720,7 +720,7 @@ status_t add(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, m
 
 /** Allocating elementwise add: the result is the sum of the two operands; fails like the
  *  allocating @c blend. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, max_rank_>> add(tensor_view<value_type_, max_rank_> lhs,
                                                               tensor_view<value_type_, max_rank_> rhs,
@@ -737,7 +737,7 @@ expected<tensor<value_type_, allocator_type_, max_rank_>> add(tensor_view<value_
 }
 
 /** Elementwise add scalar: output[i] = input[i] + scalar. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
 status_t add(tensor_view<value_type_, max_rank_> input, typename value_type_::scale_t scalar,
              tensor_span<value_type_, max_rank_> output) noexcept {
     typename value_type_::scale_t one {1};
@@ -745,7 +745,7 @@ status_t add(tensor_view<value_type_, max_rank_> input, typename value_type_::sc
 }
 
 /** Allocating add scalar; fails like the allocating @c scale. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, max_rank_>> add(tensor_view<value_type_, max_rank_> input,
                                                               typename value_type_::scale_t scalar,
@@ -761,7 +761,7 @@ expected<tensor<value_type_, allocator_type_, max_rank_>> add(tensor_view<value_
 }
 
 /** Elementwise subtraction: each output is the left operand minus the right operand. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
 status_t sub(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_rank_> rhs,
              tensor_span<value_type_, max_rank_> output) noexcept {
     typename value_type_::scale_t alpha {1}, beta {-1};
@@ -769,7 +769,7 @@ status_t sub(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, m
 }
 
 /** Allocating elementwise sub; fails like the allocating @c blend. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, max_rank_>> sub(tensor_view<value_type_, max_rank_> lhs,
                                                               tensor_view<value_type_, max_rank_> rhs,
@@ -786,7 +786,7 @@ expected<tensor<value_type_, allocator_type_, max_rank_>> sub(tensor_view<value_
 }
 
 /** Elementwise sub scalar: output[i] = input[i] − scalar. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
 status_t sub(tensor_view<value_type_, max_rank_> input, typename value_type_::scale_t scalar,
              tensor_span<value_type_, max_rank_> output) noexcept {
     typename value_type_::scale_t one {1};
@@ -795,7 +795,7 @@ status_t sub(tensor_view<value_type_, max_rank_> input, typename value_type_::sc
 }
 
 /** Allocating sub scalar; fails like the allocating @c scale. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, max_rank_>> sub(tensor_view<value_type_, max_rank_> input,
                                                               typename value_type_::scale_t scalar,
@@ -811,7 +811,7 @@ expected<tensor<value_type_, allocator_type_, max_rank_>> sub(tensor_view<value_
 }
 
 /** Elementwise multiplication: each output is the product of the two operands. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
 status_t mul(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_rank_> rhs,
              tensor_span<value_type_, max_rank_> output) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
@@ -824,7 +824,7 @@ status_t mul(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, m
 }
 
 /** Allocating elementwise multiply; fails like the allocating @c blend. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, max_rank_>> mul(tensor_view<value_type_, max_rank_> lhs,
                                                               tensor_view<value_type_, max_rank_> rhs,
@@ -841,7 +841,7 @@ expected<tensor<value_type_, allocator_type_, max_rank_>> mul(tensor_view<value_
 }
 
 /** Elementwise multiply by scalar: output[i] = input[i] × scalar. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
 status_t mul(tensor_view<value_type_, max_rank_> input, typename value_type_::scale_t scalar,
              tensor_span<value_type_, max_rank_> output) noexcept {
     typename value_type_::scale_t zero {0};
@@ -849,7 +849,7 @@ status_t mul(tensor_view<value_type_, max_rank_> input, typename value_type_::sc
 }
 
 /** Allocating multiply by scalar; fails like the allocating @c scale. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, max_rank_>> mul(tensor_view<value_type_, max_rank_> input,
                                                               typename value_type_::scale_t scalar,

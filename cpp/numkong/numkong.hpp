@@ -27,8 +27,8 @@
  *               nk_capability_t = default_capabilities(), void * = nullptr);
  *  @endcode
  *
- *  The concept layer takes any contiguous run satisfying @c vector_of, or a matrix satisfying
- *  @c const_matrix_of, and returns the result with the @c status_t explaining it:
+ *  The concept layer takes any contiguous run satisfying @c a_vector_of, or a matrix satisfying
+ *  @c a_const_matrix_of, and returns the result with the @c status_t explaining it:
  *
  *  @code{.cpp}
  *  std::vector<nk::f32_t> a {1, 2, 3}, b {4, 5, 6};

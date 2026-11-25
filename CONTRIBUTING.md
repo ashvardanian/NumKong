@@ -760,6 +760,29 @@ There are two intentional exceptions:
 - `cast`: the family-level `nk_cast_*` kernels follow the same header, list, test, and bench rule, and the scalar conversions are dispatched in `src/dispatch/cast.c` and covered through `test/cast.cpp` and `bench/cast.cpp`.
 - `scalar`: scalar helpers are centrally declared in `c/numkong/scalar.h`, dispatched in `src/dispatch/scalar.c`, and currently do not follow the per-helper `numkong_cpu_test` and `numkong_bench` registration pattern.
 
+## Lean State
+
+A type holds only what it cannot recompute, and names each part for what it holds.
+These rules are shared by every sibling library, and the pre-commit hook enforces each rule that names a check.
+
+- Members are named for what they hold, never for their type.
+  Write `request->call` or `call->kept`, never `call->call` or `file.file`.
+  Checked by `check_self_repeat_access`.
+- Derived state is a method, not a field.
+  A count, mask or capacity that follows from other members is computed when asked, so it can never disagree with them.
+- One fact, one constant.
+  Every `_k` constant states its derivation in its docblock, or says "measured" and where, and no other constant restates it.
+- An owner that never moves holds its parts by value.
+  A pointer is for a part that outlives its owner, moves apart from it, or is shared beyond it.
+- Empty allocators take no bytes.
+  An allocator member is declared `[[no_unique_address]]`, so a container over a stateless allocator is no larger than its own state.
+  Checked by `check_empty_member_bytes`.
+- No wrapper without its own state or invariant.
+  A type that only forwards to one member is a name for that member, so use an alias or a function instead.
+- Concepts are `a_`/`an_` noun phrases.
+  A concept names what satisfies it, as `an_allocator` or `a_task_callback`: `an_` before a vowel sound, singular, with no `is_` or `has_` prefix and no `_concept` or `_t` suffix.
+  Checked by `check_concept_names`.
+
 ## Wording & Styling
 
 A lot of effort goes into keeping the wording and styling of the code consistent.

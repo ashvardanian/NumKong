@@ -36,7 +36,7 @@ namespace ashvardanian::numkong {
  *  @tparam in_type_ Input element type: @c bf16_t, @c f32_t or @c f16_t.
  *  @tparam result_type_ Result type, defaults to @c in_type_::maxsim_result_t.
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::maxsim_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::maxsim_result_t>
 status_t maxsim_packed(void const *query_packed, void const *document_packed, std::size_t query_count,
                        std::size_t document_count, std::size_t depth, result_type_ *result,
                        nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) {
@@ -91,7 +91,7 @@ status_t maxsim_packed(void const *query_packed, void const *document_packed, st
  *  @tparam in_type_ Input element type: @c bf16_t, @c f32_t or @c f16_t.
  *  @tparam result_type_ Result type, defaults to @c in_type_::angular_result_t.
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::angular_result_t>
 status_t maxsim_reference(typename in_type_::raw_t const *queries, std::size_t query_count, std::size_t query_stride,
                           typename in_type_::raw_t const *documents, std::size_t document_count,
                           std::size_t document_stride, std::size_t depth, result_type_ *result,
@@ -130,7 +130,7 @@ status_t maxsim_reference(typename in_type_::raw_t const *queries, std::size_t q
 namespace ashvardanian::numkong {
 
 /** MaxSim: Σᵢ minⱼ angular(qᵢ, dⱼ) on pre-packed vectors. */
-template <numeric_dtype value_type_>
+template <a_numeric_dtype value_type_>
 typename value_type_::maxsim_result_t maxsim(packed_maxsim<value_type_> const &queries,
                                              packed_maxsim<value_type_> const &documents) noexcept {
     using result_t = typename value_type_::maxsim_result_t;

@@ -28,7 +28,7 @@ namespace ashvardanian::numkong {
  *  @tparam in_type_ Input distribution type (probability vectors)
  *  @tparam result_type_ Result type, defaults to @c in_type_::probability_result_t
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::probability_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::probability_result_t>
 status_t kld(in_type_ const *p, in_type_ const *q, std::size_t d, result_type_ *r,
              nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::probability_result_t>;
@@ -64,7 +64,7 @@ status_t kld(in_type_ const *p, in_type_ const *q, std::size_t d, result_type_ *
  *  @tparam in_type_ Input distribution type (probability vectors)
  *  @tparam result_type_ Result type, defaults to @c in_type_::probability_result_t
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::probability_result_t>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::probability_result_t>
 status_t jsd(in_type_ const *p, in_type_ const *q, std::size_t d, result_type_ *r,
              nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::probability_result_t>;
@@ -101,8 +101,8 @@ namespace ashvardanian::numkong {
 
 /** Kullback-Leibler divergence of two distributions with equal dimensions;
  *  @c unexpected_dimensions_k when they differ or either run is strided or ends mid-value. */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::probability_result_t,
-          vector_of<in_type_> a_type_, vector_of<in_type_> b_type_>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::probability_result_t,
+          a_vector_of<in_type_> a_type_, a_vector_of<in_type_> b_type_>
 expected<result_type_> kld(a_type_ const &a, b_type_ const &b,
                            nk_capability_t capabilities = default_capabilities()) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
@@ -117,8 +117,8 @@ expected<result_type_> kld(a_type_ const &a, b_type_ const &b,
 }
 
 /** Jensen-Shannon divergence of two distributions, failing like the concept @c kld. */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::probability_result_t,
-          vector_of<in_type_> a_type_, vector_of<in_type_> b_type_>
+template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::probability_result_t,
+          a_vector_of<in_type_> a_type_, a_vector_of<in_type_> b_type_>
 expected<result_type_> jsd(a_type_ const &a, b_type_ const &b,
                            nk_capability_t capabilities = default_capabilities()) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);

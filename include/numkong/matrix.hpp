@@ -42,7 +42,7 @@ namespace ashvardanian::numkong {
  *
  *  @tparam in_type_ Input element type
  */
-template <numeric_dtype in_type_>
+template <a_numeric_dtype in_type_>
 expected<std::size_t> dots_pack_size(std::size_t columns, std::size_t depth,
                                      nk_capability_t capabilities = default_capabilities()) {
     // The C++ template packs only the original B and its stride, a block-scaled reference by value
@@ -97,7 +97,7 @@ expected<std::size_t> dots_pack_size(std::size_t columns, std::size_t depth,
  *
  *  @tparam in_type_ Input type, a plain dtype or a block-scaled format
  */
-template <numeric_dtype in_type_>
+template <a_numeric_dtype in_type_>
 status_t dots_pack(operand_pointer<in_type_> b, std::size_t columns, std::size_t depth, std::size_t b_stride,
                    void *b_packed, nk_capability_t capabilities = default_capabilities(),
                    nk_stream_t stream = nullptr) {
@@ -169,7 +169,7 @@ status_t dots_pack(operand_pointer<in_type_> b, std::size_t columns, std::size_t
  *
  *  @tparam in_type_ Input element type (bf16_t, f32_t, f16_t).
  */
-template <numeric_dtype in_type_>
+template <a_numeric_dtype in_type_>
 expected<std::size_t> maxsim_pack_size(std::size_t vector_count, std::size_t depth,
                                        nk_capability_t capabilities = default_capabilities()) {
     // The C++ template packs only the pointer to the original vectors and their stride
@@ -199,7 +199,7 @@ expected<std::size_t> maxsim_pack_size(std::size_t vector_count, std::size_t dep
  *
  *  @tparam in_type_ Input element type (bf16_t, f32_t, f16_t).
  */
-template <numeric_dtype in_type_>
+template <a_numeric_dtype in_type_>
 status_t maxsim_pack(typename in_type_::raw_t const *vectors, std::size_t vector_count, std::size_t depth,
                      std::size_t stride, void *packed, nk_capability_t capabilities = default_capabilities(),
                      nk_stream_t stream = nullptr) {
@@ -232,7 +232,7 @@ status_t maxsim_pack(typename in_type_::raw_t const *vectors, std::size_t vector
  *
  *  @tparam in_type_ Input element type (bf16_t, f16_t, e4m3_t, i8_t), or a block-scaled format.
  */
-template <numeric_dtype in_type_>
+template <a_numeric_dtype in_type_>
 expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std::size_t depth, std::size_t token_count,
                                           std::size_t segment_count,
                                           nk_capability_t capabilities = default_capabilities()) {
@@ -321,7 +321,7 @@ expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std:
  *  @tparam in_type_ Input element type (bf16_t, f16_t, e4m3_t, i8_t), or a block-scaled format
  *      whose operands are @c operand_pointer references.
  */
-template <numeric_dtype in_type_>
+template <a_numeric_dtype in_type_>
 status_t attention_pack(std::size_t key_value_head_count, std::size_t depth, std::uint32_t const *key_offsets,
                         std::uint32_t const *key_lengths, std::size_t segment_count, operand_pointer<in_type_> keys,
                         std::size_t key_stride, operand_pointer<in_type_> values, std::size_t value_stride,
@@ -439,7 +439,7 @@ constexpr bool attention_rows_supported_(tokens_type_ const &tokens) noexcept {
  *  Wraps @c dots_pack to pre-arrange a matrix B into a cache-friendly layout.
  *  Use <tt>make()</tt> to create from a matrix_view, then pass to <tt>dots_packed()</tt> for computation.
  */
-template <numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<char>>
+template <a_numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<char>>
 struct packed_matrix {
     using value_type = value_type_;
     using result_type = typename value_type_::dot_result_t;
@@ -537,7 +537,7 @@ struct packed_matrix {
  *
  *  Supported types: bf16_t, f32_t, f16_t.
  */
-template <numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<char>>
+template <a_numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<char>>
 class packed_maxsim {
     using alloc_traits = std::allocator_traits<allocator_type_>;
 
@@ -612,7 +612,7 @@ class packed_maxsim {
  *
  *  Supported types: bf16_t, e4m3_t, i8_t.
  */
-template <numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<char>>
+template <a_numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<char>>
 class packed_attention {
     using alloc_traits = std::allocator_traits<allocator_type_>;
 

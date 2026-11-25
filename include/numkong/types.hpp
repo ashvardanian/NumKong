@@ -371,22 +371,22 @@ struct u4x2_t;
 struct u1x8_t;
 
 template <typename scalar_type_>
-concept numeric_dtype = requires {
+concept a_numeric_dtype = requires {
     { scalar_type_::dtype() } -> std::same_as<nk_dtype_t>;
 };
 
 /** A NumKong dtype that can hold NaN, like the IEEE floats and their complex forms. */
 template <typename scalar_type_>
-concept nan_capable_dtype = numeric_dtype<scalar_type_> && scalar_type_::has_nan();
+concept a_nan_capable_dtype = a_numeric_dtype<scalar_type_> && scalar_type_::has_nan();
 
 /** A NumKong dtype that can hold both infinities. */
 template <typename scalar_type_>
-concept infinity_capable_dtype = numeric_dtype<scalar_type_> && scalar_type_::has_infinity();
+concept an_infinity_capable_dtype = a_numeric_dtype<scalar_type_> && scalar_type_::has_infinity();
 
 /** Detect NumKong wrapper types with required static members. */
 template <typename scalar_type_>
 constexpr bool is_numeric_dtype() noexcept {
-    return numeric_dtype<scalar_type_>;
+    return a_numeric_dtype<scalar_type_>;
 }
 
 /** Check if a type is an integer type. */
@@ -6846,9 +6846,9 @@ struct numeric_limits_of<scalar_type_> {
 };
 
 /** Whether a value is NaN, never true for a type without one. */
-template <numeric_dtype scalar_type_>
+template <a_numeric_dtype scalar_type_>
 constexpr bool is_nan(scalar_type_ value) noexcept {
-    if constexpr (nan_capable_dtype<scalar_type_>) return value.is_nan();
+    if constexpr (a_nan_capable_dtype<scalar_type_>) return value.is_nan();
     else return false;
 }
 
@@ -7048,19 +7048,18 @@ constexpr accumulator_type_ saturating_mul(accumulator_type_ a, in_type_ b) noex
 /** Operands of the free-standing FMA: scalars into any accumulator, packed values into their own
  *  type. */
 template <typename in_type_, typename accumulator_type_>
-concept fma_operands = dimensions_per_value<in_type_>() == 1 || std::is_same_v<accumulator_type_, in_type_>;
+concept an_fma_operand_pair = dimensions_per_value<in_type_>() == 1 || std::is_same_v<accumulator_type_, in_type_>;
 
 /** Signed scalars into an unsigned integer accumulator, which a negative operand cannot be cast
  *  into. */
 template <typename in_type_, typename accumulator_type_>
-concept signed_into_unsigned_fma_operands = fma_operands<in_type_, accumulator_type_> &&
-                                            dimensions_per_value<in_type_>() == 1 && is_signed_dtype<in_type_>() &&
-                                            is_integral_dtype<accumulator_type_>() &&
-                                            !is_signed_dtype<accumulator_type_>();
+concept a_signed_into_unsigned_fma_operand_pair =
+    an_fma_operand_pair<in_type_, accumulator_type_> && dimensions_per_value<in_type_>() == 1 &&
+    is_signed_dtype<in_type_>() && is_integral_dtype<accumulator_type_>() && !is_signed_dtype<accumulator_type_>();
 
 /** Free-standing saturating FMA, a*b + c, for baseline implementations. */
 template <typename in_type_, typename accumulator_type_>
-    requires fma_operands<in_type_, accumulator_type_>
+    requires an_fma_operand_pair<in_type_, accumulator_type_>
 constexpr accumulator_type_ saturating_fma(in_type_ a, in_type_ b, accumulator_type_ acc) noexcept {
     return saturating_add(acc, saturating_mul(static_cast<accumulator_type_>(a), static_cast<accumulator_type_>(b)));
 }
@@ -7068,7 +7067,7 @@ constexpr accumulator_type_ saturating_fma(in_type_ a, in_type_ b, accumulator_t
 /** Saturating FMA of signed operands into an unsigned integer accumulator, multiplied in @c i64_t
  *  first. */
 template <typename in_type_, typename accumulator_type_>
-    requires signed_into_unsigned_fma_operands<in_type_, accumulator_type_>
+    requires a_signed_into_unsigned_fma_operand_pair<in_type_, accumulator_type_>
 constexpr accumulator_type_ saturating_fma(in_type_ a, in_type_ b, accumulator_type_ acc) noexcept {
     std::int64_t const product = i64_t(a).saturating_mul(i64_t(b));
     if (product >= 0) return acc.saturating_add(accumulator_type_(static_cast<std::uint64_t>(product)));
@@ -7193,7 +7192,7 @@ constexpr bool operator>=(double a, f118_t b) noexcept { return f118_t(a) >= b; 
 
 /** Anything exposing @p value_type_ or its @c raw_t through @c std::data and @c std::size. */
 template <typename vector_type_, typename value_type_>
-concept vector_of = (requires(vector_type_ const &vector) {
+concept a_vector_of = (requires(vector_type_ const &vector) {
     { std::data(vector) } -> std::convertible_to<value_type_ const *>;
 } || requires(vector_type_ const &vector) {
     { std::data(vector) } -> std::convertible_to<typename value_type_::raw_t const *>;
@@ -7201,7 +7200,7 @@ concept vector_of = (requires(vector_type_ const &vector) {
     { std::size(vector) } -> std::convertible_to<std::size_t>;
 };
 template <typename vector_type_, typename value_type_>
-concept mutable_vector_of = vector_of<vector_type_, value_type_> && (requires(vector_type_ &vector) {
+concept a_mutable_vector_of = a_vector_of<vector_type_, value_type_> && (requires(vector_type_ &vector) {
     { std::data(vector) } -> std::convertible_to<value_type_ *>;
 } || requires(vector_type_ &vector) {
     { std::data(vector) } -> std::convertible_to<typename value_type_::raw_t *>;
@@ -7220,7 +7219,7 @@ constexpr expected<std::span<value_type_>> contiguous_values_(vector_type_ &&vec
 }
 
 template <typename matrix_type_, typename element_type_>
-concept const_matrix_of = (requires(matrix_type_ const &m) {
+concept a_const_matrix_of = (requires(matrix_type_ const &m) {
     { m.data() } -> std::convertible_to<element_type_ const *>;
 } || requires(matrix_type_ const &m) {
     { m.data() } -> std::convertible_to<typename element_type_::raw_t const *>;
@@ -7231,7 +7230,7 @@ concept const_matrix_of = (requires(matrix_type_ const &m) {
 };
 
 template <typename matrix_type_, typename element_type_>
-concept mutable_matrix_of = (requires(matrix_type_ &m) {
+concept a_mutable_matrix_of = (requires(matrix_type_ &m) {
     { m.data() } -> std::convertible_to<element_type_ *>;
 } || requires(matrix_type_ &m) {
     { m.data() } -> std::convertible_to<typename element_type_::raw_t *>;
@@ -7242,7 +7241,7 @@ concept mutable_matrix_of = (requires(matrix_type_ &m) {
 };
 
 template <typename packed_type_>
-concept packed_matrix_like = requires(packed_type_ const &p) {
+concept a_packed_matrix = requires(packed_type_ const &p) {
     { p.data() } -> std::convertible_to<void const *>;
     { p.rows() } -> std::convertible_to<std::size_t>;
     { p.depth() } -> std::convertible_to<std::size_t>;

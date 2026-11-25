@@ -449,7 +449,7 @@ error_stats_t test_block_scaled_composites() {
 
 /** Detects whether a @c scaled_tensor lookalike has the per-tensor `tensor_scale()` accessor. */
 template <typename scaled_type_>
-concept exposes_tensor_scale_ = requires(scaled_type_ const &t) { t.tensor_scale(); };
+concept a_tensor_with_scale_ = requires(scaled_type_ const &t) { t.tensor_scale(); };
 
 /**
  *  @brief End-to-end test of the @c scaled_tensor family: encode via @c cast, inspect the SoA
@@ -565,8 +565,8 @@ error_stats_t test_scaled_tensor() {
     stats.expect_true(iterated_rows == rows, "rows_views() did not visit every row");
 
     // The per-tensor scale exists for NVFP4 and is compile-time absent for the MX family.
-    static_assert(exposes_tensor_scale_<nk::scaled_tensor<nk::nvfp4_t>>, "NVFP4 must expose tensor_scale()");
-    static_assert(!exposes_tensor_scale_<nk::scaled_tensor<nk::mxfp8e4m3_t>>,
+    static_assert(a_tensor_with_scale_<nk::scaled_tensor<nk::nvfp4_t>>, "NVFP4 must expose tensor_scale()");
+    static_assert(!a_tensor_with_scale_<nk::scaled_tensor<nk::mxfp8e4m3_t>>,
                   "MX formats must not expose tensor_scale()");
 
     // Block-aligned column tile at a non-zero start exercises the element and scale byte offsets.

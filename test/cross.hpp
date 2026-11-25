@@ -1328,7 +1328,7 @@ error_stats_t test_dots_launch_contract(backend_type_ backend, pack_size_kernel_
     stats.expect_true(overwritten_bytes(output, 0, output.size_bytes()) == 0, "a refused call wrote its output");
 
     // A NaN input reaches every sum it enters, however the capability widens its codes
-    if constexpr (nk::nan_capable_dtype<scalar_t>) {
+    if constexpr (nk::a_nan_capable_dtype<scalar_t>) {
         reinterpret_cast<scalar_t *>(rows.raw_values_data())[0] = scalar_t::quiet_nan();
         backend.call(symmetric_fn, scales.operand(aligned), count, depth, aligned_stride, cells, output_stride, 0,
                      count, nullptr, 0);
@@ -1564,7 +1564,7 @@ void expect_angular_edges(error_stats_t &stats, backend_type_ &backend, split_mi
     constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
     using scalar_t = typename nk::type_for<format.element_dtype>::type;
     using result_t = typename scalar_type_::angular_result_t;
-    constexpr std::size_t rows = format.block_size || nk::nan_capable_dtype<scalar_t> ? 4 : 3;
+    constexpr std::size_t rows = format.block_size || nk::a_nan_capable_dtype<scalar_t> ? 4 : 3;
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, dimensions_per_value);
     std::size_t const depth = nk::divide_round_up(64, depth_multiple) * depth_multiple;

@@ -27,7 +27,7 @@ namespace ashvardanian::numkong {
  *  @tparam in_type_ Element type (f32_t, f64_t, f16_t)
  *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
  */
-template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
+template <a_numeric_dtype in_type_, a_numeric_dtype precision_type_ = in_type_>
 status_t sin(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = default_capabilities(),
              nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
@@ -55,7 +55,7 @@ status_t sin(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t c
  *  @tparam in_type_ Element type (f32_t, f64_t, f16_t)
  *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
  */
-template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
+template <a_numeric_dtype in_type_, a_numeric_dtype precision_type_ = in_type_>
 status_t cos(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = default_capabilities(),
              nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
@@ -83,7 +83,7 @@ status_t cos(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t c
  *  @tparam in_type_ Element type (f32_t, f64_t, f16_t)
  *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
  */
-template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
+template <a_numeric_dtype in_type_, a_numeric_dtype precision_type_ = in_type_>
 status_t atan(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = default_capabilities(),
               nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
@@ -110,7 +110,7 @@ namespace ashvardanian::numkong {
 
 /** Elementwise sin of one run into another of equal dimensions; @c unexpected_dimensions_k
  *  when they differ or either run is strided or ends mid-value. */
-template <numeric_dtype in_type_, vector_of<in_type_> input_type_, mutable_vector_of<in_type_> output_type_>
+template <a_numeric_dtype in_type_, a_vector_of<in_type_> input_type_, a_mutable_vector_of<in_type_> output_type_>
 status_t sin(input_type_ const &input, output_type_ &&output, nk_capability_t capabilities = default_capabilities(),
              nk_stream_t stream = nullptr) noexcept {
     auto input_values = contiguous_values_<in_type_ const>(input);
@@ -122,7 +122,7 @@ status_t sin(input_type_ const &input, output_type_ &&output, nk_capability_t ca
 }
 
 /** Elementwise cos of one run into another, failing like the concept @c sin. */
-template <numeric_dtype in_type_, vector_of<in_type_> input_type_, mutable_vector_of<in_type_> output_type_>
+template <a_numeric_dtype in_type_, a_vector_of<in_type_> input_type_, a_mutable_vector_of<in_type_> output_type_>
 status_t cos(input_type_ const &input, output_type_ &&output, nk_capability_t capabilities = default_capabilities(),
              nk_stream_t stream = nullptr) noexcept {
     auto input_values = contiguous_values_<in_type_ const>(input);
@@ -134,7 +134,7 @@ status_t cos(input_type_ const &input, output_type_ &&output, nk_capability_t ca
 }
 
 /** Elementwise atan of one run into another, failing like the concept @c sin. */
-template <numeric_dtype in_type_, vector_of<in_type_> input_type_, mutable_vector_of<in_type_> output_type_>
+template <a_numeric_dtype in_type_, a_vector_of<in_type_> input_type_, a_mutable_vector_of<in_type_> output_type_>
 status_t atan(input_type_ const &input, output_type_ &&output, nk_capability_t capabilities = default_capabilities(),
               nk_stream_t stream = nullptr) noexcept {
     auto input_values = contiguous_values_<in_type_ const>(input);
@@ -150,7 +150,7 @@ status_t atan(input_type_ const &input, output_type_ &&output, nk_capability_t c
 #pragma region Tensor Trigonometric
 
 /** Elementwise sin into pre-allocated output. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
 status_t sin(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
         input, output, [](tensor_view<value_type_, max_rank_> in, tensor_span<value_type_, max_rank_> out) {
@@ -159,7 +159,7 @@ status_t sin(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_,
 }
 
 /** Allocating sin; empty for an empty @p input, or the allocation's or the kernel's failure. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, max_rank_>> sin(tensor_view<value_type_, max_rank_> input,
                                                               allocator_type_ alloc = {}) noexcept {
@@ -174,7 +174,7 @@ expected<tensor<value_type_, allocator_type_, max_rank_>> sin(tensor_view<value_
 }
 
 /** Elementwise cos into pre-allocated output. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
 status_t cos(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
         input, output, [](tensor_view<value_type_, max_rank_> in, tensor_span<value_type_, max_rank_> out) {
@@ -183,7 +183,7 @@ status_t cos(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_,
 }
 
 /** Allocating cos; empty for an empty @p input, or the allocation's or the kernel's failure. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, max_rank_>> cos(tensor_view<value_type_, max_rank_> input,
                                                               allocator_type_ alloc = {}) noexcept {
@@ -198,7 +198,7 @@ expected<tensor<value_type_, allocator_type_, max_rank_>> cos(tensor_view<value_
 }
 
 /** Elementwise atan into pre-allocated output. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
 status_t atan(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
         input, output, [](tensor_view<value_type_, max_rank_> in, tensor_span<value_type_, max_rank_> out) {
@@ -207,7 +207,7 @@ status_t atan(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_
 }
 
 /** Allocating atan; empty for an empty @p input, or the allocation's or the kernel's failure. */
-template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, max_rank_>> atan(tensor_view<value_type_, max_rank_> input,
                                                                allocator_type_ alloc = {}) noexcept {

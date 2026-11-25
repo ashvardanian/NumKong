@@ -884,7 +884,7 @@ struct vector {
     constexpr value_type *values_data() noexcept { return data_; }
     constexpr value_type const *values_data() const noexcept { return data_; }
 
-    /** Pointer to underlying data, so the vector satisfies @c vector_of through @c std::data. */
+    /** Pointer to underlying data, so the vector satisfies @c a_vector_of through @c std::data. */
     constexpr value_type *data() noexcept { return data_; }
     constexpr value_type const *data() const noexcept { return data_; }
 
