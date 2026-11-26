@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/random.hpp
+ *  @file cpp/numkong/random.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
  *  @brief Random number generation utilities for NumKong types.

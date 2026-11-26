@@ -5,7 +5,7 @@
  *  @brief Element types and arithmetic helpers shared by every Metal kernel.
  *
  *  @sa c/numkong/types.h
- *  @sa include/numkong/types.hpp, which names the element types the same way
+ *  @sa cpp/numkong/types.hpp, which names the element types the same way
  *
  *  Every Metal source is compiled with this one concatenated ahead of it. The element types read
  *  one value of a row as @c float, or exactly as an integer, and write one back the way the serial

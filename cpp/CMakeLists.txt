@@ -1,6 +1,6 @@
-# The C++ SDK over the C interface: `cpp/numkong/*.hpp` include the C headers `numkong::abi` carries and the vocabulary
-# of `include/numkong/*.hpp`, so a consumer linking `numkong::cpp` gets the static library, whose public interface
-# carries that vocabulary, and dispatches on its compiled kernels.
+# The C++ SDK over the C interface: `cpp/numkong/*.hpp` hold the vocabulary of types, vectors, tensors and matrices and
+# the wrappers over the C headers `numkong::abi` carries, so a consumer linking `numkong::cpp` gets the static library
+# and dispatches on its compiled kernels.
 add_library(numkong_cpp INTERFACE)
 add_library(numkong::cpp ALIAS numkong_cpp)
 set_target_properties(numkong_cpp PROPERTIES EXPORT_NAME cpp)

@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/tensor.hpp
+ *  @file cpp/numkong/tensor.hpp
  *  @author Ash Vardanian
  *  @date January 11, 2026
  *  @brief NumKong tensor types and tensor-level operations for C++20 and newer.

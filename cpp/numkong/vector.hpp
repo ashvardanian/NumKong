@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/vector.hpp
+ *  @file cpp/numkong/vector.hpp
  *  @author Ash Vardanian
  *  @date January 7, 2026
  *  @brief NumKong vector types for C++23 and newer.

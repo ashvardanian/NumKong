@@ -205,7 +205,7 @@ endif ()
 # resolves headers under the install prefix instead.
 include(GNUInstallDirs)
 file(GLOB numkong_abi_sources_ c/numkong/*.h)
-file(GLOB numkong_kernel_sources_ include/numkong/*.h include/numkong/*.hpp)
+file(GLOB numkong_kernel_sources_ include/numkong/*.h)
 file(GLOB numkong_cpp_sources_ cpp/numkong/*.hpp)
 
 add_library(numkong_abi INTERFACE)

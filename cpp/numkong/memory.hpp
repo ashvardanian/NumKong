@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/memory.hpp
+ *  @file cpp/numkong/memory.hpp
  *  @author Ash Vardanian
  *  @date October 5, 2026
  *  @brief C++ allocation policies and device stream ownership.

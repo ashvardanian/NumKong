@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/matrix.hpp
+ *  @file cpp/numkong/matrix.hpp
  *  @author Ash Vardanian
  *  @date March 5, 2026
  *  @brief NumKong packed_matrix type for efficient GEMM.

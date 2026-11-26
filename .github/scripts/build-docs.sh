@@ -8,8 +8,8 @@ name=numkong_docs_$version out=build/numkong_docs_$version
 rm -rf "$out" && mkdir -p "$out"/{doxygen,headers,python,rust,swift,javascript,go} build/docs-scratch/library
 
 rm -rf build/xml && (cd docs && doxygen conf.dox) && cp -r build/xml/. "$out/doxygen"
-git ls-files ':(glob)c/numkong/**/*.h' ':(glob)cpp/numkong/**/*.hpp' ':(glob)include/numkong/*.h' \
-    ':(glob)include/numkong/*.hpp' | xargs cp --parents -t "$out/headers"
+git ls-files ':(glob)c/numkong/**/*.h' ':(glob)cpp/numkong/**/*.hpp' ':(glob)include/numkong/*.h' |
+    xargs cp --parents -t "$out/headers"
 griffe dump numkong --search python --no-inspection --docstyle google --full --output "$out/python/numkong.json"
 cp python/numkong/__init__.pyi "$out/python/"
 # Stable 1.100 emits rustdoc's JSON only behind `-Z unstable-options`, so this one step bootstraps it.
