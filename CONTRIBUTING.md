@@ -6,9 +6,9 @@ To keep the quality of the code high, we follow the [coding style and convention
 
 ```
 c/numkong/                The C interface: one .h per kernel family with its dispatch points, types and capabilities
-include/numkong/          Core C++ templates, like tensors, vectors and matrices, and the GPU runtimes
+include/numkong/          The C kernels, CUDA C and MSL, and the GPU runtimes
 include/numkong/*/        Kernels, one file per CPU or GPU capability — serial, haswell, neon, sme, rvv, ampere, etc.
-cpp/numkong/              The C++ interface over the C one: one .hpp per kernel family
+cpp/numkong/              The C++ SDK over the C one: types, memory, random, vector, tensor and matrix, and one .hpp per kernel family
 src/                      Library units: per-family dispatch points, per-capability kernels, binding thread pools
 probes/                   One compile probe per capability, `<capability>.c`, which CMake runs for every binding
 test/                     C++ precision tests — see test/README.md
@@ -20,6 +20,8 @@ swift/                    Swift Package Manager bindings
 golang/                   Go cgo bindings
 cmake/                    The ISA probe module, the package config, and cross-compilation toolchain files
 ```
+
+A file never includes both a library's SDK umbrella `<X/X.hpp>` and its native umbrella `<X.hpp>`, for this library and every sibling, and nothing under `include/` includes a header that resolves under `cpp/`; C headers are the ABI every SDK sits on, so they are free everywhere. `.githooks/pre-commit` refuses both.
 
 ## C and C++
 
