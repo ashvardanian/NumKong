@@ -67,7 +67,8 @@ A broader throughput comparison is maintained in [NumWars](https://github.com/as
 
 | Language | Install                    | Compatible with                | Guide                                                                                          |
 | :------- | :------------------------- | :----------------------------- | :--------------------------------------------------------------------------------------------- |
-| C / C++  | CMake, headers, & prebuilt | Linux, macOS, Windows, Android | [c/README.md](https://github.com/ashvardanian/NumKong/blob/main/c/README.md)                   |
+| C        | CMake, headers, & prebuilt | Linux, macOS, Windows, Android | [c/README.md](https://github.com/ashvardanian/NumKong/blob/main/c/README.md)                   |
+| C++      | CMake & headers            | Linux, macOS, Windows, Android | [cpp/README.md](https://github.com/ashvardanian/NumKong/blob/main/cpp/README.md)               |
 | Python   | `pip install`              | Linux, macOS, Windows          | [python/README.md](https://github.com/ashvardanian/NumKong/blob/main/python/README.md)         |
 | Rust     | `cargo add`                | Linux, macOS, Windows          | [rust/README.md](https://github.com/ashvardanian/NumKong/blob/main/rust/README.md)             |
 | JS       | `npm install` & `import`   | Node.js, Bun, Deno & browsers  | [javascript/README.md](https://github.com/ashvardanian/NumKong/blob/main/javascript/README.md) |
@@ -80,28 +81,28 @@ NumKong covers numeric types — from 4-bit floats to 128-bit complex numbers �
 
 ### Language Bindings
 
-| Operation                   | [C 99 & C++ 20][c] | [Python][py] | [Rust][rs] | [JavaScript][js] | [Swift][swift] | [GoLang][go] |
-| :-------------------------- | :----------------: | :----------: | :--------: | :--------------: | :------------: | :----------: |
-| __Vector Ops__              |                    |              |            |                  |                |              |
-| [Dot] Product               |         ●          |      ●       |     ●      |        ●         |       ●        |      ●       |
-| [Spatial] Metric            |         ●          |      ●       |     ●      |        ●         |       ●        |      ●       |
-| [Set] Similarity            |         ●          |      ●       |     ●      |        ●         |       ●        |      ●       |
-| [Geo]spatial                |         ●          |      ●       |     ●      |        ·         |       ●        |      ●       |
-| [Sparse] Products           |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
-| [Probability] Divergences   |         ●          |      ●       |     ●      |        ●         |       ·        |      ●       |
-| [Curved] Spaces             |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
-| __Many-to-Many Vector Ops__ |                    |              |            |                  |                |              |
-| "[Dots]" Products           |         ●          |      ●       |     ●      |        ●         |       ●        |      ●       |
-| "[Spatials]" Metrics        |         ●          |      ●       |     ●      |        ●         |       ●        |      ●       |
-| "[Sets]" Similarities       |         ●          |      ●       |     ●      |        ·         |       ●        |      ●       |
-| [MaxSim] Scoring            |         ●          |      ●       |     ●      |        ·         |       ●        |      ●       |
-| "[Shapes]" Distances        |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
-| [Attention] SDPA            |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
-| __Scalar Ops__              |                    |              |            |                  |                |              |
-| [Cast]                      |         ●          |      ●       |     ●      |        ●         |       ·        |      ·       |
-| [Reduce]                    |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
-| [Each]                      |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
-| [Trigonometry]              |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
+| Operation                   | [C 99][c] & [C++ 20][cpp] | [Python][py] | [Rust][rs] | [JavaScript][js] | [Swift][swift] | [GoLang][go] |
+| :-------------------------- | :-----------------------: | :----------: | :--------: | :--------------: | :------------: | :----------: |
+| __Vector Ops__              |                           |              |            |                  |                |              |
+| [Dot] Product               |             ●             |      ●       |     ●      |        ●         |       ●        |      ●       |
+| [Spatial] Metric            |             ●             |      ●       |     ●      |        ●         |       ●        |      ●       |
+| [Set] Similarity            |             ●             |      ●       |     ●      |        ●         |       ●        |      ●       |
+| [Geo]spatial                |             ●             |      ●       |     ●      |        ·         |       ●        |      ●       |
+| [Sparse] Products           |             ●             |      ●       |     ●      |        ·         |       ·        |      ·       |
+| [Probability] Divergences   |             ●             |      ●       |     ●      |        ●         |       ·        |      ●       |
+| [Curved] Spaces             |             ●             |      ●       |     ●      |        ·         |       ·        |      ·       |
+| __Many-to-Many Vector Ops__ |                           |              |            |                  |                |              |
+| "[Dots]" Products           |             ●             |      ●       |     ●      |        ●         |       ●        |      ●       |
+| "[Spatials]" Metrics        |             ●             |      ●       |     ●      |        ●         |       ●        |      ●       |
+| "[Sets]" Similarities       |             ●             |      ●       |     ●      |        ·         |       ●        |      ●       |
+| [MaxSim] Scoring            |             ●             |      ●       |     ●      |        ·         |       ●        |      ●       |
+| "[Shapes]" Distances        |             ●             |      ●       |     ●      |        ·         |       ·        |      ·       |
+| [Attention] SDPA            |             ●             |      ●       |     ●      |        ·         |       ·        |      ·       |
+| __Scalar Ops__              |                           |              |            |                  |                |              |
+| [Cast]                      |             ●             |      ●       |     ●      |        ●         |       ·        |      ·       |
+| [Reduce]                    |             ●             |      ●       |     ●      |        ·         |       ·        |      ·       |
+| [Each]                      |             ●             |      ●       |     ●      |        ·         |       ·        |      ·       |
+| [Trigonometry]              |             ●             |      ●       |     ●      |        ·         |       ·        |      ·       |
 
 [Dot]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/dot/README.md
 [Dots]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/dots/README.md
@@ -121,6 +122,7 @@ NumKong covers numeric types — from 4-bit floats to 128-bit complex numbers �
 [Curved]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/curved/README.md
 [Geo]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/geospatial/README.md
 [c]: https://github.com/ashvardanian/NumKong/blob/main/c/README.md
+[cpp]: https://github.com/ashvardanian/NumKong/blob/main/cpp/README.md
 [py]: https://github.com/ashvardanian/NumKong/blob/main/python/README.md
 [js]: https://github.com/ashvardanian/NumKong/blob/main/javascript/README.md
 [rs]: https://github.com/ashvardanian/NumKong/blob/main/rust/README.md
