@@ -10,3 +10,10 @@ target_include_directories(
 )
 target_link_libraries(numkong_cpp INTERFACE numkong::abi numkong::static)
 target_compile_features(numkong_cpp INTERFACE cxx_std_20)
+
+# The smoke test of the SDK, against the compiled kernels a `numkong::cpp` consumer links, never the header-only engine.
+if (NUMKONG_BUILD_TEST)
+    add_executable(numkong_test_cpp test.cpp)
+    target_link_libraries(numkong_test_cpp PRIVATE numkong::cpp numkong_warnings)
+    add_test(NAME numkong_test_cpp COMMAND numkong_test_cpp)
+endif ()
