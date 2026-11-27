@@ -485,6 +485,61 @@ NUMKONG_DEVICE void nk_attention_backward_queries_bf16_rocm_(nk_attention_backwa
 
 #pragma region Launchers
 
+/** Whether the device of @p stream reaches the @p query_token_count rows of @p queries, each of
+ *  @p head_count × @p depth elements of @p element_bytes, the F32 rows of @p output and any
+ *  @p log_sum_exp, and the first query offset and pack byte, as only the pack's device header
+ *  knows the segment count and the pack's extent. */
+NUMKONG_INLINE nk_status_t nk_attention_accessible_rocm_(nk_size_t head_count, nk_size_t depth,
+                                                         nk_u32_t const *query_offsets, nk_size_t query_token_count,
+                                                         void const *queries, nk_size_t query_stride,
+                                                         nk_size_t element_bytes, void const *key_value_packed,
+                                                         void const *output, nk_size_t output_stride,
+                                                         void const *log_sum_exp, nk_stream_t stream) {
+    if (!query_token_count) return nk_success_k;
+    int caller = 0;
+    nk_status_t const entered = nk_device_enter_rocm_(stream, &caller);
+    if (entered != nk_success_k) return entered;
+    nk_size_t const row_values = head_count * depth, last_row = query_token_count - 1;
+    int const reached = nk_memory_accessible_rocm_(queries, last_row * query_stride + row_values * element_bytes) &&
+                        nk_memory_accessible_rocm_(output, last_row * output_stride + row_values * sizeof(nk_f32_t)) &&
+                        nk_memory_accessible_rocm_(
+                            log_sum_exp, log_sum_exp ? query_token_count * head_count * sizeof(nk_f32_t) : 0) &&
+                        nk_memory_accessible_rocm_(query_offsets, sizeof(nk_u32_t)) &&
+                        nk_memory_accessible_rocm_(key_value_packed, 1);
+    nk_device_leave_rocm_(caller);
+    return reached ? nk_success_k : nk_device_memory_mismatch_k;
+}
+
+/** Whether the device of @p stream reaches every operand of a backward pass, as
+ *  @ref nk_attention_accessible_rocm_ reads them, plus the gradients of the queries and the output,
+ *  the first key and value gradient, and the workspace. */
+NUMKONG_INLINE nk_status_t nk_attention_backward_accessible_rocm_(nk_attention_backward_arguments_t const *arguments,
+                                                                  nk_size_t element_bytes, void const *workspace,
+                                                                  nk_size_t workspace_bytes, nk_stream_t stream) {
+    if (!arguments->query_token_count) return nk_success_k;
+    int caller = 0;
+    nk_status_t const entered = nk_device_enter_rocm_(stream, &caller);
+    if (entered != nk_success_k) return entered;
+    nk_size_t const row_values = arguments->head_count * arguments->depth;
+    nk_size_t const last_row = arguments->query_token_count - 1;
+    nk_size_t const output_bytes = last_row * arguments->output_stride + row_values * sizeof(nk_f32_t);
+    int const reached =
+        nk_memory_accessible_rocm_(arguments->queries,
+                                   last_row * arguments->query_stride + row_values * element_bytes) &&
+        nk_memory_accessible_rocm_(arguments->output, output_bytes) &&
+        nk_memory_accessible_rocm_(arguments->output_gradient, output_bytes) &&
+        nk_memory_accessible_rocm_(arguments->log_sum_exp,
+                                   arguments->query_token_count * arguments->head_count * sizeof(nk_f32_t)) &&
+        nk_memory_accessible_rocm_(arguments->query_gradient,
+                                   last_row * arguments->query_gradient_stride + row_values * sizeof(nk_f32_t)) &&
+        nk_memory_accessible_rocm_(arguments->key_gradient, sizeof(nk_f32_t)) &&
+        nk_memory_accessible_rocm_(arguments->value_gradient, sizeof(nk_f32_t)) &&
+        nk_memory_accessible_rocm_(arguments->query_offsets, sizeof(nk_u32_t)) &&
+        nk_memory_accessible_rocm_(arguments->packed, 1) && nk_memory_accessible_rocm_(workspace, workspace_bytes);
+    nk_device_leave_rocm_(caller);
+    return reached ? nk_success_k : nk_device_memory_mismatch_k;
+}
+
 /** Validates the contract and launches @p kernel with as many blocks as stay resident. */
 NUMKONG_INLINE nk_status_t nk_attention_launch_rocm_(void const *kernel, void const *queries, void const *packed,
                                                      nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
@@ -538,6 +593,16 @@ NUMKONG_INLINE nk_status_t nk_attention_rope_launch_rocm_(void const *kernel, nk
     arguments.head_count = head_count, arguments.half_depth = depth / 2, arguments.heads = rows * head_count;
     arguments.x_stride = x_stride, arguments.y_stride = y_stride;
     if (arguments.heads == 0 || depth == 0) return nk_success_k;
+    nk_size_t const row_bytes = head_count * depth * value_bytes, last_row = rows - 1;
+    nk_size_t const angles_bytes = rows * arguments.half_depth * sizeof(nk_f32_t);
+    int caller = 0;
+    nk_status_t const entered = nk_device_enter_rocm_(stream, &caller);
+    if (entered != nk_success_k) return entered;
+    int const reached = nk_memory_accessible_rocm_(x, last_row * x_stride + row_bytes) &&
+                        nk_memory_accessible_rocm_(y, last_row * y_stride + row_bytes) &&
+                        nk_memory_accessible_rocm_(cos, angles_bytes) && nk_memory_accessible_rocm_(sin, angles_bytes);
+    nk_device_leave_rocm_(caller);
+    if (!reached) return nk_device_memory_mismatch_k;
     // Sized for 32-lane wavefronts; the kernel strides over the heads a 64-lane one leaves.
     nk_size_t const blocks = nk_size_divide_round_up_(arguments.heads, nk_attention_threads_k / 32),
                     blocks_limit = (nk_size_t)1 << 20;
@@ -623,6 +688,10 @@ NUMKONG_INLINE nk_status_t nk_attention_rope_launch_rocm_(void const *kernel, nk
         nk_f32_t *output, nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, \
         void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {                                             \
         nk_unused_(workspace), nk_unused_(workspace_bytes);                                                           \
+        nk_status_t const reached = nk_attention_accessible_rocm_(                                                    \
+            head_count, depth, query_offsets, query_token_count, queries, query_stride,                               \
+            sizeof(nk_##input_value_type##_t), key_value_packed, output, output_stride, log_sum_exp, stream);         \
+        if (reached != nk_success_k) return reached;                                                                  \
         return nk_attention_launch_rocm_(                                                                             \
             (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_kernel_, queries, key_value_packed,  \
             output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_token_count,           \
@@ -658,15 +727,18 @@ NUMKONG_INLINE nk_status_t nk_attention_rope_launch_rocm_(void const *kernel, nk
         nk_f32_t *query_gradient, nk_size_t query_gradient_stride, nk_f32_t *key_gradient, nk_f32_t *value_gradient,   \
         nk_size_t key_value_gradient_stride, nk_size_t tasks_begin, nk_size_t tasks_end, void *workspace,              \
         nk_size_t workspace_bytes, nk_stream_t stream) {                                                               \
+        nk_attention_backward_arguments_t const arguments = nk_attention_backward_arguments_init_simt_(                \
+            queries, key_value_packed, output, output_gradient, log_sum_exp, query_gradient, key_gradient,             \
+            value_gradient, head_count, key_value_head_count, depth, query_offsets, query_token_count, query_stride,   \
+            output_stride, query_gradient_stride, key_value_gradient_stride, scale, keys_before, keys_after,           \
+            tasks_begin, tasks_end);                                                                                   \
+        nk_status_t const reached = nk_attention_backward_accessible_rocm_(                                            \
+            &arguments, sizeof(nk_##input_value_type##_t), NUMKONG_NULL, 0, stream);                                   \
+        if (reached != nk_success_k) return reached;                                                                   \
         nk_unused_(workspace), nk_unused_(workspace_bytes);                                                            \
         return nk_attention_backward_launch_rocm_(                                                                     \
             (void const *)nk_attention_backward_keys_##input_type_name##_##isa_suffix##_kernel_,                       \
-            (void const *)nk_attention_backward_queries_##input_type_name##_##isa_suffix##_kernel_,                    \
-            nk_attention_backward_arguments_init_simt_(                                                                \
-                queries, key_value_packed, output, output_gradient, log_sum_exp, query_gradient, key_gradient,         \
-                value_gradient, head_count, key_value_head_count, depth, query_offsets, query_token_count,             \
-                query_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale, keys_before,     \
-                keys_after, tasks_begin, tasks_end),                                                                   \
+            (void const *)nk_attention_backward_queries_##input_type_name##_##isa_suffix##_kernel_, arguments,         \
             stream);                                                                                                   \
     }
 
@@ -768,6 +840,17 @@ NUMKONG_INLINE nk_status_t nk_attention_pack_launch_rocm_(
     if ((nk_size_t)packed & 15) return nk_misaligned_k;
     if (key_value_head_count > NUMKONG_U32_MAX || depth > NUMKONG_U32_MAX || segment_count > NUMKONG_U32_MAX)
         return nk_unexpected_dimensions_k;
+    int caller = 0;
+    nk_status_t const entered = nk_device_enter_rocm_(stream, &caller);
+    if (entered != nk_success_k) return entered;
+    // Token counts live in device memory, so the keys, values and pack reach by their first bytes
+    int const reached = nk_memory_accessible_rocm_(key_offsets, (segment_count + 1) * sizeof(nk_u32_t)) &&
+                        nk_memory_accessible_rocm_(key_lengths, segment_count * sizeof(nk_u32_t)) &&
+                        nk_memory_accessible_rocm_(keys, segment_count ? 1 : 0) &&
+                        nk_memory_accessible_rocm_(values, segment_count ? 1 : 0) &&
+                        nk_memory_accessible_rocm_(packed, 1);
+    nk_device_leave_rocm_(caller);
+    if (!reached) return nk_device_memory_mismatch_k;
     nk_size_t const row_bytes = nk_size_round_up_to_multiple_(depth * element_bytes, nk_attention_step_bytes_k);
     // Zero the gap between the directory and the payload, so the pack depends on its inputs alone
     nk_size_t const directory_bytes = nk_attention_payload_offset_simt_(segment_count, row_bytes) -

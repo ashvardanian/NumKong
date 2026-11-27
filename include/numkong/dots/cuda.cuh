@@ -1485,6 +1485,30 @@ NUMKONG_DEVICE nk_cross_wide_sum_t nk_cross_pack_fold_cross_wide_sum_cuda_(nk_cr
 
 #pragma region Launchers
 
+/** Whether the device of @p stream reaches the @p a_rows rows of @p a, their @p depth_bytes codes
+ *  and @p scale_blocks scales, the @p packed_bytes of @p b_packed, the @p c_rows rows of
+ *  @p c_row_bytes at @p c, and the workspace. A row count of zero reaches nothing. */
+NUMKONG_INLINE nk_status_t nk_cross_accessible_cuda_(nk_cross_operand_t const *a, nk_size_t a_rows, nk_size_t a_stride,
+                                                     nk_size_t depth_bytes, nk_size_t scale_blocks,
+                                                     void const *b_packed, nk_size_t packed_bytes, void const *c,
+                                                     nk_size_t c_rows, nk_size_t c_stride, nk_size_t c_row_bytes,
+                                                     void const *workspace, nk_size_t workspace_bytes,
+                                                     nk_stream_t stream) {
+    int caller = 0;
+    nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
+    if (entered != nk_success_k) return entered;
+    nk_size_t const a_last = a_rows ? a_rows - 1 : 0;
+    nk_size_t const scales_bytes = a_rows && a->scales ? a_last * a->scales_stride + scale_blocks : 0;
+    int const reached = nk_memory_accessible_cuda_(a->elements, a_rows ? a_last * a_stride + depth_bytes : 0) &&
+                        nk_memory_accessible_cuda_(a->scales, scales_bytes) &&
+                        nk_memory_accessible_cuda_(a->tensor_scale, a_rows && a->tensor_scale ? sizeof(nk_f32_t) : 0) &&
+                        nk_memory_accessible_cuda_(b_packed, packed_bytes) &&
+                        nk_memory_accessible_cuda_(c, c_rows ? (c_rows - 1) * c_stride + c_row_bytes : 0) &&
+                        nk_memory_accessible_cuda_(workspace, workspace_bytes);
+    nk_device_leave_cuda_(caller);
+    return reached ? nk_success_k : nk_device_memory_mismatch_k;
+}
+
 /** Validates the contract and launches as many blocks of @p kernel as stay resident, each walking
  *  @p tile × @p tile output tiles with a stride of the grid. @p b_norms holds the packed column
  *  norms a @c packed metric reads, or is null. @p block_size is the block of a block-scaled dtype,
@@ -1674,6 +1698,14 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
         nk_size_t const scales_stride = nk_cross_scales_stride_serial_(nk_##input_type_name##_k, depth);               \
         if (!nk_cross_whole_blocks_serial_(nk_##input_type_name##_k, depth) || (scales_stride && !b.scales))           \
             return nk_unexpected_dimensions_k;                                                                         \
+        nk_size_t packed_bytes = 0;                                                                                    \
+        nk_status_t status = nk_dots_pack_size_##input_type_name##_##isa_suffix(column_count, depth, &packed_bytes);   \
+        if (status == nk_success_k)                                                                                    \
+            status = nk_cross_accessible_cuda_(&b, columns_end, b_stride, depth_bytes,                                 \
+                                               nk_cross_scale_blocks_serial_(nk_##input_type_name##_k, depth),         \
+                                               b_packed, packed_bytes, NUMKONG_NULL, 0, 0, 0, NUMKONG_NULL, 0,         \
+                                               stream);                                                                \
+        if (status != nk_success_k) return status;                                                                     \
         return nk_cross_pack_launch_cuda_((void const *)nk_dots_pack_##input_type_name##_##isa_suffix##_kernel_, &b,   \
                                           column_count, depth, depth_bytes, b_stride, b_packed, columns_begin,         \
                                           columns_end, depth_values_padded, nk_cap_##isa_suffix##_k, scales_stride,    \
@@ -1725,6 +1757,15 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
         nk_cross_operand_t const a = nk_cross_operand_serial_(nk_##input_type_name##_k, a_operand, a_stride);         \
         nk_cross_operand_t const b = {b_rows, scales_stride ? b_rows + column_count * row_bytes : NUMKONG_NULL,       \
                                       scales_stride, &header->tensor_scale};                                          \
+        nk_size_t const results_bytes = column_count * sizeof(nk_##result_value_type##_t);                            \
+        nk_size_t packed_bytes = 0;                                                                                   \
+        nk_status_t status = nk_dots_pack_size_##input_type_name##_##isa_suffix(column_count, depth, &packed_bytes);  \
+        if (status == nk_success_k)                                                                                   \
+            status = nk_cross_accessible_cuda_(                                                                       \
+                &a, rows, a_stride, depth / dimensions_per_value * sizeof(nk_##input_value_type##_t),                 \
+                nk_cross_scale_blocks_serial_(nk_##input_type_name##_k, depth), b_packed_buffer, packed_bytes,        \
+                c_matrix, rows, c_stride, results_bytes, NUMKONG_NULL, 0, stream);                                    \
+        if (status != nk_success_k) return status;                                                                    \
         return nk_cross_launch_cuda_(                                                                                 \
             (void const *)nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_, nk_cross_tile_##tile##_k, \
             nk_cross_threads_##tile##_k, &a, &b, b_rows + column_count * (row_bytes + scales_stride), c_matrix,       \
@@ -1764,6 +1805,12 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
         rows_end = nk_min_of_two(rows_end, vector_count);                                                             \
         nk_cross_operand_t const vectors = nk_cross_operand_serial_(nk_##input_type_name##_k, vectors_operand,        \
                                                                     stride);                                          \
+        nk_status_t const reached = nk_cross_accessible_cuda_(                                                        \
+            &vectors, vector_count, stride, depth / dimensions_per_value * sizeof(nk_##input_value_type##_t),         \
+            nk_cross_scale_blocks_serial_(nk_##input_type_name##_k, depth), NUMKONG_NULL, 0, result,                  \
+            rows_end > rows_begin ? rows_end : 0, result_stride, vector_count * sizeof(nk_##result_value_type##_t),   \
+            NUMKONG_NULL, 0, stream);                                                                                 \
+        if (reached != nk_success_k) return reached;                                                                  \
         return nk_cross_launch_cuda_(                                                                                 \
             (void const *)nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_,                        \
             nk_cross_tile_##tile##_k, nk_cross_threads_##tile##_k, &vectors, &vectors, 0, result,                     \

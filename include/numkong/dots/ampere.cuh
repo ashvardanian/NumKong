@@ -3132,6 +3132,13 @@ NUMKONG_INLINE nk_status_t nk_cross_packed_f64_ampere_(nk_cross_metric_t metric,
                                                        nk_stream_t stream) {
     nk_size_t const row_bytes = nk_cross_padded_values_simt_(depth, 2, 1, sizeof(nk_f64_t)) * sizeof(nk_f64_t);
     unsigned char const *b_rows = (unsigned char const *)((nk_cross_packed_buffer_header_t const *)b_packed + 1);
+    nk_size_t const packed_bytes = sizeof(nk_cross_packed_buffer_header_t) +
+                                   column_count * (row_bytes + sizeof(nk_f64_t));
+    nk_cross_operand_t const a_operand = {a, NUMKONG_NULL, 0, NUMKONG_NULL};
+    nk_status_t const reached = nk_cross_accessible_cuda_(
+        &a_operand, rows, a_stride, depth * sizeof(nk_f64_t), 0, b_packed, packed_bytes, c, rows, c_stride,
+        column_count * sizeof(nk_f64_t), workspace, workspace_bytes, stream);
+    if (reached != nk_success_k) return reached;
     nk_diagonal_band_t const band = {NUMKONG_SIZE_MAX, NUMKONG_SIZE_MAX};
     return nk_cross_launch_f64_ampere_(metric, band, (unsigned char const *)a, b_rows,
                                        b_rows + column_count * row_bytes, c, 0, rows, column_count, depth, a_stride,
@@ -3163,6 +3170,13 @@ NUMKONG_INLINE nk_status_t nk_cross_symmetric_f64_ampere_(nk_cross_metric_t metr
                                                           nk_f64_t *result, nk_size_t result_stride,
                                                           nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
                                                           nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_cross_operand_t const operand = {vectors, NUMKONG_NULL, 0, NUMKONG_NULL};
+    nk_size_t const rows_reached = nk_min_of_two(rows_end, vector_count);
+    nk_status_t const reached = nk_cross_accessible_cuda_(
+        &operand, vector_count, stride, depth * sizeof(nk_f64_t), 0, NUMKONG_NULL, 0, result,
+        rows_reached > rows_begin ? rows_reached : 0, result_stride, vector_count * sizeof(nk_f64_t), workspace,
+        workspace_bytes, stream);
+    if (reached != nk_success_k) return reached;
     nk_diagonal_band_t const band = {0, NUMKONG_SIZE_MAX};
     return nk_cross_launch_f64_ampere_(metric, band, (unsigned char const *)vectors, (unsigned char const *)vectors,
                                        NUMKONG_NULL, result, rows_begin, nk_min_of_two(rows_end, vector_count),

@@ -3599,6 +3599,15 @@ NUMKONG_INLINE nk_size_t nk_cross_slices_bytes_blackwell_(nk_size_t slices, nk_s
         nk_cross_operand_t const a = nk_cross_operand_serial_(nk_##input_type_name##_k, a_operand, a_stride);          \
         nk_cross_operand_t const b = {b_rows, scales_stride ? b_rows + column_count * row_bytes : NUMKONG_NULL,        \
                                       scales_stride, &header->tensor_scale};                                           \
+        nk_size_t packed_bytes = 0;                                                                                    \
+        nk_status_t status = nk_dots_pack_size_##input_type_name##_##isa_suffix(column_count, depth, &packed_bytes);   \
+        if (status == nk_success_k)                                                                                    \
+            status = nk_cross_accessible_cuda_(                                                                        \
+                &a, rows, a_stride, depth / dimensions_per_value * sizeof(nk_##input_value_type##_t),                  \
+                nk_cross_scale_blocks_serial_(nk_##input_type_name##_k, depth), b_packed_buffer, packed_bytes,         \
+                c_matrix, rows, c_stride, column_count * sizeof(nk_##result_value_type##_t), workspace,                \
+                workspace_bytes, stream);                                                                              \
+        if (status != nk_success_k) return status;                                                                     \
         return nk_cross_launch_blackwell_(                                                                             \
             (void const *)nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_, &a, rows, &b,              \
             b_rows + column_count * (row_bytes + scales_stride), c_matrix, sizeof(nk_##result_value_type##_t), 0,      \
@@ -3628,6 +3637,12 @@ NUMKONG_INLINE nk_size_t nk_cross_slices_bytes_blackwell_(nk_size_t slices, nk_s
         rows_end = nk_min_of_two(rows_end, vector_count);                                                              \
         nk_cross_operand_t const vectors = nk_cross_operand_serial_(nk_##input_type_name##_k, vectors_operand,         \
                                                                     stride);                                           \
+        nk_status_t const reached = nk_cross_accessible_cuda_(                                                         \
+            &vectors, vector_count, stride, depth / dimensions_per_value * sizeof(nk_##input_value_type##_t),          \
+            nk_cross_scale_blocks_serial_(nk_##input_type_name##_k, depth), NUMKONG_NULL, 0, result,                   \
+            rows_end > rows_begin ? rows_end : 0, result_stride, vector_count * sizeof(nk_##result_value_type##_t),    \
+            NUMKONG_NULL, 0, stream);                                                                                  \
+        if (reached != nk_success_k) return reached;                                                                   \
         return nk_cross_launch_blackwell_(                                                                             \
             (void const *)nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_, &vectors, vector_count, \
             &vectors, 0, result, sizeof(nk_##result_value_type##_t), rows_begin, rows_end, vector_count, depth,        \
@@ -3893,6 +3908,11 @@ NUMKONG_API nk_status_t nk_dots_pack_i8_blackwell(nk_cross_i8_operand_t const *b
                                                   nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {
     nk_cross_operand_t const b = nk_cross_operand_serial_(nk_i8_k, b_operand, b_stride);
     nk_size_t const depth_values_padded = nk_cross_padded_values_simt_(depth, 64, 1, sizeof(nk_f16_t));
+    nk_size_t const packed_bytes = sizeof(nk_cross_packed_buffer_header_t) +
+                                   column_count * (depth_values_padded * sizeof(nk_f16_t) + sizeof(nk_u32_t));
+    nk_status_t const reached = nk_cross_accessible_cuda_(&b, columns_end, b_stride, depth, 0, b_packed, packed_bytes,
+                                                          NUMKONG_NULL, 0, 0, 0, NUMKONG_NULL, 0, stream);
+    if (reached != nk_success_k) return reached;
     return nk_cross_pack_launch_cuda_((void const *)nk_dots_pack_i8_blackwell_kernel_, &b, column_count, depth, depth,
                                       b_stride, b_packed, columns_begin, columns_end, depth_values_padded,
                                       nk_cap_blackwell_k, 0, stream);
@@ -3958,6 +3978,11 @@ NUMKONG_API nk_status_t nk_dots_pack_u8_blackwell(nk_cross_u8_operand_t const *b
                                                   nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {
     nk_cross_operand_t const b = nk_cross_operand_serial_(nk_u8_k, b_operand, b_stride);
     nk_size_t const depth_values_padded = nk_cross_padded_values_simt_(depth, 64, 1, sizeof(nk_f16_t));
+    nk_size_t const packed_bytes = sizeof(nk_cross_packed_buffer_header_t) +
+                                   column_count * (depth_values_padded * sizeof(nk_f16_t) + sizeof(nk_u32_t));
+    nk_status_t const reached = nk_cross_accessible_cuda_(&b, columns_end, b_stride, depth, 0, b_packed, packed_bytes,
+                                                          NUMKONG_NULL, 0, 0, 0, NUMKONG_NULL, 0, stream);
+    if (reached != nk_success_k) return reached;
     return nk_cross_pack_launch_cuda_((void const *)nk_dots_pack_u8_blackwell_kernel_, &b, column_count, depth, depth,
                                       b_stride, b_packed, columns_begin, columns_end, depth_values_padded,
                                       nk_cap_blackwell_k, 0, stream);

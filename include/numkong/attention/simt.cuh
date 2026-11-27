@@ -894,6 +894,10 @@ NUMKONG_INLINE nk_attention_arguments_t nk_attention_arguments_init_simt_(
         nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, void *workspace,  \
         nk_size_t workspace_bytes, nk_stream_t stream) {                                                              \
         nk_unused_(workspace), nk_unused_(workspace_bytes);                                                           \
+        nk_status_t const reached = nk_attention_accessible_##vendor##_(                                              \
+            head_count, depth, query_offsets, query_token_count, queries, query_stride, sizeof(nk_##input_type##_t),  \
+            key_value_packed, output, output_stride, log_sum_exp, stream);                                            \
+        if (reached != nk_success_k) return reached;                                                                  \
         int const masked = keys_before != NUMKONG_SIZE_MAX || keys_after != NUMKONG_SIZE_MAX;                         \
         return nk_attention_launch_##input_type##_##isa_suffix##_(                                                    \
             masked ? (void const *)nk_attention_packed_##input_type##_narrow_masked_##isa_suffix##_kernel_            \
