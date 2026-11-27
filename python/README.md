@@ -558,7 +558,7 @@ assert float(np.asarray(mn)) == -1.0
 ```
 
 Fresh measurement for the rewritten docs:
-on an Apple M2 Pro, `np.argmin(matrix[:, 1])` on a row-major `2,000,000 x 3` `float32` array took about `1.63 ms` median.
+on an Apple M2 Pro, `np.argmin(matrix[:, 1])` on a row-major float32 array of 2,000,000 x 3 took about 1.63 ms median.
 The equivalent NumKong `Tensor(... )[:, 1].argmin()` took about `0.67 ms` median.
 That is about `2.45x` faster on this strided reduction case.
 
@@ -859,11 +859,14 @@ The shape functions also take it for their outputs, running the mask their packs
 Element access, NumPy conversion, `cdist`, `maxsim` and every other CPU kernel raise `BufferError` rather than read device memory.
 No verb allocates, so every GPU call writes into an `out=` its device reaches.
 The dots and attention families take that as a Tensor on the same device, and mixing devices raises `ValueError`.
+On CUDA and ROCm their runtime also checks per call that the device reaches every operand, raising `BufferError` for the rest.
 The shape functions take any memory the device reaches, a Tensor or a buffer over managed or pinned memory, which the runtime checks per call, raising `BufferError` for the rest.
 Unified memory comes only from an explicit `copy`, as in `nk.shapes_pack(clouds).copy(capabilities=gpu)` and `nk.zeros(shape).copy(capabilities=gpu)`, which frees with the tensor and its views and refuses `resize()` and `reserve()`.
 A GPU call queues one launch on `stream=`, an integer handle defaulting to 0, the legacy stream, and returns before it finishes, as PyTorch does, and `nk.synchronize(capabilities, stream=stream)` waits for it.
 `nk.stream_init_cuda(ordinal)` makes such a handle on any device by its ordinal, and `nk.stream_free_cuda(stream)` frees it once synchronized, with `rocm_` and `metal_` twins.
-Metal tensors are host-readable and keep running on the CPU kernels, except the shape functions, which run on Metal over blocks of its allocator.
+Metal tensors are host-readable and keep running on the CPU kernels, except where the mask picks Metal, over blocks of its allocator.
+The shape functions take it from their packs, while `dots_pack`, `attention_pack` and the `_symmetric` functions take it from `capabilities=nk.capabilities_enabled_metal(0)`, and the `_packed` functions from their packs.
+Metal memory never crosses libraries: NumKong and StringZilla each keep their own registry of unified blocks, so a block one library copied is not one the other's Metal kernels reach.
 
 ```python
 import torch

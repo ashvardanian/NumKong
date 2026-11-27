@@ -17,7 +17,6 @@
 #include <math.h>
 
 #include <numkong/numkong.h>
-#include <numkong/cast/serial.h> // `nk_scalar_buffer_*_` helpers, which only header-only builds pull in
 
 #ifdef __cplusplus
 extern "C" {
@@ -284,11 +283,18 @@ int py_object_is_scalar(PyObject *obj);
 int py_number_to_f64(PyObject *obj, nk_f64_t *value);
 
 /**
+ *  @brief Parse the <tt>capabilities=</tt> value of a function whose GPU bits pick the device it
+ *      runs on, like @c copy and the packs, keeping every bit; None keeps the default.
+ *  @return 1 on success, 0 on failure (Python exception set).
+ */
+int parse_capabilities_keyword(PyObject *value, nk_capability_t *capabilities);
+
+/**
  *  @brief Parse the `capabilities=` or `stream=` keyword of every kernel-running function.
  *  @param[in] key Keyword name; any other than these two raises @c TypeError.
  *  @param[in] value A @c Capability mask, or a stream pointer as an integer; None keeps a default.
  *  @param[in,out] capabilities Mask to find kernels with, kept to this machine's CPU capabilities,
- *      as a GPU mask comes from the device of the operands instead.
+ *      as a GPU mask comes from the operands, a pack, or @c parse_capabilities_keyword instead.
  *  @param[in,out] stream Stream to pass kernels, null on the CPU.
  *  @return 1 on success, 0 on failure (Python exception set).
  */

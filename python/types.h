@@ -20,9 +20,9 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include <numkong/types.h>
-#include <numkong/cast.h>   // `nk_bf16_to_f32_serial`
-#include <numkong/scalar.h> // `nk_bf16_order_serial`
+#include "numkong/types.h"
+#include "numkong/cast.h"   // `nk_bf16_to_f32_best`
+#include "numkong/scalar.h" // `nk_bf16_order_best`
 
 #ifdef __cplusplus
 extern "C" {

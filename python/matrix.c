@@ -199,7 +199,7 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
     }
 
     PackedMatrix *packed = (PackedMatrix *)other;
-    if (a->device.device_type != kDLCPU || packed->device.device_type != kDLCPU) {
+    if (a->device.device_type != kDLCPU || (packed->capabilities & nk_cap_gpus_k)) {
         PyErr_SetString(PyExc_ValueError, "`@` cannot allocate a GPU result; call dots_packed(a, b, out=...)");
         return NULL;
     }
@@ -432,13 +432,14 @@ static PyObject *api_packed_common( //
         PyErr_Format(PyExc_ValueError, "%s_packed needs a, b and out on one device", spec->name);
         return NULL;
     }
-    int const on_gpu = packed->device.device_type != kDLCPU;
+    nk_capability_t const gpu = packed->capabilities & nk_cap_gpus_k;
+    int const on_gpu = gpu != 0;
     if (on_gpu && !out_obj) {
-        PyErr_Format(PyExc_ValueError, "%s_packed on a GPU needs out=, a Tensor on the same device", spec->name);
+        PyErr_Format(PyExc_ValueError, "%s_packed on a GPU needs out=, a Tensor its device reaches", spec->name);
         return NULL;
     }
     // `capabilities=` narrows the CPU dispatch only, while a GPU runs the mask it packed with
-    if (on_gpu) capabilities = packed->capabilities;
+    if (on_gpu) capabilities = gpu;
 
     Py_buffer a_buffer;
     nk_buffer_backing_t a_backing;
@@ -605,6 +606,9 @@ static PyObject *api_symmetric_common( //
             if (t == -1 && PyErr_Occurred()) return NULL;
             threads = (nk_size_t)(t >= 0 ? t : 0);
         }
+        else if (PyUnicode_CompareWithASCIIString(key, "capabilities") == 0) {
+            if (!parse_capabilities_keyword(value, &capabilities)) return NULL;
+        }
         else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
 
@@ -614,12 +618,13 @@ static PyObject *api_symmetric_common( //
         PyErr_Format(PyExc_ValueError, "%s_symmetric needs vectors and out on one device", spec->name);
         return NULL;
     }
-    int const on_gpu = device.device_type != kDLCPU;
+    if (device.device_type != kDLCPU && !device_capabilities(device, &capabilities)) return NULL;
+    int const on_gpu = (capabilities & nk_cap_gpus_k) != 0;
+    if (on_gpu) capabilities &= nk_cap_gpus_k;
     if (on_gpu && !out_obj) {
-        PyErr_Format(PyExc_ValueError, "%s_symmetric on a GPU needs out=, a Tensor on the same device", spec->name);
+        PyErr_Format(PyExc_ValueError, "%s_symmetric on a GPU needs out=, a Tensor its device reaches", spec->name);
         return NULL;
     }
-    if (on_gpu && !device_capabilities(device, &capabilities)) return NULL;
 
     Py_buffer vec_buf;
     nk_buffer_backing_t vec_backing;
@@ -721,31 +726,36 @@ cleanup:
     return return_obj;
 }
 
-char const doc_dots_pack[] =                                                               //
-    "dots_pack(b, /, dtype=None, *, out=None, threads=1, stream=None) -> PackedMatrix\n\n" //
-    "Pack a 2D matrix for repeated dot-product style cross operations.\n\n"                //
-    "Args:\n"                                                                              //
-    "  b (array_like): Source matrix with shape [columns,depth] and contiguous rows,\n"    //
-    "    or a CUDA or ROCm Tensor from from_dlpack() to pack on that GPU. Packing\n"       //
-    "    fuses no transposition: transpose w.T into a contiguous copy first.\n"            //
-    "  dtype (str, optional): Packing dtype. Default: inferred from input.\n"              //
-    "    Supported values: 'bf16', 'f16', 'f32', 'f64', 'i8', 'u8',\n"                     //
-    "    'e4m3', 'e5m2', 'e3m2', 'e2m3', 'e2m1', 'i4', 'u4', 'u1'.\n"                      //
-    "  out (Tensor, optional): Required for a GPU b: a C-contiguous Tensor on its GPU,\n"  //
-    "    of PackedMatrix.pack_size(..., capabilities=capabilities_enabled_cuda(0))\n"      //
-    "    bytes or more, holding the packed bytes for the PackedMatrix's lifetime.\n"       //
-    "  threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"      //
-    "  stream (int, optional): The GPU stream handle to queue on, defaulting to 0,\n"      //
-    "    the legacy stream. The call returns before the packing finishes.\n\n"             //
-    "Returns:\n"                                                                           //
-    "  PackedMatrix: Opaque packed matrix accepted by dots_packed(),\n"                    //
-    "    angulars_packed(), euclideans_packed(), and Tensor @ PackedMatrix.\n"             //
-    "    A GPU one keeps its device and that device's capabilities.\n\n"                   //
-    "Example:\n"                                                                           //
-    "  >>> b_packed = nk.dots_pack(b, dtype=nk.bfloat16)\n"                                //
-    "  >>> distances = nk.dots_packed(a, b_packed)  # shape: [100,200]\n\n"                //
-    "Signature:\n"                                                                         //
-    "  >>> def dots_pack(b, /, dtype=None, *, out=None, threads=1, stream=None) -> PackedMatrix: ...";
+char const doc_dots_pack[] =                                                                   //
+    "dots_pack(b, /, dtype=None, *, out=None, threads=1, capabilities=None, stream=None) ->\n" //
+    "PackedMatrix\n\n"                                                                         //
+    "Pack a 2D matrix for repeated dot-product style cross operations.\n\n"                    //
+    "Args:\n"                                                                                  //
+    "  b (array_like): Source matrix with shape [columns,depth] and contiguous rows,\n"        //
+    "    or a CUDA or ROCm Tensor from from_dlpack() to pack on that GPU. Packing\n"           //
+    "    fuses no transposition: transpose w.T into a contiguous copy first.\n"                //
+    "  dtype (str, optional): Packing dtype. Default: inferred from input.\n"                  //
+    "    Supported values: 'bf16', 'f16', 'f32', 'f64', 'i8', 'u8',\n"                         //
+    "    'e4m3', 'e5m2', 'e3m2', 'e2m3', 'e2m1', 'i4', 'u4', 'u1'.\n"                          //
+    "  out (Tensor, optional): Required for a GPU b: a C-contiguous Tensor on its GPU,\n"      //
+    "    of PackedMatrix.pack_size(..., capabilities=capabilities_enabled_cuda(0))\n"          //
+    "    bytes or more, holding the packed bytes for the PackedMatrix's lifetime.\n"           //
+    "  threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"          //
+    "  capabilities (Capability, optional): A GPU mask, like\n"                                //
+    "    nk.capabilities_enabled_metal(0), packs on that GPU from memory it reaches,\n"        //
+    "    such as a Tensor.copy(capabilities=...), and needs out= there too.\n"                 //
+    "  stream (int, optional): The GPU stream handle to queue on, defaulting to 0,\n"          //
+    "    the legacy stream. The call returns before the packing finishes.\n\n"                 //
+    "Returns:\n"                                                                               //
+    "  PackedMatrix: Opaque packed matrix accepted by dots_packed(),\n"                        //
+    "    angulars_packed(), euclideans_packed(), and Tensor @ PackedMatrix.\n"                 //
+    "    A GPU one keeps its device and that device's capabilities.\n\n"                       //
+    "Example:\n"                                                                               //
+    "  >>> b_packed = nk.dots_pack(b, dtype=nk.bfloat16)\n"                                    //
+    "  >>> distances = nk.dots_packed(a, b_packed)  # shape: [100,200]\n\n"                    //
+    "Signature:\n"                                                                             //
+    "  >>> def dots_pack(b, /, dtype=None, *, out=None, threads=1, capabilities=None,\n"       //
+    "  ...               stream=None) -> PackedMatrix: ...";
 
 static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames, nk_dtype_t default_dtype) {
 
@@ -783,6 +793,9 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
             if (t == -1 && PyErr_Occurred()) return NULL;
             threads = (nk_size_t)(t >= 0 ? t : 0);
         }
+        else if (PyUnicode_CompareWithASCIIString(name, "capabilities") == 0) {
+            if (!parse_capabilities_keyword(args[nargs + i], &capabilities)) return NULL;
+        }
         else if (!parse_dispatch_keyword(name, args[nargs + i], &capabilities, &stream)) return NULL;
     }
     if (nargs >= 2) dtype_obj = args[1];
@@ -791,20 +804,23 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
     if (dtype_obj && target_dtype == nk_dtype_unknown_k) return NULL;
 
     DLDevice const device = py_object_device(b_obj);
+    if (device.device_type != kDLCPU && !device_capabilities(device, &capabilities)) return NULL;
+    // A GPU pack runs the GPU bits of the mask, from the device of b or from `capabilities=`
+    int const on_gpu = (capabilities & nk_cap_gpus_k) != 0;
+    if (on_gpu) capabilities &= nk_cap_gpus_k;
     if (out_obj && !PyObject_TypeCheck(out_obj, &TensorType)) {
         PyErr_SetString(PyExc_TypeError, "out must be a Tensor");
         return NULL;
     }
-    if (out_obj && (device.device_type == kDLCPU || !same_device(((Tensor *)out_obj)->device, device))) {
-        PyErr_SetString(PyExc_ValueError, "out must be on the GPU of b, as packing on the host allocates its own");
+    if (out_obj && (!on_gpu || !same_device(((Tensor *)out_obj)->device, device))) {
+        PyErr_SetString(PyExc_ValueError, "out must be on the device of b, as packing on the host allocates its own");
         return NULL;
     }
-    if (device.device_type != kDLCPU && !out_obj) {
-        PyErr_SetString(PyExc_ValueError, "packing a GPU matrix needs out=, a Tensor on its device of " //
+    if (on_gpu && !out_obj) {
+        PyErr_SetString(PyExc_ValueError, "packing on a GPU needs out=, a Tensor its device reaches of " //
                                           "PackedMatrix.pack_size(columns, depth, dtype, capabilities=...) bytes");
         return NULL;
     }
-    if (device.device_type != kDLCPU && !device_capabilities(device, &capabilities)) return NULL;
 
     Py_buffer b_buffer;
     nk_buffer_backing_t b_backing;
@@ -917,9 +933,8 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
                                       .stream = stream};
     PyThreadState *save = PyEval_SaveThread();
     // A GPU packs every column itself, in one launch rather than the thread pool
-    nk_status_t const status = device.device_type != kDLCPU
-                                   ? pack_fn(task.b, columns, depth, row_stride, task.b_packed, 0, columns, stream)
-                                   : nk_parallel_dots_pack(&task, threads);
+    nk_status_t const status = on_gpu ? pack_fn(task.b, columns, depth, row_stride, task.b_packed, 0, columns, stream)
+                                      : nk_parallel_dots_pack(&task, threads);
     PyEval_RestoreThread(save);
 
     PyBuffer_Release(&b_buffer);

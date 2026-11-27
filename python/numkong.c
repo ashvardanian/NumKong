@@ -548,16 +548,6 @@ PyObject *nk_scalar_buffer_to_py_number(nk_scalar_buffer_t const *buf, nk_dtype_
     switch (dtype) {
     case nk_f64_k: return PyFloat_FromDouble(buf->f64);
     case nk_f32_k: return PyFloat_FromDouble((double)buf->f32);
-    case nk_f16_k: {
-        nk_f32_t f32_tmp;
-        nk_f16_to_f32_serial(&buf->f16, &f32_tmp);
-        return PyFloat_FromDouble((double)f32_tmp);
-    }
-    case nk_bf16_k: {
-        nk_f32_t f32_tmp;
-        nk_bf16_to_f32_serial(&buf->bf16, &f32_tmp);
-        return PyFloat_FromDouble((double)f32_tmp);
-    }
     case nk_f64c_k: return PyComplex_FromDoubles(buf->f64c.real, buf->f64c.imag);
     case nk_f32c_k: return PyComplex_FromDoubles((double)buf->f32c.real, (double)buf->f32c.imag);
     case nk_i64_k: return PyLong_FromLongLong(buf->i64);
@@ -568,27 +558,12 @@ PyObject *nk_scalar_buffer_to_py_number(nk_scalar_buffer_t const *buf, nk_dtype_
     case nk_u16_k: return PyLong_FromUnsignedLong(buf->u16);
     case nk_i8_k: return PyLong_FromLong(buf->i8);
     case nk_u8_k: return PyLong_FromUnsignedLong(buf->u8);
-    case nk_e4m3_k: {
-        nk_f32_t f32_tmp;
-        nk_e4m3_to_f32_serial(&buf->u8, &f32_tmp);
-        return PyFloat_FromDouble((double)f32_tmp);
+    default: {
+        nk_scalar_buffer_t converted;
+        converted.f64 = 0;
+        nk_unused_(nk_scalar_buffer_cast(buf, dtype, &converted, nk_f64_k));
+        return PyFloat_FromDouble(converted.f64);
     }
-    case nk_e5m2_k: {
-        nk_f32_t f32_tmp;
-        nk_e5m2_to_f32_serial(&buf->u8, &f32_tmp);
-        return PyFloat_FromDouble((double)f32_tmp);
-    }
-    case nk_e2m3_k: {
-        nk_f32_t f32_tmp;
-        nk_e2m3_to_f32_serial(&buf->u8, &f32_tmp);
-        return PyFloat_FromDouble((double)f32_tmp);
-    }
-    case nk_e3m2_k: {
-        nk_f32_t f32_tmp;
-        nk_e3m2_to_f32_serial(&buf->u8, &f32_tmp);
-        return PyFloat_FromDouble((double)f32_tmp);
-    }
-    default: return PyFloat_FromDouble(0.0);
     }
 }
 
@@ -613,7 +588,7 @@ int py_number_to_nk_scalar_buffer(PyObject *obj, nk_scalar_buffer_t *buf, nk_dty
     nk_f64_t value;
     if (!py_number_to_f64(obj, &value)) return 0;
     buf->f64 = value;
-    nk_scalar_buffer_from_f64_serial_(&buf->f64, buf, dtype);
+    nk_unused_(nk_scalar_buffer_cast(buf, nk_f64_k, buf, dtype));
     return 1;
 }
 
@@ -621,8 +596,7 @@ int nk_scalar_buffer_export(                                   //
     nk_scalar_buffer_t const *source, nk_dtype_t source_dtype, //
     void *target, nk_dtype_t target_dtype) {                   //
     nk_scalar_buffer_t converted;
-    if (!nk_scalar_buffer_to_f64c_serial_(source, source_dtype, &converted.f64c)) return 0;
-    if (!nk_scalar_buffer_from_f64c_serial_(&converted.f64c, &converted, target_dtype)) return 0;
+    if (nk_scalar_buffer_cast(source, source_dtype, &converted, target_dtype) != nk_success_k) return 0;
     nk_size_t target_size = nk_dtype_bits(target_dtype) / NUMKONG_BITS_PER_BYTE;
     nk_copy_bytes_(target, &converted, target_size);
     return 1;
@@ -938,13 +912,19 @@ int parse_tensor_nd(PyObject *obj, Py_buffer *buffer, nk_tensor_view_t *view, nk
 /** The `numkong.Capability` flags class, built at import, that every capability query speaks. */
 static PyObject *capability_type = NULL;
 
+int parse_capabilities_keyword(PyObject *value, nk_capability_t *capabilities) {
+    if (value == Py_None) return 1;
+    unsigned long long const bits = PyLong_AsUnsignedLongLong(value);
+    if (bits == (unsigned long long)-1 && PyErr_Occurred()) return 0;
+    *capabilities = (nk_capability_t)bits;
+    return 1;
+}
+
 int parse_dispatch_keyword(PyObject *key, PyObject *value, nk_capability_t *capabilities, nk_stream_t *stream) {
     if (PyUnicode_CompareWithASCIIString(key, "capabilities") == 0) {
-        if (value == Py_None) return 1;
-        unsigned long long const bits = PyLong_AsUnsignedLongLong(value);
-        if (bits == (unsigned long long)-1 && PyErr_Occurred()) return 0;
+        if (!parse_capabilities_keyword(value, capabilities)) return 0;
         // The library drops what this CPU lacks, and a GPU capability would get host pointers
-        *capabilities = (nk_capability_t)bits & nk_cap_cpus_k;
+        *capabilities &= nk_cap_cpus_k;
         return 1;
     }
     if (PyUnicode_CompareWithASCIIString(key, "stream") == 0) {
@@ -979,6 +959,10 @@ static PyObject *capability_from_mask(nk_capability_t capabilities) {
 }
 
 int device_capabilities(DLDevice device, nk_capability_t *capabilities) {
+    if (device.device_type != kDLCUDA && device.device_type != kDLROCM) {
+        PyErr_Format(PyExc_ValueError, "NumKong has no kernels for DLPack device type %d", (int)device.device_type);
+        return 0;
+    }
     nk_status_t const status = device.device_type == kDLROCM
                                    ? nk_capabilities_enabled_rocm((nk_size_t)device.device_id, capabilities)
                                    : nk_capabilities_enabled_cuda((nk_size_t)device.device_id, capabilities);

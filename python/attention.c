@@ -341,12 +341,15 @@ char const doc_attention_pack[] =                                               
     "    GPU of AttentionPackedMatrix.pack_size(..., capabilities=...) bytes or more,\n"           //
     "    holding the packed bytes for the AttentionPackedMatrix's lifetime.\n"                     //
     "  threads (int): Threads for packing; 0 = all cores; ignored on a GPU.\n"                     //
+    "  capabilities (Capability, optional): A GPU mask, like nk.capabilities_enabled_metal(0),\n"  //
+    "    packs on that GPU from memory it reaches, and needs out= there too.\n"                    //
     "  stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"            //
     "Returns:\n"                                                                                   //
     "  AttentionPackedMatrix: Opaque packed KV-cache for attention_*_packed().\n\n"                //
     "Signature:\n"                                                                                 //
     "  >>> def attention_pack(k, v, /, key_offsets, key_lengths=None,\n"                           //
-    "  ...                    depth=None, out=None, threads=1) -> AttentionPackedMatrix: ...";
+    "  ...                    depth=None, out=None, threads=1, capabilities=None,\n"               //
+    "  ...                    stream=None) -> AttentionPackedMatrix: ...";
 
 PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -379,6 +382,9 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
             threads = (nk_size_t)PyLong_AsSize_t(value);
             if (threads == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
         }
+        else if (PyUnicode_CompareWithASCIIString(name, "capabilities") == 0) {
+            if (!parse_capabilities_keyword(value, &capabilities)) return NULL;
+        }
         else if (!parse_dispatch_keyword(name, value, &capabilities, &stream)) return NULL;
     }
     if (!offsets_obj) {
@@ -390,17 +396,20 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
         PyErr_SetString(PyExc_ValueError, "k and v must live on one device");
         return NULL;
     }
-    if (out_object && (!PyObject_TypeCheck(out_object, &TensorType) || device.device_type == kDLCPU ||
+    if (device.device_type != kDLCPU && !device_capabilities(device, &capabilities)) return NULL;
+    // A GPU pack runs the GPU bits of the mask, from the device of k or from `capabilities=`
+    int const on_gpu = (capabilities & nk_cap_gpus_k) != 0;
+    if (on_gpu) capabilities &= nk_cap_gpus_k;
+    if (out_object && (!PyObject_TypeCheck(out_object, &TensorType) || !on_gpu ||
                        !same_device(((Tensor *)out_object)->device, device))) {
-        PyErr_SetString(PyExc_ValueError, "out must be a Tensor on the GPU of k, as packing on the host allocates");
+        PyErr_SetString(PyExc_ValueError, "out must be a Tensor on the device of k, as packing on the host allocates");
         return NULL;
     }
-    if (device.device_type != kDLCPU && !out_object) {
-        PyErr_SetString(PyExc_ValueError, "packing GPU keys and values needs out=, a Tensor on their device of " //
+    if (on_gpu && !out_object) {
+        PyErr_SetString(PyExc_ValueError, "packing on a GPU needs out=, a Tensor its device reaches of " //
                                           "AttentionPackedMatrix.pack_size(..., capabilities=...) bytes");
         return NULL;
     }
-    if (device.device_type != kDLCPU && !device_capabilities(device, &capabilities)) return NULL;
 
     Py_buffer k_buffer, v_buffer, offsets_buffer, lengths_buffer;
     nk_buffer_backing_t k_backing, v_backing, offsets_backing, lengths_backing;
@@ -535,10 +544,9 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
         PyThreadState *save = PyEval_SaveThread();
         // A GPU packs every segment and head itself, in one launch rather than the thread pool
         nk_status_t const status =
-            device.device_type != kDLCPU
-                ? pack_fn(heads, depth, key_offsets, key_lengths, segment_count, task.keys, k_stride, task.values,
-                          v_stride, task.key_value_packed, 0, segment_count * heads, stream)
-                : nk_parallel_for_tiles(segment_count * heads, threads, attention_pack_tile_, &task);
+            on_gpu ? pack_fn(heads, depth, key_offsets, key_lengths, segment_count, task.keys, k_stride, task.values,
+                             v_stride, task.key_value_packed, 0, segment_count * heads, stream)
+                   : nk_parallel_for_tiles(segment_count * heads, threads, attention_pack_tile_, &task);
         PyEval_RestoreThread(save);
         check_status(status);
     }
@@ -694,7 +702,7 @@ static int attention_arguments_parse_(char const *name, PyObject *queries_object
             goto release_query_offsets;
         }
         Tensor *output = (Tensor *)output_object;
-        if (packed->device.device_type == kDLCPU && !tensor_on_host(output)) goto release_query_offsets;
+        if (!(packed->capabilities & nk_cap_gpus_k) && !tensor_on_host(output)) goto release_query_offsets;
         if (!same_device(output->device, packed->device)) {
             PyErr_Format(PyExc_ValueError, "%s needs out on the device of the packed KV-cache", name);
             goto release_query_offsets;
@@ -707,8 +715,8 @@ static int attention_arguments_parse_(char const *name, PyObject *queries_object
         Py_INCREF(output);
         buffers->output = output;
     }
-    else if (packed->device.device_type != kDLCPU) {
-        PyErr_Format(PyExc_ValueError, "%s on a GPU needs out=, a Tensor on the same device", name);
+    else if (packed->capabilities & nk_cap_gpus_k) {
+        PyErr_Format(PyExc_ValueError, "%s on a GPU needs out=, a Tensor its device reaches", name);
         goto release_query_offsets;
     }
     else {
@@ -812,8 +820,9 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
     }
 
     // `capabilities=` narrows the CPU dispatch only, while a GPU runs the mask it packed with
-    int const on_gpu = packed->device.device_type != kDLCPU;
-    if (on_gpu) capabilities = packed->capabilities;
+    nk_capability_t const gpu = packed->capabilities & nk_cap_gpus_k;
+    int const on_gpu = gpu != 0;
+    if (on_gpu) capabilities = gpu;
     task.kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_attention_packed_k, packed->dtype, capabilities, (nk_kernel_punned_t *)&task.kernel,
@@ -921,7 +930,7 @@ PyObject *api_attention_packed_gradients(PyObject *self, PyObject *const *args, 
     if (!attention_arguments_parse_("attention_packed_gradients", args[0], args[1], query_offsets_object,
                                     query_gradient_object, scale_object, &task.arguments, &buffers, &packed))
         return NULL;
-    if (packed->device.device_type != kDLCPU) {
+    if (packed->capabilities & nk_cap_gpus_k) {
         PyErr_SetString(PyExc_ValueError, "attention_packed_gradients reads its KV-cache on the host, not a GPU");
         return attention_buffers_release_(&buffers);
     }

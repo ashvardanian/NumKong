@@ -330,8 +330,9 @@ static int tensor_is_f_contig(Tensor *tensor) {
 static PyObject *tensor_read_packed_scalar(Tensor *tensor, size_t byte_offset, size_t lane) {
     if (!tensor_on_host(tensor)) return NULL;
     nk_f64_t lanes[NUMKONG_BITS_PER_BYTE];
-    nk_cast_best(tensor->data + byte_offset, tensor->dtype, lanes, nk_f64_k, nk_dimensions_per_value(tensor->dtype),
-                 nk_cap_cpus_k, NULL);
+    if (!check_status(nk_cast_best(tensor->data + byte_offset, tensor->dtype, lanes, nk_f64_k,
+                                   nk_dimensions_per_value(tensor->dtype), nk_cap_cpus_k, NULL)))
+        return NULL;
     if (nk_dtype_family(tensor->dtype) == nk_dtype_family_float_k) return PyFloat_FromDouble(lanes[lane]);
     return PyLong_FromLongLong((long long)lanes[lane]);
 }
@@ -749,8 +750,8 @@ static PyObject *tensor_elementwise_scalar(Tensor *a, double alpha_value, double
     nk_scalar_buffer_t alpha_buf, beta_buf;
     nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(a->dtype);
     alpha_buf.f64 = alpha_value, beta_buf.f64 = beta_value;
-    nk_scalar_buffer_from_f64_serial_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
-    nk_scalar_buffer_from_f64_serial_(&beta_buf.f64, &beta_buf, scalar_dtype);
+    nk_unused_(nk_scalar_buffer_cast(&alpha_buf, nk_f64_k, &alpha_buf, scalar_dtype));
+    nk_unused_(nk_scalar_buffer_cast(&beta_buf, nk_f64_k, &beta_buf, scalar_dtype));
     PyThreadState *gil = PyEval_SaveThread();
     nk_status_t const status = each_scale_recursive(kernel, NULL, a->data, r->data, &alpha_buf, &beta_buf, a->shape,
                                                     a->strides, r_strides, a->rank, contiguous_tail);
@@ -880,8 +881,8 @@ static PyObject *Tensor_subtract(PyObject *self, PyObject *other) {
         nk_scalar_buffer_t alpha_buf, beta_buf;
         alpha_buf.f64 = 1.0, beta_buf.f64 = -1.0;
         nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(a->dtype);
-        nk_scalar_buffer_from_f64_serial_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
-        nk_scalar_buffer_from_f64_serial_(&beta_buf.f64, &beta_buf, scalar_dtype);
+        nk_unused_(nk_scalar_buffer_cast(&alpha_buf, nk_f64_k, &alpha_buf, scalar_dtype));
+        nk_unused_(nk_scalar_buffer_cast(&beta_buf, nk_f64_k, &beta_buf, scalar_dtype));
         PyThreadState *gil = PyEval_SaveThread();
         nk_status_t const status = each_blend_recursive(kernel, NULL, a->data, b->data, r->data, &alpha_buf, &beta_buf,
                                                         a->shape, a->strides, b->strides, r_strides, a->rank,
@@ -957,8 +958,8 @@ static PyObject *Tensor_multiply(PyObject *self, PyObject *other) {
         nk_scalar_buffer_t alpha_buf, beta_buf;
         alpha_buf.f64 = 1.0, beta_buf.f64 = -0.0;
         nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(a->dtype);
-        nk_scalar_buffer_from_f64_serial_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
-        nk_scalar_buffer_from_f64_serial_(&beta_buf.f64, &beta_buf, scalar_dtype);
+        nk_unused_(nk_scalar_buffer_cast(&alpha_buf, nk_f64_k, &alpha_buf, scalar_dtype));
+        nk_unused_(nk_scalar_buffer_cast(&beta_buf, nk_f64_k, &beta_buf, scalar_dtype));
         PyThreadState *gil = PyEval_SaveThread();
         nk_status_t const status = each_fma_recursive(kernel, NULL, a->data, b->data, r->data, r->data, &alpha_buf,
                                                       &beta_buf, a->shape, a->strides, b->strides, r_strides, r_strides,
@@ -1430,11 +1431,8 @@ PyObject *Tensor_copy(PyObject *self, PyObject *const *args, Py_ssize_t nargs, P
     for (Py_ssize_t i = 0; i < nkw; i++) {
         PyObject *name = PyTuple_GET_ITEM(kwnames, i);
         if (PyUnicode_CompareWithASCIIString(name, "out") == 0) out_obj = args[nargs + i];
-        // Keeps the GPU bits `parse_dispatch_keyword` drops
         else if (PyUnicode_CompareWithASCIIString(name, "capabilities") == 0) {
-            if (args[nargs + i] == Py_None) continue;
-            capabilities = (nk_capability_t)PyLong_AsUnsignedLongLong(args[nargs + i]);
-            if (capabilities == (nk_capability_t)-1 && PyErr_Occurred()) return NULL;
+            if (!parse_capabilities_keyword(args[nargs + i], &capabilities)) return NULL;
         }
         else if (PyUnicode_CompareWithASCIIString(name, "stream") == 0) {
             if (!parse_dispatch_keyword(name, args[nargs + i], &capabilities, &stream)) return NULL;
@@ -1704,10 +1702,12 @@ static void accum_add(void *accum, void const *partial, nk_dtype_t accum_dtype) 
     case nk_f64_k: *(nk_f64_t *)accum += *(nk_f64_t const *)partial; break;
     case nk_f32_k: *(nk_f32_t *)accum += *(nk_f32_t const *)partial; break;
     case nk_i64_k:
-        *(nk_i64_t *)accum = nk_i64_saturating_add_serial(*(nk_i64_t const *)accum, *(nk_i64_t const *)partial);
+        *(nk_i64_t *)accum = nk_i64_saturating_add_best(*(nk_i64_t const *)accum, *(nk_i64_t const *)partial,
+                                                        nk_cap_cpus_k);
         break;
     case nk_u64_k:
-        *(nk_u64_t *)accum = nk_u64_saturating_add_serial(*(nk_u64_t const *)accum, *(nk_u64_t const *)partial);
+        *(nk_u64_t *)accum = nk_u64_saturating_add_best(*(nk_u64_t const *)accum, *(nk_u64_t const *)partial,
+                                                        nk_cap_cpus_k);
         break;
     default: break;
     }
@@ -1871,12 +1871,12 @@ static int minmax_less_than(nk_scalar_buffer_t const *a, nk_scalar_buffer_t cons
     case nk_u16_k: return a->u16 < b->u16;
     case nk_i8_k: return a->i8 < b->i8;
     case nk_u8_k: return a->u8 < b->u8;
-    case nk_f16_k: return nk_f16_order_serial(a->f16, b->f16) < 0;
-    case nk_bf16_k: return nk_bf16_order_serial(a->bf16, b->bf16) < 0;
-    case nk_e4m3_k: return nk_e4m3_order_serial(a->u8, b->u8) < 0;
-    case nk_e5m2_k: return nk_e5m2_order_serial(a->u8, b->u8) < 0;
-    case nk_e2m3_k: return nk_e2m3_order_serial(a->u8, b->u8) < 0;
-    case nk_e3m2_k: return nk_e3m2_order_serial(a->u8, b->u8) < 0;
+    case nk_f16_k: return nk_f16_order_best(a->f16, b->f16, nk_cap_cpus_k) < 0;
+    case nk_bf16_k: return nk_bf16_order_best(a->bf16, b->bf16, nk_cap_cpus_k) < 0;
+    case nk_e4m3_k: return nk_e4m3_order_best(a->u8, b->u8, nk_cap_cpus_k) < 0;
+    case nk_e5m2_k: return nk_e5m2_order_best(a->u8, b->u8, nk_cap_cpus_k) < 0;
+    case nk_e2m3_k: return nk_e2m3_order_best(a->u8, b->u8, nk_cap_cpus_k) < 0;
+    case nk_e3m2_k: return nk_e3m2_order_best(a->u8, b->u8, nk_cap_cpus_k) < 0;
     default: return 0;
     }
 }
@@ -2438,7 +2438,7 @@ static int norm_slice(nk_tensor_view_t const *slice, reduce_args_t const *parsed
     nk_dtype_t sum_dtype, sumsq_dtype;
     int const result = impl_reduce_moments(slice, parsed->capabilities, parsed->stream, &sum_buf, &sum_dtype,
                                            &sumsq_buf, &sumsq_dtype);
-    nk_scalar_buffer_to_f64_serial_(&sumsq_buf, sumsq_dtype, &out->f64);
+    nk_unused_(nk_scalar_buffer_cast(&sumsq_buf, sumsq_dtype, out, nk_f64_k));
     out->f64 = nk_f64_sqrt_best(out->f64, parsed->capabilities);
     return result;
 }
@@ -2496,7 +2496,7 @@ static PyObject *Tensor_norm(PyObject *self, PyObject *const *args, Py_ssize_t n
         if (impl_reduce_moments(&view, parsed.capabilities, parsed.stream, &sum_buf, &sum_dtype, &sumsq_buf,
                                 &sumsq_dtype) < 0)
             return NULL;
-        nk_scalar_buffer_to_f64_serial_(&sumsq_buf, sumsq_dtype, &sumsq_buf.f64);
+        nk_unused_(nk_scalar_buffer_cast(&sumsq_buf, sumsq_dtype, &sumsq_buf, nk_f64_k));
         return PyFloat_FromDouble(nk_f64_sqrt_best(sumsq_buf.f64, parsed.capabilities));
     }
     return reduce_axis_dispatch(&view, &parsed, nk_f64_k, norm_slice);
@@ -2763,13 +2763,18 @@ static PyObject *Tensor_encode_block_scaled(Tensor *tensor, nk_dtype_t target_dt
                                             has_tensor_scale ? &to_tensor_scale : NULL, &to_storage);
 
     PyThreadState *gil = PyEval_SaveThread();
-    nk_cast_best(staging, nk_f32_k, to_operand, target_dtype, (nk_size_t)total, nk_cap_cpus_k, NULL);
+    nk_status_t const status = nk_cast_best(staging, nk_f32_k, to_operand, target_dtype, (nk_size_t)total,
+                                            nk_cap_cpus_k, NULL);
     PyEval_RestoreThread(gil);
 
     if (staging_free) PyMem_Free(staging);
 
     result->elements = elements;
     result->block_scales = block_scales;
+    if (!check_status(status)) {
+        Py_DECREF(result);
+        return NULL;
+    }
     result->dtype = target_dtype;
     result->block_size = block_size;
     result->tensor_scale = has_tensor_scale ? to_tensor_scale : 1.0f;
@@ -3750,7 +3755,8 @@ static PyObject *ScaledTensor_transcode(ScaledTensor *scaled, nk_dtype_t target_
                                             to_has_tensor_scale ? &to_tensor_scale : NULL, &to_storage);
 
     PyThreadState *gil = PyEval_SaveThread();
-    nk_cast_best(from_operand, scaled->dtype, to_operand, target_dtype, (nk_size_t)total, nk_cap_cpus_k, NULL);
+    nk_status_t const status = nk_cast_best(from_operand, scaled->dtype, to_operand, target_dtype, (nk_size_t)total,
+                                            nk_cap_cpus_k, NULL);
     PyEval_RestoreThread(gil);
 
     if (elem_free) PyMem_Free(elem_buf);
@@ -3758,6 +3764,10 @@ static PyObject *ScaledTensor_transcode(ScaledTensor *scaled, nk_dtype_t target_
 
     result->elements = dst_elements;
     result->block_scales = dst_scales;
+    if (!check_status(status)) {
+        Py_DECREF(result);
+        return NULL;
+    }
     result->dtype = target_dtype;
     result->block_size = to_block_size;
     result->tensor_scale = to_has_tensor_scale ? to_tensor_scale : 1.0f;
@@ -3819,11 +3829,16 @@ static PyObject *ScaledTensor_astype(PyObject *self, PyObject *dtype_arg) {
         scaled->dtype, elem_buf, scale_buf, scaled->has_tensor_scale ? &from_tensor_scale : NULL, &from_storage);
 
     PyThreadState *gil = PyEval_SaveThread();
-    nk_cast_best(from_operand, scaled->dtype, f32_result->data, nk_f32_k, (nk_size_t)total, nk_cap_cpus_k, NULL);
+    nk_status_t const status = nk_cast_best(from_operand, scaled->dtype, f32_result->data, nk_f32_k,
+                                            (nk_size_t)total, nk_cap_cpus_k, NULL);
     PyEval_RestoreThread(gil);
 
     if (elem_free) PyMem_Free(elem_buf);
     if (scale_free) PyMem_Free(scale_buf);
+    if (!check_status(status)) {
+        Py_DECREF(f32_result);
+        return NULL;
+    }
 
     if (target_dtype == nk_f32_k) return (PyObject *)f32_result;
 
@@ -3833,8 +3848,13 @@ static PyObject *ScaledTensor_astype(PyObject *self, PyObject *dtype_arg) {
         Py_DECREF(f32_result);
         return NULL;
     }
-    nk_cast_best(f32_result->data, nk_f32_k, result->data, target_dtype, (nk_size_t)total, nk_cap_cpus_k, NULL);
+    nk_status_t const target_status = nk_cast_best(f32_result->data, nk_f32_k, result->data, target_dtype,
+                                                   (nk_size_t)total, nk_cap_cpus_k, NULL);
     Py_DECREF(f32_result);
+    if (!check_status(target_status)) {
+        Py_DECREF(result);
+        return NULL;
+    }
     return (PyObject *)result;
 }
 
@@ -4042,7 +4062,7 @@ PyTypeObject ScaledTensorType = {
  *  @brief Fill a fresh contiguous tensor with `first + index * step` in row-major order.
  *
  *  A packed dtype shares bytes between elements, so it converts an f64 staging row with
- *  @c nk_cast_best. Returns 0 and releases @p tensor on allocation failure.
+ *  @c nk_cast_best. Returns 0 and releases @p tensor on failure.
  */
 static int tensor_fill_affine(Tensor *tensor, nk_f64_t first, nk_f64_t step) {
     size_t const total = shape_numel_(tensor->rank, tensor->shape);
@@ -4054,18 +4074,23 @@ static int tensor_fill_affine(Tensor *tensor, nk_f64_t first, nk_f64_t step) {
             return 0;
         }
         for (size_t i = 0; i < total; i++) staging[i] = first + step * (nk_f64_t)i;
-        nk_cast_best(staging, nk_f64_k, tensor->data, tensor->dtype, (nk_size_t)total, nk_cap_cpus_k, NULL);
+        nk_status_t const status = nk_cast_best(staging, nk_f64_k, tensor->data, tensor->dtype, (nk_size_t)total,
+                                                nk_cap_cpus_k, NULL);
         PyMem_Free(staging);
+        if (!check_status(status)) {
+            Py_DECREF(tensor);
+            return 0;
+        }
         return 1;
     }
     size_t const element_size = nk_dtype_bytes_per_value(tensor->dtype);
     nk_scalar_buffer_t value;
     value.f64 = first;
-    nk_scalar_buffer_from_f64_serial_(&value.f64, &value, tensor->dtype);
+    nk_unused_(nk_scalar_buffer_cast(&value, nk_f64_k, &value, tensor->dtype));
     for (size_t i = 0; i < total; i++) {
         if (step != 0.0 && i != 0) {
             value.f64 = first + step * (nk_f64_t)i;
-            nk_scalar_buffer_from_f64_serial_(&value.f64, &value, tensor->dtype);
+            nk_unused_(nk_scalar_buffer_cast(&value, nk_f64_k, &value, tensor->dtype));
         }
         memcpy(tensor->data + i * element_size, &value, element_size);
     }
@@ -4502,8 +4527,13 @@ PyObject *api_diagonal(PyObject *self, PyObject *const *args, Py_ssize_t const n
             return PyErr_NoMemory();
         }
         for (Py_ssize_t i = 0; i < n; i++) staging[(size_t)i * ((size_t)n + 1)] = (nk_f64_t)seed;
-        nk_cast_best(staging, nk_f64_k, result->data, dtype, (nk_size_t)total, nk_cap_cpus_k, NULL);
+        nk_status_t const status = nk_cast_best(staging, nk_f64_k, result->data, dtype, (nk_size_t)total,
+                                                nk_cap_cpus_k, NULL);
         PyMem_Free(staging);
+        if (!check_status(status)) {
+            Py_DECREF(result);
+            return NULL;
+        }
         return (PyObject *)result;
     }
 
@@ -4513,7 +4543,7 @@ PyObject *api_diagonal(PyObject *self, PyObject *const *args, Py_ssize_t const n
     {
         nk_scalar_buffer_t val;
         val.f64 = (nk_f64_t)seed;
-        nk_scalar_buffer_from_f64_serial_(&val.f64, &val, dtype);
+        nk_unused_(nk_scalar_buffer_cast(&val, nk_f64_k, &val, dtype));
         for (Py_ssize_t i = 0; i < n; i++) {
             memcpy(result->data + (size_t)i * ((size_t)n + 1) * elem_size, &val, elem_size);
         }
@@ -4827,7 +4857,7 @@ PyObject *api_norm(PyObject *self, PyObject *const *args, Py_ssize_t const nargs
                                 &sumsq_dtype) < 0)
             result = NULL;
         else {
-            nk_scalar_buffer_to_f64_serial_(&sumsq_buf, sumsq_dtype, &sumsq_buf.f64);
+            nk_unused_(nk_scalar_buffer_cast(&sumsq_buf, sumsq_dtype, &sumsq_buf, nk_f64_k));
             result = PyFloat_FromDouble(nk_f64_sqrt_best(sumsq_buf.f64, parsed.capabilities));
         }
     }

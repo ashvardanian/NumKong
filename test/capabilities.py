@@ -161,3 +161,16 @@ def test_packed_matrix_keeps_the_mask_it_was_packed_with():
     if serial_packed.nbytes != packed.nbytes:
         with pytest.raises(ValueError, match="packed by another capability"):
             nk.dots_packed(vectors, packed, capabilities=nk.Capability.SERIAL)
+
+
+def test_gpu_bits_of_the_mask_pick_the_device():
+    """The GPU bits of `capabilities=` pick the device a pack or Gram matrix runs on, which needs an `out=` there.
+
+    No verb allocates, so a Metal mask over a host matrix refuses rather than quietly running on the CPU.
+    """
+    rows = nk.ones((4, 16), dtype="float32")
+    metal = 1 << 60
+    with pytest.raises(ValueError):
+        nk.dots_pack(rows, capabilities=metal)
+    with pytest.raises(ValueError):
+        nk.dots_symmetric(rows, capabilities=metal)
