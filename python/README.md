@@ -532,6 +532,17 @@ assert nk_sumsq > int(naive_sumsq)
 
 Same-width accumulation is a bad default for low-precision storage.
 
+Pass `axis` to get two tensors with the same reduced shape. For example, these reductions leave one sum and one
+sum of squares per channel:
+
+```python
+images = np.arange(2 * 4 * 8 * 3, dtype=np.uint8).reshape(2, 4, 8, 3)
+sums, sums_of_squares = nk.moments(images, axis=(0, 1, 2))
+assert sums.shape == sums_of_squares.shape == (3,)
+```
+
+Pass `keepdims=True` to retain the specified axes with length one.
+
 ## Min/Max Reductions
 
 Min/max reductions are in a separate section because they cover strided reduction cases.
