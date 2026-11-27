@@ -2620,6 +2620,111 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorSpan<'a, Scalar, M
     pub unsafe fn from_raw_parts(data: *mut Scalar, shape: &[usize], strides_bytes: &[isize]) -> Result<Self, Error> {
         unsafe { Self::from_raw_parts_in(data, shape, strides_bytes, &GLOBAL) }
     }
+
+    /// A dense row-major span borrowing `data`, which must hold exactly the storage values
+    /// [`Tensor::from_slice`] would copy, counting sub-byte dimensions by `dimensions_per_value()`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use numkong::TensorSpan;
+    ///
+    /// let mut storage = [0.0f32; 6];
+    /// let span = TensorSpan::<f32>::from_slice(&mut storage, &[2, 3]).unwrap();
+    /// assert_eq!(span.shape(), &[2, 3]);
+    /// assert_eq!(span.stride_bytes(0), 12);
+    /// ```
+    ///
+    /// The span borrows its slice, so it cannot outlive it:
+    ///
+    /// ```rust,compile_fail,E0597
+    /// use numkong::TensorSpan;
+    ///
+    /// let span = {
+    ///     let mut storage = [0.0f32; 6];
+    ///     TensorSpan::<f32>::from_slice(&mut storage, &[2, 3]).unwrap()
+    /// };
+    /// assert_eq!(span.shape(), &[2, 3]);
+    /// ```
+    pub fn from_slice(data: &'a mut [Scalar], shape: &[usize]) -> Result<Self, Error> {
+        if shape.len() > MAX_RANK {
+            return Err(Error::TooManyRanks { got: shape.len() });
+        }
+        let value_bytes = core::mem::size_of::<Scalar>();
+        let mut strides_bytes = [0isize; MAX_RANK];
+        let mut inner_values: usize = 1;
+        for axis in (0..shape.len()).rev() {
+            let overflow = || Error::InvalidShape { axis, size: shape[axis], reason: "extent overflows usize" };
+            strides_bytes[axis] = inner_values
+                .checked_mul(value_bytes)
+                .and_then(|bytes| isize::try_from(bytes).ok())
+                .ok_or_else(overflow)?;
+            let storage_extent =
+                if axis + 1 == shape.len() { shape[axis] / Scalar::dimensions_per_value() } else { shape[axis] };
+            inner_values = inner_values.checked_mul(storage_extent).ok_or_else(overflow)?;
+        }
+        let length = data.len();
+        let span = Self::from_slice_strided(data, shape, &strides_bytes[..shape.len()])?;
+        if length != inner_values {
+            return Err(Error::ShapeMismatch { axis: 0, expected: inner_values, got: length });
+        }
+        Ok(span)
+    }
+
+    /// A strided span borrowing `data`, for any layout whose byte strides are non-negative
+    /// multiples of the entry size, whose last axis steps one storage value, whose axes nest
+    /// without overlap, and whose last entry lies inside `data`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use numkong::TensorSpan;
+    ///
+    /// // A 2×3 window into the left of a 2×4 row-major buffer.
+    /// let mut storage = [0.0f32; 8];
+    /// let span = TensorSpan::<f32>::from_slice_strided(&mut storage, &[2, 3], &[16, 4]).unwrap();
+    /// assert_eq!(span.shape(), &[2, 3]);
+    /// assert!(TensorSpan::<f32>::from_slice_strided(&mut storage, &[2, 3], &[8, 4]).is_err());
+    /// ```
+    pub fn from_slice_strided(data: &'a mut [Scalar], shape: &[usize], strides_bytes: &[isize]) -> Result<Self, Error> {
+        validate_raw_parts::<MAX_RANK>(shape, strides_bytes)?;
+        let value_bytes = core::mem::size_of::<Scalar>();
+        let refuse = |axis: usize, reason| Error::InvalidShape { axis, size: shape[axis], reason };
+        for (axis, &stride) in strides_bytes.iter().enumerate() {
+            if stride < 0 || !(stride as usize).is_multiple_of(value_bytes) {
+                return Err(refuse(axis, "strides must be non-negative multiples of the entry size"));
+            }
+        }
+        if let Some(last) = shape.len().checked_sub(1) {
+            if strides_bytes[last] != value_bytes as isize {
+                return Err(Error::NonContiguousRows);
+            }
+            if !shape[last].is_multiple_of(Scalar::dimensions_per_value()) {
+                return Err(refuse(last, "innermost dimension must be divisible by dimensions_per_value()"));
+            }
+        }
+        let mut extent_values: usize = 1;
+        if shape.contains(&0) {
+            extent_values = 0;
+        } else if let Some(last) = shape.len().checked_sub(1) {
+            extent_values = shape[last] / Scalar::dimensions_per_value();
+            for axis in (0..last).rev().filter(|&axis| shape[axis] > 1) {
+                let stride_values = strides_bytes[axis] as usize / value_bytes;
+                if stride_values < extent_values {
+                    return Err(refuse(axis, "axes must nest without overlap"));
+                }
+                extent_values = stride_values
+                    .checked_mul(shape[axis] - 1)
+                    .and_then(|outer| outer.checked_add(extent_values))
+                    .ok_or_else(|| refuse(axis, "extent overflows usize"))?;
+            }
+        }
+        if extent_values > data.len() {
+            return Err(Error::ShapeMismatch { axis: 0, expected: extent_values, got: data.len() });
+        }
+        // SAFETY: the checks above keep every entry inside `data`, which stays borrowed for `'a`.
+        unsafe { Self::from_raw_parts(data.as_mut_ptr(), shape, strides_bytes) }
+    }
 }
 
 impl<'a, Scalar: StorageElement, const MAX_RANK: usize, Alloc: Allocator> TensorSpan<'a, Scalar, MAX_RANK, Alloc> {
@@ -6927,6 +7032,51 @@ mod tests {
             ScaledTensor::<Mxfp4>::scales_shape_into(&deep, &mut [0usize; DEFAULT_MAX_RANK]).unwrap_err(),
             Error::TooManyRanks { got: 9 }
         );
+    }
+
+    #[test]
+    fn slice_spans_refuse_overlapping_axes() {
+        let mut storage = [0.0f32; 8];
+        let overlapping = TensorSpan::<f32>::from_slice_strided(&mut storage, &[2, 3], &[8, 4]);
+        assert!(matches!(overlapping, Err(Error::InvalidShape { axis: 0, .. })));
+        let aliased = TensorSpan::<f32>::from_slice_strided(&mut storage, &[2, 3], &[0, 4]);
+        assert!(matches!(aliased, Err(Error::InvalidShape { axis: 0, .. })));
+        let column = TensorSpan::<f32>::from_slice_strided(&mut storage, &[2, 3], &[16, 8]);
+        assert_eq!(column.unwrap_err(), Error::NonContiguousRows);
+    }
+
+    #[test]
+    fn slice_spans_refuse_slices_too_short_for_their_last_entry() {
+        let mut storage = [0.0f32; 6];
+        let dense = TensorSpan::<f32>::from_slice(&mut storage[..5], &[2, 3]);
+        assert_eq!(dense.unwrap_err(), Error::ShapeMismatch { axis: 0, expected: 6, got: 5 });
+        let padded = TensorSpan::<f32>::from_slice_strided(&mut storage, &[2, 3], &[16, 4]);
+        assert_eq!(padded.unwrap_err(), Error::ShapeMismatch { axis: 0, expected: 7, got: 6 });
+        let strided = crate::vector::VectorSpan::from_slice_strided(&mut storage, 4, 8);
+        assert!(matches!(strided, Err(Error::ShapeMismatch { axis: 0, expected: 7, got: 6 })));
+    }
+
+    #[test]
+    fn slice_spans_refuse_negative_strides() {
+        let mut storage = [0.0f32; 6];
+        let reversed = TensorSpan::<f32>::from_slice_strided(&mut storage, &[2, 3], &[-12, 4]);
+        assert!(matches!(reversed, Err(Error::InvalidShape { axis: 0, .. })));
+        let backwards = crate::vector::VectorSpan::from_slice_strided(&mut storage, 3, -8);
+        assert!(matches!(backwards, Err(Error::InvalidShape { axis: 0, .. })));
+    }
+
+    #[test]
+    fn slice_spans_count_sub_byte_dimensions_by_storage_value() {
+        use crate::types::u1x8;
+
+        let mut storage = [u1x8(0); 4];
+        assert_eq!(TensorSpan::<u1x8>::from_slice(&mut storage, &[2, 16]).unwrap().stride_bytes(0), 2);
+        let ragged = TensorSpan::<u1x8>::from_slice(&mut storage[..3], &[2, 12]);
+        assert!(matches!(ragged, Err(Error::InvalidShape { axis: 1, .. })));
+        let short = TensorSpan::<u1x8>::from_slice(&mut storage[..3], &[2, 16]);
+        assert_eq!(short.unwrap_err(), Error::ShapeMismatch { axis: 0, expected: 4, got: 3 });
+        assert_eq!(crate::vector::VectorSpan::from_slice(&mut storage).unwrap().dims(), 32);
+        assert!(crate::vector::VectorSpan::from_slice_strided(&mut storage, 12, 1).is_err());
     }
 
     #[test]

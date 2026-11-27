@@ -2388,6 +2388,9 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         let &[columns, depth] = matrix.shape() else {
             return Err(Error::DimensionMismatch { expected: 2, got: matrix.ndim() });
         };
+        if matrix.stride_bytes(0) < 0 {
+            return Err(Error::InvalidShape { axis: 0, size: columns, reason: "non-negative row strides" });
+        }
         let size = Scalar::dots_pack_size(columns, depth)?;
         // The packer zero-fills its header reserved words and panel padding, so it owns every
         // byte of the blob — no pre-zeroing needed here.
@@ -2440,6 +2443,9 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         let &[columns, depth] = matrix.shape() else {
             return Err(Error::DimensionMismatch { expected: 2, got: matrix.ndim() });
         };
+        if matrix.stride_bytes(0) < 0 {
+            return Err(Error::InvalidShape { axis: 0, size: columns, reason: "non-negative row strides" });
+        }
         let stride = matrix.stride_bytes(0) as usize;
         let size = Scalar::dots_pack_size(columns, depth)?;
         let destination = self.buffer.reset_for_pack(size)?;
@@ -2645,6 +2651,9 @@ where
     let &[rows, depth] = queries.shape() else {
         return Err(Error::DimensionMismatch { expected: 2, got: queries.ndim() });
     };
+    if queries.stride_bytes(0) < 0 {
+        return Err(Error::InvalidShape { axis: 0, size: rows, reason: "non-negative row strides" });
+    }
     let (columns, packed_depth) = packed_right.shape();
     if depth != packed_depth {
         return Err(Error::ShapeMismatch { axis: 1, expected: packed_depth, got: depth });
@@ -2676,6 +2685,9 @@ where
     }
     if !output.has_contiguous_rows() {
         return Err(Error::NonContiguousRows);
+    }
+    if output.stride_bytes(0) < 0 {
+        return Err(Error::InvalidShape { axis: 0, size: rows, reason: "non-negative row strides" });
     }
     Ok(())
 }
@@ -2710,6 +2722,9 @@ where
             reason: "symmetric operations require a 2D tensor",
         });
     };
+    if queries.stride_bytes(0) < 0 {
+        return Err(Error::InvalidShape { axis: 0, size: rows, reason: "non-negative row strides" });
+    }
     Ok((rows, depth))
 }
 
@@ -3209,7 +3224,7 @@ impl<Scalar: Dots, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symmetric
 mod tests {
     use super::*;
     use crate::{
-        tensor::DEFAULT_ALIGNMENT,
+        tensor::{DEFAULT_ALIGNMENT, SliceRange, TensorSpan},
         testing::{DIMS, TestableType, align_depth, assert_upper_triangle_eq, init_thread},
         types::{FloatLike, NumberLike},
     };
@@ -3397,6 +3412,16 @@ mod tests {
         check_dots_packed_transposed::<u8>();
     }
 
+    #[test]
+    fn negative_row_strides_are_refused() {
+        let a = Tensor::<f32>::full(&[4, 8], 1.0).unwrap();
+        let reversed = a.slice(&[SliceRange::range_step(3, 0, -1), SliceRange::full()]).unwrap();
+        let packed = DotsPackedMatrix::new(&a).unwrap();
+        assert!(matches!(reversed.dots_packed(&packed), Err(Error::InvalidShape { axis: 0, .. })));
+        assert!(matches!(DotsPackedMatrix::new(&reversed), Err(Error::InvalidShape { axis: 0, .. })));
+        assert!(matches!(reversed.dots_symmetric(), Err(Error::InvalidShape { axis: 0, .. })));
+    }
+
     /// Issue #6: the packed GEMM must accept borrowed operands (`TensorView` /
     /// `TensorSpan`) on both the packing input and the `A` operand, matching the
     /// owned-`Tensor` path bit-for-bit. Non-uniform values are used so a stride
@@ -3445,6 +3470,12 @@ mod tests {
         let mut into = Tensor::<f64>::full(&[rows, columns], 0.0).unwrap();
         a.view().dots_packed_into(&packed_view, &mut into).unwrap();
         close(&into, &expected, "view A into");
+
+        // So can a span borrowing a plain slice.
+        let mut storage = vec![0.0f64; rows * columns];
+        let mut borrowed = TensorSpan::<f64>::from_slice(&mut storage, &[rows, columns]).unwrap();
+        a.view().dots_packed_into(&packed_view, &mut borrowed).unwrap();
+        close(&Tensor::from_slice(&storage, &[rows, columns]).unwrap(), &expected, "slice span into");
 
         // Transposed packing from a view with B in k×n layout: C = A × B. Non-uniform
         // values here guard the materialization inside `new_transposed_in`.

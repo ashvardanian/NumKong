@@ -976,6 +976,67 @@ impl<'a, Scalar: StorageElement> VectorSpan<'a, Scalar> {
     pub unsafe fn from_raw_parts(data: *mut Scalar, dims: usize, stride: isize) -> Self {
         unsafe { Self::from_raw_parts_in(data, dims, stride, &GLOBAL) }
     }
+
+    /// A contiguous span borrowing the whole of `data`, each storage value holding
+    /// `dimensions_per_value()` dimensions.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use numkong::{VectorSpan, u1x8};
+    ///
+    /// let mut storage = [u1x8(0); 2];
+    /// let span = VectorSpan::from_slice(&mut storage).unwrap();
+    /// assert_eq!(span.dims(), 16);
+    /// assert!(span.is_contiguous());
+    /// ```
+    pub fn from_slice(data: &'a mut [Scalar]) -> Result<Self, Error> {
+        let dims = data.len().checked_mul(Scalar::dimensions_per_value()).ok_or(Error::InvalidShape {
+            axis: 0,
+            size: data.len(),
+            reason: "extent overflows usize",
+        })?;
+        let stride = core::mem::size_of::<Scalar>() as isize;
+        // SAFETY: every storage value of `data` lies inside it, borrowed for `'a`.
+        Ok(unsafe { Self::from_raw_parts(data.as_mut_ptr(), dims, stride) })
+    }
+
+    /// A span borrowing `dims` dimensions of `data` whose storage values lie `stride_bytes` apart,
+    /// a positive multiple of the entry size, the last of them inside `data`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use numkong::VectorSpan;
+    ///
+    /// // Every other entry of a six-entry buffer.
+    /// let mut storage = [0.0f32; 6];
+    /// let span = VectorSpan::from_slice_strided(&mut storage, 3, 8).unwrap();
+    /// assert_eq!(span.dims(), 3);
+    /// assert!(VectorSpan::from_slice_strided(&mut storage, 4, 8).is_err());
+    /// ```
+    pub fn from_slice_strided(data: &'a mut [Scalar], dims: usize, stride_bytes: isize) -> Result<Self, Error> {
+        let value_bytes = core::mem::size_of::<Scalar>();
+        let refuse = |reason| Error::InvalidShape { axis: 0, size: dims, reason };
+        if stride_bytes <= 0 || !(stride_bytes as usize).is_multiple_of(value_bytes) {
+            return Err(refuse("stride must be a positive multiple of the entry size"));
+        }
+        if !dims.is_multiple_of(Scalar::dimensions_per_value()) {
+            return Err(refuse("dimensions must be divisible by dimensions_per_value()"));
+        }
+        let extent_values = match dims / Scalar::dimensions_per_value() {
+            0 => 0,
+            values => (stride_bytes as usize / value_bytes)
+                .checked_mul(values - 1)
+                .and_then(|outer| outer.checked_add(1))
+                .ok_or_else(|| refuse("extent overflows usize"))?,
+        };
+        if extent_values > data.len() {
+            return Err(Error::ShapeMismatch { axis: 0, expected: extent_values, got: data.len() });
+        }
+        // SAFETY: the checks above keep every entry inside `data`, which stays borrowed for `'a`.
+        Ok(unsafe { Self::from_raw_parts(data.as_mut_ptr(), dims, stride_bytes) })
+    }
 }
 
 impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorSpan<'a, Scalar, Alloc> {

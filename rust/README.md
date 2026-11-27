@@ -763,6 +763,17 @@ Rayon or a manual thread pool can still work if the rest of your application alr
 
 Views wrap raw pointers without ownership, owned containers accept custom allocators, and the scalar trait API works on any `&[T]` regardless of how the memory was allocated.
 
+`TensorSpan::from_slice` and `VectorSpan::from_slice` borrow a mutable slice safely, and their `_strided` twins take byte strides for windows into wider buffers.
+The constructor is the one proof that a layout fits its slice, so a short slice, overlapping axes or a negative stride come back as an error instead of reaching a kernel.
+
+```rust
+use numkong::{TensorSpan, VectorSpan};
+
+let mut storage = vec![0.0f64; 32 * 64];
+let mut output = TensorSpan::<f64>::from_slice(&mut storage, &[32, 64]).unwrap();
+let mut column = VectorSpan::from_slice_strided(&mut storage, 32, 64 * 8).unwrap();
+```
+
 `VectorView::from_raw_parts` and `TensorView::from_raw_parts` wrap device-accessible or externally allocated memory.
 The mutable counterparts `VectorSpan::from_raw_parts` and `TensorSpan::from_raw_parts` work the same way with `*mut T`.
 

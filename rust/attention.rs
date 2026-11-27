@@ -1470,6 +1470,9 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                 got: output.shape().iter().product(),
             });
         }
+        if output.stride_bytes(0) < 0 {
+            return Err(Error::InvalidShape { axis: 0, size: query_tokens, reason: "non-negative row strides" });
+        }
         Ok(QueryPlan {
             query_head_count,
             query_stride,
@@ -1783,6 +1786,9 @@ impl AttentionRope for f32 {
         if cos.len() < rows * depth / 2 || sin.len() < rows * depth / 2 {
             return Err(Error::ShapeMismatch { axis: 0, expected: rows * depth / 2, got: cos.len().min(sin.len()) });
         }
+        if x.stride_bytes(0) < 0 {
+            return Err(Error::InvalidShape { axis: 0, size: rows, reason: "non-negative row strides" });
+        }
         if rows == 0 {
             return Ok(());
         }
@@ -1834,6 +1840,9 @@ impl AttentionRope for bf16 {
         if cos.len() < rows * depth / 2 || sin.len() < rows * depth / 2 {
             return Err(Error::ShapeMismatch { axis: 0, expected: rows * depth / 2, got: cos.len().min(sin.len()) });
         }
+        if x.stride_bytes(0) < 0 {
+            return Err(Error::InvalidShape { axis: 0, size: rows, reason: "non-negative row strides" });
+        }
         if rows == 0 {
             return Ok(());
         }
@@ -1884,6 +1893,9 @@ impl AttentionRope for e4m3 {
         }
         if cos.len() < rows * depth / 2 || sin.len() < rows * depth / 2 {
             return Err(Error::ShapeMismatch { axis: 0, expected: rows * depth / 2, got: cos.len().min(sin.len()) });
+        }
+        if x.stride_bytes(0) < 0 {
+            return Err(Error::InvalidShape { axis: 0, size: rows, reason: "non-negative row strides" });
         }
         if rows == 0 {
             return Ok(());

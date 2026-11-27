@@ -4317,6 +4317,9 @@ where
     if rows == 0 || columns == 0 {
         return Ok(None);
     }
+    if gate.stride_bytes(0) < 0 || y.stride_bytes(0) < 0 || up.is_some_and(|u| u.stride_bytes(0) < 0) {
+        return Err(Error::InvalidShape { axis: 0, size: rows, reason: "non-negative row strides" });
+    }
     let gate_stride = gate.stride_bytes(0) as usize;
     let y_stride = y.stride_bytes(0) as usize;
     let (up_ptr, up_stride) = match up {
@@ -4535,6 +4538,9 @@ where
         if g.len() != columns {
             return Err(Error::ShapeMismatch { axis: 1, expected: columns, got: g.len() });
         }
+    }
+    if x.stride_bytes(0) < 0 || y.stride_bytes(0) < 0 {
+        return Err(Error::InvalidShape { axis: 0, size: rows, reason: "non-negative row strides" });
     }
     let x_stride = x.stride_bytes(0) as usize;
     let y_stride = y.stride_bytes(0) as usize;
