@@ -6,7 +6,7 @@ Date: August 3, 2024
 """
 
 from enum import IntFlag
-from typing import Any, Literal, TypedDict, Unpack
+from typing import Any, Literal, TypedDict, Unpack, overload
 
 # Many annotation features depend on the Python version:
 # - `typing.TypeAlias` type aliases are supported in Python 3.10-3.11.
@@ -409,6 +409,22 @@ class Tensor(memoryview):
         """Reset to an empty shape (size 0) while keeping the allocated capacity."""
         ...
 
+    @overload
+    def moments(
+        self, axis: None = None, *, keepdims: bool = False, **dispatch: Unpack[_Dispatch]
+    ) -> tuple[float | int, float | int]: ...
+    @overload
+    def moments(
+        self, axis: int | tuple[int, ...], *, keepdims: bool = False, **dispatch: Unpack[_Dispatch]
+    ) -> tuple[Tensor, Tensor]: ...
+    @overload
+    def minmax(
+        self, axis: None = None, *, keepdims: bool = False, **dispatch: Unpack[_Dispatch]
+    ) -> tuple[float | int, int, float | int, int] | None: ...
+    @overload
+    def minmax(
+        self, axis: int | tuple[int, ...], *, keepdims: bool = False, **dispatch: Unpack[_Dispatch]
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]: ...
     def sum(
         self,
         axis: int | tuple[int, ...] | None = None,
@@ -1524,29 +1540,46 @@ def astype(
 
 # region Reductions
 
+@overload
 def moments(
     a: _BufferType,
     /,
     *,
+    axis: None = None,
+    keepdims: bool = False,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> tuple[float, float]:
-    """Compute the sum and the sum of squares of all elements, returned as a pair."""
-    ...
-
+) -> tuple[float | int, float | int]: ...
+@overload
+def moments(
+    a: _BufferType,
+    /,
+    *,
+    axis: int | tuple[int, ...],
+    keepdims: bool = False,
+    dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
+) -> tuple[Tensor, Tensor]: ...
+@overload
 def minmax(
     a: _BufferType,
     /,
     *,
+    axis: None = None,
+    keepdims: bool = False,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> tuple[float, int, float, int] | None:
-    """Find the smallest and largest elements with their indices.
-
-    Returns `(min_value, min_index, max_value, max_index)`, or None when every element is NaN.
-    """
-    ...
-
+) -> tuple[float | int, int, float | int, int] | None: ...
+@overload
+def minmax(
+    a: _BufferType,
+    /,
+    *,
+    axis: int | tuple[int, ...],
+    keepdims: bool = False,
+    dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
+) -> tuple[Tensor, Tensor, Tensor, Tensor]: ...
 def sum(
     a: _BufferType,
     /,
