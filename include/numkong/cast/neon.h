@@ -535,16 +535,13 @@ NUMKONG_INLINE uint8x8_t nk_f16x8_to_e4m3x8_neon_(float16x8_t f16x8) {
     uint16x8_t normal_result_u16x8 = vorrq_u16(
         sign_byte_u16x8, vorrq_u16(vshlq_n_u16(vreinterpretq_u16_s16(clamped_exponent_i16x8), 3), e4m3_mantissa_u16x8));
 
-    // Subnormal path: E4M3 subnormal = mant × 2⁻⁹
-    // Use float conversion for correctness: abs(f16) × 512, round to int, clamp to [0,7]
+    // Subnormals round abs(f16) × 512 to nearest even, so 8 encodes the first normal, 0x08
     float32x4_t abs_low_f32x4 = vabsq_f32(vcvt_f32_f16(vget_low_f16(f16x8)));
     float32x4_t abs_high_f32x4 = vabsq_f32(vcvt_high_f32_f16(f16x8));
     float32x4_t scaled_low_f32x4 = vmulq_n_f32(abs_low_f32x4, 512.0f);
     float32x4_t scaled_high_f32x4 = vmulq_n_f32(abs_high_f32x4, 512.0f);
-    int32x4_t subnormal_mantissa_low_i32x4 = vcvtnq_s32_f32(scaled_low_f32x4); // Round to nearest even
+    int32x4_t subnormal_mantissa_low_i32x4 = vcvtnq_s32_f32(scaled_low_f32x4);
     int32x4_t subnormal_mantissa_high_i32x4 = vcvtnq_s32_f32(scaled_high_f32x4);
-    subnormal_mantissa_low_i32x4 = vmaxq_s32(vminq_s32(subnormal_mantissa_low_i32x4, vdupq_n_s32(7)), vdupq_n_s32(0));
-    subnormal_mantissa_high_i32x4 = vmaxq_s32(vminq_s32(subnormal_mantissa_high_i32x4, vdupq_n_s32(7)), vdupq_n_s32(0));
     int16x4_t subnormal_mantissa_low_i16x4 = vmovn_s32(subnormal_mantissa_low_i32x4);
     int16x4_t subnormal_mantissa_high_i16x4 = vmovn_s32(subnormal_mantissa_high_i32x4);
     uint16x8_t subnormal_mantissa_u16x8 = vreinterpretq_u16_s16(
