@@ -5,6 +5,7 @@ Author: Ash Vardanian
 Date: August 3, 2024
 """
 
+from collections.abc import Callable, Sequence
 from enum import IntFlag
 from typing import Any, Literal, TypedDict, Unpack
 
@@ -15,6 +16,7 @@ from typing import Any, Literal, TypedDict, Unpack
 #
 # We cannot maintain a separate `.pyi` file for every Python version, so assume Python 3.12 with
 # NumPy available.
+from numpy import dtype as _DType
 from numpy.typing import NDArray
 
 # region Forward Declarations and Shared Types
@@ -536,6 +538,90 @@ class ScaledTensor:
     def __repr__(self) -> str:
         """Return a string representation."""
         ...
+
+class Generator:
+    """Native sampling with independent uint64 state and optional buffer allocation."""
+
+    def __init__(self, seed: int | None = None, *, array_factory: Callable[..., _BufferType] | None = None) -> None: ...
+    @property
+    def state(self) -> int: ...
+    @state.setter
+    def state(self, value: int) -> None: ...
+    def random(
+        self,
+        size: int | tuple[int, ...] | None = None,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def standard_normal(
+        self,
+        size: int | tuple[int, ...] | None = None,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def uniform(
+        self,
+        low: float | _BufferType = 0.0,
+        high: float | _BufferType = 1.0,
+        size: int | tuple[int, ...] | None = None,
+        *,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def normal(
+        self,
+        loc: float | _BufferType = 0.0,
+        scale: float | _BufferType = 1.0,
+        size: int | tuple[int, ...] | None = None,
+        *,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def laplace(
+        self,
+        loc: float | _BufferType = 0.0,
+        scale: float | _BufferType = 1.0,
+        size: int | tuple[int, ...] | None = None,
+        *,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def beta(
+        self,
+        a: float | _BufferType,
+        b: float | _BufferType,
+        size: int | tuple[int, ...] | None = None,
+        *,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def poisson(
+        self,
+        lam: float | _BufferType = 1.0,
+        size: int | tuple[int, ...] | None = None,
+        *,
+        out: _BufferType | None = None,
+    ) -> int | Tensor | _BufferType | None: ...
+    def integers(
+        self,
+        low: int | _BufferType,
+        high: int | _BufferType | None = None,
+        size: int | tuple[int, ...] | None = None,
+        dtype: str | type | _DType = "int64",
+        endpoint: bool = False,
+        *,
+        out: _BufferType | None = None,
+    ) -> int | Tensor | _BufferType | None: ...
+    def choice(
+        self,
+        a: int | Sequence[object] | _BufferType,
+        size: int | tuple[int, ...] | None = None,
+        replace: bool = True,
+        p: Sequence[float] | _BufferType | None = None,
+        axis: int = 0,
+        shuffle: bool = True,
+    ) -> object: ...
+    def shuffle(self, x: list[object] | _BufferType, axis: int = 0) -> None: ...
 
 class PackedMatrix:
     """Opaque pre-packed matrix for repeated cross operations.
