@@ -23,6 +23,13 @@ cmake/                    The ISA probe module, the package config, and cross-co
 
 A file never includes both a library's SDK umbrella `<X/X.hpp>` and its native umbrella `<X.hpp>`, for this library and every sibling, and nothing under `include/` includes a header that resolves under `cpp/`; C headers are the ABI every SDK sits on, so they are free everywhere. `.githooks/pre-commit` refuses both.
 
+Each library keeps its containers in `include/<lib>/*.hpp` behind its `::types` target, which links only the C ABI, carries no define, includes no kernel and calls nothing the library exports.
+ForkUnion and SmashTable define nothing for header-only builds, so their `::header` is also their container layer.
+Every operation one of a library's kernels backs is a verb under `cpp/`, which links the library, calls only `_best` exports and includes only C and `::types` headers.
+No relative header path sits in two of `c/`, `include/` and `cpp/`.
+A product's `include/` takes a sibling's `::types` and C headers, never its `cpp/` verbs, and no binding calls a `_serial` kernel.
+`.githooks/pre-commit` refuses each of these.
+
 ## C and C++
 
 ### Building
@@ -46,7 +53,7 @@ Machine-specific settings, like a compiler path, belong in an untracked `CMakeUs
 | `NUMKONG_BUILD_PYTHON`        | `OFF`               | Compile the CPython extension, as `pip install .` does through scikit-build   |
 | `NUMKONG_BUILD_NODE`          | `OFF`               | Compile the Node addon, as `npm run build-native` does through `cmake-js`     |
 | `NUMKONG_BUILD_SWIFT`         | `OFF`               | Package the static library for SwiftPM, as the `swift` preset does            |
-| `NUMKONG_BUILD_SHARED`        | `ON`, if top-level  | Compile dynamic library                                                       |
+| `NUMKONG_BUILD_LIBRARIES`     | `ON`, if top-level  | Build and install the always-declared static and shared libraries by default  |
 | `NUMKONG_INSTALL`             | `ON`, if top-level  | Install headers, libraries, and the CMake package files                       |
 | `NUMKONG_BUILD_SANITIZERS`    | `off`               | Instrument the build with `address`, plus UBSan, or `thread`                  |
 | `NUMKONG_WERROR`              | `OFF`               | Treat warnings as errors, as the `check` preset does                          |
@@ -340,6 +347,7 @@ git ls-files '*.h' '*.c' '*.hpp' '*.cpp' | xargs clang-format -i # Use Clang For
 Tests call the public surface: the C ABI and its dispatch points first, and the C++ wrappers for what C cannot reach; the Python module and the Rust crate are tested through what they export.
 The few private includes are listed under [Private Surface Waivers](#private-surface-waivers), each with what the public surface lacks.
 A kernel is never its own oracle, and inputs are never drawn through the kernels under test; each result is held to a serial reference in a wider type, as [test/README.md](test/README.md#reference-baselines) explains.
+Tests never read a library's internal layouts, and each family's oracle is the `<verb>_reference` beside it, never a serial kernel or a helper named `_oracle`, `_naive` or `_golden`.
 Oracles never compile out: tests hold no `assert`, and every test unit opens with `#undef NDEBUG // ! A test's oracle must stay live in every build`.
 Benchmarks never include `test/`, each tree keeps its own harness, and neither uses a test or benchmark framework.
 One binary carries every vendor's shard, and the device is chosen at runtime, as [Devices](#devices) explains.
@@ -496,7 +504,7 @@ A benchmark row is named after the kernel it times, which is what `NUMWARS_FILTE
 ### Devices
 
 CMake compiles each vendor's units, `*_cuda.cu`, `*_rocm.hip` and `*_metal.cpp`, into an object library of their own and links them all into the one test binary; a vendor left out compiles its units as plain C++ that define empty entry points.
-Test bodies are templates over the backend, `host_backend_t` or a `device_backend` in `test/harness.hpp`, with the device scenarios in `test/cross_device.hpp`, and the vendor files only bind them.
+Test bodies are templates over the backend, `host_backend_t` in `test/harness.hpp` or a `device_backend` in `test/backend_device.hpp`, with the device scenarios in `test/cross_device.hpp`, and the vendor files only bind them.
 A unit's vendor switches, `NUMKONG_ARCH_CUDA_`, `NUMKONG_ARCH_ROCM_` and `NUMKONG_ARCH_METAL_`, never exclude each other: each vendor gets its own `#if` block, never an `#elif` to another vendor's switch or a switch negated beside another's.
 Compiler predefines, like `__CUDA_ARCH__` or `__HIP_DEVICE_COMPILE__`, describe one compilation and are exempt.
 A unit compiled once per vendor, like `test/shapes_cuda.cu`, which ROCm compiles through an include CMake generates, gives whatever depends on the vendor internal linkage or a vendor name, so the linked shards never define one entity twice.
@@ -717,6 +725,7 @@ To add a new operation family, for example `foo`:
 1. __C header__: create `c/numkong/foo.h`.
    It declares, with `NUMKONG_API`, the dispatch points like `nk_foo_f32_best`, every capability's kernel under its `NUMKONG_TARGET_*` guard, and the finder `nk_foo_find_kernel`.
    It ends with the header-only tail: the capability headers, then a stub per dispatch point and for the finder, each returning `nk_missing_library_k`.
+   It tests no vendor switch: `c/numkong/capabilities.h` and `c/numkong/memory.h` declare every vendor's runtime services unconditionally.
 2. __Kernels per capability__: add `include/numkong/foo/serial.h`, `foo/neon.h`, `foo/haswell.h`, etc.
    Each opens the guards of its capability's shape, listed under [Macro Naming](#macro-naming).
    A kernel never calls another public kernel: logic two kernels share lives in a helper named for what it computes.
@@ -790,6 +799,7 @@ These rules are shared by every sibling library, and the pre-commit hook enforce
 A lot of effort goes into keeping the wording and styling of the code consistent.
 Variable names must reflect the __semantic operation__, not just the intrinsic name.
 A `@par Statuses:` block lists only the statuses a function's contract adds, while resource failures, cancellation, deferral and defects are covered once by the categories in the `nk_status_t` docblock.
+Markdown and Rust doc comments never set two code spans side by side; name one in prose and keep one span, as `.githooks/pre-commit` checks.
 
 ### Variable Names & Type Suffixes
 
@@ -924,7 +934,8 @@ A name without it is a public contract, either a switch you may set or a value y
 Architectures are spelled as one token each, `X8664`, `X8632`, `ARM64`, `RISCV64`, `PPC64`, `LOONGARCH64`, `S390X` and `WASM`, and GPU architectures `CUDA` and `ROCM`.
 A GPU architecture holds beside the host's architecture in both compiler passes, so it never follows a CPU architecture in an `#elif` chain.
 Metal has no compiler macro on the host side, so its host API is a switch the build sets where it links Metal and Foundation.
-The library also sets `NUMKONG_ARCH_CUDA_` or `NUMKONG_ARCH_ROCM_` for its host-only units, so `src/dispatch/*.c` list the kernels that the `src/capabilities/*.cu` and `src/capabilities/*.hip` units compile.
+The library also sets `NUMKONG_ARCH_CUDA_` or `NUMKONG_ARCH_ROCM_` for its host-only units, so the targets of `src/dispatch/*.c` list the kernels that the `src/capabilities/*.cu` and `src/capabilities/*.hip` units compile.
+CUDA and ROCm code under `c/` and `include/` needs no definition from the library's CMake: a consumer's own nvcc or hipcc unit including `numkong/each/cuda.cuh` builds from the compiler's predefines alone.
 The build passes every unit the same `NUMKONG_TARGET_*` verdicts, so a unit turns off each capability its headers include besides its own, like `src/capabilities/genoa.c` turning off Haswell, Skylake and Icelake, and each kernel is defined in exactly one unit.
 A new cross-capability include needs the same line in the unit, or the link reports the kernels defined twice.
 Each GPU unit compiles only the codes its generation runs.
@@ -936,7 +947,7 @@ Compiler predefines like `__clang__`, `__GNUC__` and `_MSC_VER` are read raw whe
 Three families guard platform code, each with its own job:
 
 - `NUMKONG_ARCH_<ARCH>_` holds where the platform or its runtime is present.
-  It gates runtime services, detection, intrinsic includes and vendor primitives.
+  It gates detection, intrinsic includes, vendor primitives and the runtime helpers of `cuda.cuh`, `rocm.cuh` and `metal.h`.
   Runtime services are the allocators, memory, streams, events, device counts and enabled masks.
 - `NUMKONG_ARCH_<ARCH>_<NAME>_` holds where a capability's code compiles.
   The unit's flags or its GPU vendor say so, or the build's probe did; it never reads a target.
@@ -965,5 +976,7 @@ A capability header opens its guards right after its include guard, in one of th
 
 Every `#endif` names its guard, or its first names and `...` where the whole guard would not fit, and no other condition in a capability header tests a platform.
 The one exception is a compiler workaround in `serial.h`, like `defined(__GNUC__)` on `ARM64`.
-The top-level headers and `src/` guard runtime services by `NUMKONG_ARCH_<VENDOR>_`.
+No C ABI header and no host unit of `src/` tests a vendor switch to reach a runtime service.
+CMake compiles `src/capabilities/<vendor>.*` where a vendor is on and `src/missing/<vendor>.c`, answering `nk_missing_gpu_k`, where it is off, so every build exports the same names.
+A header-only unit answers `nk_missing_library_k` from every GPU runtime service, even under nvcc.
 They guard kernel declarations and dispatch entries by `NUMKONG_TARGET_<NAME>`.

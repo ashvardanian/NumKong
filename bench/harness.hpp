@@ -94,6 +94,8 @@ extern "C" void openblas_set_num_threads(int) __attribute__((weak));
 #include "numkong/types.hpp"
 #include "numkong/memory.hpp"
 #include "numkong/tensor.hpp"
+#include "numkong/devices.hpp" // `nk::device_t`, `nk::stream_t`
+#include "numkong/cast.hpp"    // `nk::cast`
 #include "numkong/random.hpp"
 
 namespace nk = ashvardanian::numkong;

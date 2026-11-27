@@ -56,13 +56,13 @@
       "name": "release",
       "inherits": ["base", "clang"],
       "displayName": "Release",
-      "cacheVariables": { "NUMKONG_BUILD_BENCH": "ON", "NUMKONG_BUILD_SHARED": "ON" }
+      "cacheVariables": { "NUMKONG_BUILD_BENCH": "ON", "NUMKONG_BUILD_LIBRARIES": "ON" }
     },
     {
       "name": "release_shared",
       "inherits": "base",
       "displayName": "Release - libraries only",
-      "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_BENCH": "OFF", "NUMKONG_BUILD_SHARED": "ON" }
+      "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_BENCH": "OFF", "NUMKONG_BUILD_LIBRARIES": "ON" }
     },
     {
       "name": "swift",
@@ -70,7 +70,7 @@
       "displayName": "Swift - XCFramework or artifact bundle",
       "cacheVariables": {
         "NUMKONG_BUILD_TEST": "OFF",
-        "NUMKONG_BUILD_SHARED": "OFF",
+        "NUMKONG_BUILD_LIBRARIES": "OFF",
         "NUMKONG_BUILD_SWIFT": "ON",
         "CMAKE_OSX_DEPLOYMENT_TARGET": "26.0"
       }
@@ -80,7 +80,7 @@
       "inherits": ["base", "windows"],
       "generator": "Visual Studio 18 2026",
       "architecture": "x64",
-      "cacheVariables": { "NUMKONG_BUILD_SHARED": "ON" },
+      "cacheVariables": { "NUMKONG_BUILD_LIBRARIES": "ON" },
       "displayName": "Windows x64 - Visual Studio 2026"
     },
     {
@@ -91,7 +91,7 @@
         "CMAKE_C_COMPILER": "cl",
         "CMAKE_CXX_COMPILER": "cl",
         "NUMKONG_CUDA_ARCH": "native",
-        "NUMKONG_BUILD_SHARED": "ON"
+        "NUMKONG_BUILD_LIBRARIES": "ON"
       }
     },
     {
@@ -99,7 +99,7 @@
       "inherits": ["base", "windows"],
       "generator": "Visual Studio 18 2026",
       "architecture": "ARM64",
-      "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_SHARED": "ON" },
+      "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_LIBRARIES": "ON" },
       "displayName": "Windows ARM64 - Visual Studio 2026"
     },
     {
@@ -107,7 +107,7 @@
       "hidden": true,
       "description": "Tests run under the toolchain file's QEMU emulator.",
       "inherits": "base",
-      "cacheVariables": { "NUMKONG_BUILD_SHARED": "ON" }
+      "cacheVariables": { "NUMKONG_BUILD_LIBRARIES": "ON" }
     },
     { "name": "linux_arm64", "inherits": "cross", "toolchainFile": "${sourceDir}/cmake/toolchain-aarch64-gnu.cmake" },
     {
@@ -152,25 +152,25 @@
       "name": "android_arm64",
       "inherits": "base",
       "toolchainFile": "${sourceDir}/cmake/toolchain-android-arm64.cmake",
-      "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_SHARED": "ON" }
+      "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_LIBRARIES": "ON" }
     },
     {
       "name": "android_armv7",
       "inherits": "base",
       "toolchainFile": "${sourceDir}/cmake/toolchain-android-armv7.cmake",
-      "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_SHARED": "ON" }
+      "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_LIBRARIES": "ON" }
     },
     {
       "name": "wasm32_emscripten",
       "inherits": "base",
       "toolchainFile": "${sourceDir}/cmake/toolchain-wasm32-emscripten.cmake",
-      "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_SHARED": "ON" }
+      "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_LIBRARIES": "ON" }
     },
     {
       "name": "wasm64_emscripten",
       "inherits": "base",
       "toolchainFile": "${sourceDir}/cmake/toolchain-wasm64-emscripten.cmake",
-      "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_SHARED": "ON" }
+      "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_LIBRARIES": "ON" }
     },
     { "name": "wasm32_wasi", "inherits": "base", "toolchainFile": "${sourceDir}/cmake/toolchain-wasm32-wasi.cmake" },
     {
@@ -186,20 +186,20 @@
       "cacheVariables": {
         "CMAKE_CUDA_HOST_COMPILER": "clang++",
         "NUMKONG_CUDA_ARCH": "all",
-        "NUMKONG_BUILD_SHARED": "ON"
+        "NUMKONG_BUILD_LIBRARIES": "ON"
       }
     },
     {
       "name": "rocm",
       "inherits": ["base", "linux"],
       "displayName": "ROCm - tests",
-      "cacheVariables": { "NUMKONG_ROCM_ARCH": "all", "NUMKONG_BUILD_SHARED": "ON" }
+      "cacheVariables": { "NUMKONG_ROCM_ARCH": "all", "NUMKONG_BUILD_LIBRARIES": "ON" }
     },
     {
       "name": "metal",
       "inherits": ["base", "darwin"],
       "displayName": "Metal - tests",
-      "cacheVariables": { "NUMKONG_BUILD_SHARED": "ON", "NUMKONG_METAL_ARCH": "all" }
+      "cacheVariables": { "NUMKONG_BUILD_LIBRARIES": "ON", "NUMKONG_METAL_ARCH": "all" }
     },
     {
       "name": "machine",
@@ -209,7 +209,7 @@
       "cacheVariables": {
         "CMAKE_CUDA_HOST_COMPILER": "clang++",
         "NUMKONG_BUILD_TEST": "OFF",
-        "NUMKONG_BUILD_SHARED": "ON",
+        "NUMKONG_BUILD_LIBRARIES": "ON",
         "NUMKONG_MULTIVERSIONED": "OFF"
       }
     },

@@ -6,7 +6,7 @@
  */
 #undef NDEBUG // ! A test's oracle must stay live in every build
 
-#include "harness.hpp"
+#include "backend_device.hpp" // `cuda_backend_t`
 
 #if NUMKONG_ARCH_CUDA_
 #include "each.hpp"

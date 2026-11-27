@@ -6,6 +6,8 @@
  */
 #include "dispatch.h"
 
+#include "numkong/cast/serial.h"
+
 static nk_capability_kernels_t const *nk_cast_capabilities(void) {
     enum {
         best_k = NUMKONG_MULTIVERSIONED       ? 0
@@ -347,6 +349,358 @@ static nk_capability_kernels_t const *nk_f32_to_e3m2_capabilities(void) {
 NUMKONG_API void nk_f32_to_e3m2_best(nk_f32_t const *source, nk_e3m2_t *destination, nk_capability_t capabilities) {
     ((nk_f32_to_u8_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
                                             nk_f32_to_e3m2_capabilities()))(source, destination);
+}
+
+static nk_capability_kernels_t const *nk_ue8m0_to_f32_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_ue8m0_to_f32_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_ue8m0_to_f32_best(nk_ue8m0_t const *src, nk_f32_t *dest, nk_capability_t capabilities) {
+    ((nk_u8_to_f32_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                            nk_ue8m0_to_f32_capabilities()))(src, dest);
+}
+
+static nk_capability_kernels_t const *nk_f32_to_ue8m0_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_f32_to_ue8m0_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_f32_to_ue8m0_best(nk_f32_t const *src, nk_ue8m0_t *dest, nk_capability_t capabilities) {
+    ((nk_f32_to_u8_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                            nk_f32_to_ue8m0_capabilities()))(src, dest);
+}
+
+static nk_capability_kernels_t const *nk_ue4m3_to_f32_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_ue4m3_to_f32_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_ue4m3_to_f32_best(nk_ue4m3_t const *src, nk_f32_t *dest, nk_capability_t capabilities) {
+    ((nk_u8_to_f32_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                            nk_ue4m3_to_f32_capabilities()))(src, dest);
+}
+
+static nk_capability_kernels_t const *nk_f32_to_ue4m3_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_f32_to_ue4m3_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_f32_to_ue4m3_best(nk_f32_t const *src, nk_ue4m3_t *dest, nk_capability_t capabilities) {
+    ((nk_f32_to_u8_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                            nk_f32_to_ue4m3_capabilities()))(src, dest);
+}
+
+static nk_capability_kernels_t const *nk_nvfp4_to_f32x16_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_nvfp4_to_f32x16_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_nvfp4_to_f32x16_best(nk_nvfp4_t const *src, nk_f32_t tensor_scale, nk_f32_t *dest,
+                                         nk_capability_t capabilities) {
+    ((nk_nvfp4_to_f32x16_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                                  nk_nvfp4_to_f32x16_capabilities()))(src, tensor_scale, dest);
+}
+
+static nk_capability_kernels_t const *nk_f32x16_to_nvfp4_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_f32x16_to_nvfp4_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_f32x16_to_nvfp4_best(nk_f32_t const *src, nk_f32_t tensor_scale, nk_nvfp4_t *dest,
+                                         nk_capability_t capabilities) {
+    ((nk_f32x16_to_nvfp4_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                                  nk_f32x16_to_nvfp4_capabilities()))(src, tensor_scale, dest);
+}
+
+static nk_capability_kernels_t const *nk_mxfp4_to_f32x32_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_mxfp4_to_f32x32_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_mxfp4_to_f32x32_best(nk_mxfp4_t const *src, nk_f32_t *dest, nk_capability_t capabilities) {
+    ((nk_mxfp4_to_f32x32_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                                  nk_mxfp4_to_f32x32_capabilities()))(src, dest);
+}
+
+static nk_capability_kernels_t const *nk_f32x32_to_mxfp4_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_f32x32_to_mxfp4_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_f32x32_to_mxfp4_best(nk_f32_t const *src, nk_mxfp4_t *dest, nk_capability_t capabilities) {
+    ((nk_f32x32_to_mxfp4_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                                  nk_f32x32_to_mxfp4_capabilities()))(src, dest);
+}
+
+static nk_capability_kernels_t const *nk_mxfp6e2m3_to_f32x32_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_mxfp6e2m3_to_f32x32_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_mxfp6e2m3_to_f32x32_best(nk_mxfp6e2m3_t const *src, nk_f32_t *dest, nk_capability_t capabilities) {
+    ((nk_mxfp6e2m3_to_f32x32_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                                      nk_mxfp6e2m3_to_f32x32_capabilities()))(src, dest);
+}
+
+static nk_capability_kernels_t const *nk_f32x32_to_mxfp6e2m3_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_f32x32_to_mxfp6e2m3_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_f32x32_to_mxfp6e2m3_best(nk_f32_t const *src, nk_mxfp6e2m3_t *dest, nk_capability_t capabilities) {
+    ((nk_f32x32_to_mxfp6e2m3_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                                      nk_f32x32_to_mxfp6e2m3_capabilities()))(src, dest);
+}
+
+static nk_capability_kernels_t const *nk_mxfp6e3m2_to_f32x32_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_mxfp6e3m2_to_f32x32_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_mxfp6e3m2_to_f32x32_best(nk_mxfp6e3m2_t const *src, nk_f32_t *dest, nk_capability_t capabilities) {
+    ((nk_mxfp6e3m2_to_f32x32_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                                      nk_mxfp6e3m2_to_f32x32_capabilities()))(src, dest);
+}
+
+static nk_capability_kernels_t const *nk_f32x32_to_mxfp6e3m2_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_f32x32_to_mxfp6e3m2_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_f32x32_to_mxfp6e3m2_best(nk_f32_t const *src, nk_mxfp6e3m2_t *dest, nk_capability_t capabilities) {
+    ((nk_f32x32_to_mxfp6e3m2_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                                      nk_f32x32_to_mxfp6e3m2_capabilities()))(src, dest);
+}
+
+static nk_capability_kernels_t const *nk_mxfp8e4m3_to_f32x32_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_mxfp8e4m3_to_f32x32_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_mxfp8e4m3_to_f32x32_best(nk_mxfp8e4m3_t const *src, nk_f32_t *dest, nk_capability_t capabilities) {
+    ((nk_mxfp8e4m3_to_f32x32_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                                      nk_mxfp8e4m3_to_f32x32_capabilities()))(src, dest);
+}
+
+static nk_capability_kernels_t const *nk_f32x32_to_mxfp8e4m3_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_f32x32_to_mxfp8e4m3_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_f32x32_to_mxfp8e4m3_best(nk_f32_t const *src, nk_mxfp8e4m3_t *dest, nk_capability_t capabilities) {
+    ((nk_f32x32_to_mxfp8e4m3_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                                      nk_f32x32_to_mxfp8e4m3_capabilities()))(src, dest);
+}
+
+static nk_capability_kernels_t const *nk_mxfp8e5m2_to_f32x32_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_mxfp8e5m2_to_f32x32_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_mxfp8e5m2_to_f32x32_best(nk_mxfp8e5m2_t const *src, nk_f32_t *dest, nk_capability_t capabilities) {
+    ((nk_mxfp8e5m2_to_f32x32_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                                      nk_mxfp8e5m2_to_f32x32_capabilities()))(src, dest);
+}
+
+static nk_capability_kernels_t const *nk_f32x32_to_mxfp8e5m2_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_f32x32_to_mxfp8e5m2_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_f32x32_to_mxfp8e5m2_best(nk_f32_t const *src, nk_mxfp8e5m2_t *dest, nk_capability_t capabilities) {
+    ((nk_f32x32_to_mxfp8e5m2_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                                      nk_f32x32_to_mxfp8e5m2_capabilities()))(src, dest);
+}
+
+static nk_capability_kernels_t const *nk_mxint8_to_f32x32_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_mxint8_to_f32x32_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_mxint8_to_f32x32_best(nk_mxint8_t const *src, nk_f32_t *dest, nk_capability_t capabilities) {
+    ((nk_mxint8_to_f32x32_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                                   nk_mxint8_to_f32x32_capabilities()))(src, dest);
+}
+
+static nk_capability_kernels_t const *nk_f32x32_to_mxint8_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_f32x32_to_mxint8_serial,
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API void nk_f32x32_to_mxint8_best(nk_f32_t const *src, nk_mxint8_t *dest, nk_capability_t capabilities) {
+    ((nk_f32x32_to_mxint8_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
+                                                   nk_f32x32_to_mxint8_capabilities()))(src, dest);
+}
+
+NUMKONG_API nk_status_t nk_scalar_buffer_cast(nk_scalar_buffer_t const *source, nk_dtype_t source_dtype,
+                                              nk_scalar_buffer_t *target, nk_dtype_t target_dtype) {
+    nk_scalar_buffer_t local = *source;
+    nk_f64c_t hub;
+    if (!nk_scalar_buffer_to_f64c_serial_(&local, source_dtype, &hub)) return nk_missing_kernel_k;
+    return nk_scalar_buffer_from_f64c_serial_(&hub, target, target_dtype) ? nk_success_k : nk_missing_kernel_k;
 }
 
 NUMKONG_API nk_status_t nk_cast_best(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,

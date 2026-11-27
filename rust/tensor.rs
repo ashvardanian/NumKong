@@ -228,7 +228,7 @@ fn repeating_byte<Scalar: StorageElement>(value: &Scalar) -> Option<u8> {
     }
 }
 
-/// Allocate room for `count` `Scalar` slots and initialize every one of them to `value`.
+/// Allocate room for `count` scalar slots and initialize every one of them to `value`.
 ///
 /// Returns the block and its actual byte size. Picks the cheapest initialization the value allows:
 /// zeroed pages from the allocator, a `memset`, or a typed loop.

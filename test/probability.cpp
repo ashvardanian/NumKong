@@ -8,8 +8,35 @@
 
 #include "harness.hpp"
 #include "numkong/probability.hpp" // `nk::kld`
+#include "numkong/random.hpp"      // `nk::fill_probability`
 
 namespace ashvardanian::numkong::test {
+
+/** Σ pᵢ × log(pᵢ / qᵢ) in @p result_type_, the oracle of the KLD kernels. */
+template <typename in_type_, typename result_type_>
+void kld_reference(in_type_ const *p, in_type_ const *q, std::size_t d, result_type_ *r) noexcept {
+    result_type_ sum {};
+    for (std::size_t i = 0; i < d; i++) {
+        result_type_ pi(p[i]), qi(q[i]);
+        if (pi > result_type_(0)) sum = sum + pi * (pi / qi).log();
+    }
+    *r = sum;
+}
+
+/** √(½ × (KL(p‖m) + KL(q‖m))) in @p result_type_, the oracle of the JSD kernels. */
+template <typename in_type_, typename result_type_>
+void jsd_reference(in_type_ const *p, in_type_ const *q, std::size_t d, result_type_ *r) noexcept {
+    result_type_ sum {};
+    result_type_ half(0.5);
+    for (std::size_t i = 0; i < d; i++) {
+        result_type_ pi(p[i]), qi(q[i]);
+        result_type_ mi = half * (pi + qi);
+        if (pi > result_type_(0)) sum = sum + pi * (pi / mi).log();
+        if (qi > result_type_(0)) sum = sum + qi * (qi / mi).log();
+    }
+    result_type_ divergence = half * sum;
+    *r = divergence > result_type_(0) ? square_root_reference(divergence) : result_type_(0);
+}
 
 /** Template for the KL divergence test, whose inputs must be probability distributions: positive
  *  values summing to 1. */
@@ -35,8 +62,8 @@ error_stats_t test_kld(typename scalar_type_::probability_kernel_t kernel) {
                                    &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect_status(nk::kld<scalar_t, reference_t>(p.values_data(), q.values_data(),
-                                                           test_run.settings.dense_dimensions, &reference, no_tiers_k));
+        kld_reference<scalar_t, reference_t>(p.values_data(), q.values_data(), test_run.settings.dense_dimensions,
+                                             &reference);
 
         stats.accumulate(result, reference);
     }
@@ -68,8 +95,8 @@ error_stats_t test_jsd(typename scalar_type_::probability_kernel_t kernel) {
                                    &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect_status(nk::jsd<scalar_t, reference_t>(p.values_data(), q.values_data(),
-                                                           test_run.settings.dense_dimensions, &reference, no_tiers_k));
+        jsd_reference<scalar_t, reference_t>(p.values_data(), q.values_data(), test_run.settings.dense_dimensions,
+                                             &reference);
 
         stats.accumulate(result, reference);
     }
@@ -88,7 +115,6 @@ void run_probability_cases() {
     run_kernel_case("nk_jsd_bf16_serial", test_jsd<bf16_t>, nk_cap_serial_k, nk_jsd_bf16_serial);
     run_kernel_case("nk_jsd_f16_serial", test_jsd<f16_t>, nk_cap_serial_k, nk_jsd_f16_serial);
 
-#if !NUMKONG_HEADER_ONLY
     run_kernel_case("nk_kld_f32_best", test_kld<f32_t>, nk_cap_serial_k, cpu_best<nk_kld_f32_best>);
     run_kernel_case("nk_kld_f64_best", test_kld<f64_t>, nk_cap_serial_k, cpu_best<nk_kld_f64_best>);
     run_kernel_case("nk_kld_f16_best", test_kld<f16_t>, nk_cap_serial_k, cpu_best<nk_kld_f16_best>);
@@ -97,7 +123,6 @@ void run_probability_cases() {
     run_kernel_case("nk_jsd_f64_best", test_jsd<f64_t>, nk_cap_serial_k, cpu_best<nk_jsd_f64_best>);
     run_kernel_case("nk_jsd_f16_best", test_jsd<f16_t>, nk_cap_serial_k, cpu_best<nk_jsd_f16_best>);
     run_kernel_case("nk_jsd_bf16_best", test_jsd<bf16_t>, nk_cap_serial_k, cpu_best<nk_jsd_bf16_best>);
-#endif
 
 #if NUMKONG_TARGET_NEON
     run_kernel_case("nk_kld_f32_neon", test_kld<f32_t>, nk_cap_neon_k, nk_kld_f32_neon);

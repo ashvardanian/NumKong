@@ -42,7 +42,6 @@ void run_cast_cases() {
     run_kernel_case("test_cast_pairs<>(nk_cast_serial)", test_cast_pairs<>, serial, nk_cast_serial);
     run_kernel_case("test_cast_block_scaled<>(nk_cast_serial)", test_cast_block_scaled<>, serial, nk_cast_serial);
 
-#if !NUMKONG_HEADER_ONLY
     run_kernel_case("test_cast_pairs<>(cpu_best<nk_cast_best>)", test_cast_pairs<>, serial, cpu_best<nk_cast_best>);
     run_kernel_case("test_cast<f32_t, f16_t>(cpu_best<nk_cast_best>)", test_cast<f32_t, f16_t>, serial,
                     cpu_best<nk_cast_best>);
@@ -111,7 +110,6 @@ void run_cast_cases() {
                     cpu_best<nk_cast_best>);
     run_kernel_case("test_cast<bf16_t, f64_t>(cpu_best<nk_cast_best>)", test_cast<bf16_t, f64_t>, serial,
                     cpu_best<nk_cast_best>);
-#endif
 
 #if NUMKONG_TARGET_HASWELL
     auto const haswell = nk_cap_haswell_k;

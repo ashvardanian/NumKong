@@ -7,18 +7,74 @@
 #ifndef NUMKONG_MEMORY_H
 #define NUMKONG_MEMORY_H
 
+#include <stdlib.h> // `malloc`, `free`
+
 #include "numkong/capabilities.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** Heap allocations with power-of-two @p alignment; invalid alignment preserves the policy. */
-NUMKONG_INLINE nk_status_t nk_allocator_init_heap(nk_allocator_t *allocator, nk_size_t alignment);
+NUMKONG_INLINE void *nk_allocate_heap_(nk_size_t bytes, void *handle, nk_stream_t stream) {
+    nk_unused_(stream);
+    nk_size_t const alignment = (nk_size_t)handle;
+    if (!bytes || bytes > NUMKONG_SIZE_MAX - alignment - sizeof(void *)) return NUMKONG_NULL;
+    void *allocation = malloc(bytes + alignment + sizeof(void *));
+    if (!allocation) return NUMKONG_NULL;
+    nk_size_t const address = ((nk_size_t)allocation + sizeof(void *) + alignment - 1) & ~(alignment - 1);
+    void **allocations = (void **)address;
+    allocations[-1] = allocation;
+    return (void *)address;
+}
 
-/** A fixed-capacity arena; invalid storage or alignment preserves both the policy and buffer. */
+NUMKONG_INLINE void nk_free_heap_(void *pointer, nk_size_t bytes, void *handle, nk_stream_t stream) {
+    nk_unused_(bytes), nk_unused_(handle), nk_unused_(stream);
+    void **allocations = (void **)pointer;
+    if (pointer) free(allocations[-1]);
+}
+
+NUMKONG_INLINE nk_status_t nk_allocator_init_heap(nk_allocator_t *allocator, nk_size_t alignment) {
+    if (!alignment || (alignment & (alignment - 1))) return nk_unexpected_dimensions_k;
+    allocator->allocate = nk_allocate_heap_;
+    allocator->free = nk_free_heap_;
+    allocator->handle = (void *)(alignment < sizeof(void *) ? sizeof(void *) : alignment);
+    return nk_success_k;
+}
+
+typedef struct nk_arena_t_ {
+    nk_size_t capacity, consumed, alignment;
+} nk_arena_t_;
+
+NUMKONG_INLINE void *nk_allocate_arena_(nk_size_t bytes, void *handle, nk_stream_t stream) {
+    nk_unused_(stream);
+    nk_arena_t_ *arena = (nk_arena_t_ *)handle;
+    nk_size_t const padding = (-((nk_size_t)handle + arena->consumed)) & (arena->alignment - 1);
+    nk_size_t const remaining = arena->capacity - arena->consumed;
+    if (!bytes || padding > remaining || bytes > remaining - padding) return NUMKONG_NULL;
+    void *pointer = (unsigned char *)handle + arena->consumed + padding;
+    arena->consumed += padding + bytes;
+    return pointer;
+}
+
+NUMKONG_INLINE void nk_free_arena_(void *pointer, nk_size_t bytes, void *handle, nk_stream_t stream) {
+    nk_unused_(pointer), nk_unused_(bytes), nk_unused_(handle), nk_unused_(stream);
+}
+
 NUMKONG_INLINE nk_status_t nk_allocator_init_arena(nk_allocator_t *allocator, void *buffer, nk_size_t bytes,
-                                                   nk_size_t alignment);
+                                                   nk_size_t alignment) {
+    if (!alignment || (alignment & (alignment - 1))) return nk_unexpected_dimensions_k;
+    if (!buffer || bytes > NUMKONG_SIZE_MAX - (nk_size_t)buffer) return nk_bad_alloc_k;
+    nk_size_t const padding = (-(nk_size_t)buffer) & (sizeof(nk_size_t) - 1);
+    if (padding > bytes || bytes - padding < sizeof(nk_arena_t_)) return nk_bad_alloc_k;
+    nk_arena_t_ *arena = (nk_arena_t_ *)((unsigned char *)buffer + padding);
+    arena->capacity = bytes - padding;
+    arena->consumed = sizeof(nk_arena_t_);
+    arena->alignment = alignment;
+    allocator->allocate = nk_allocate_arena_;
+    allocator->free = nk_free_arena_;
+    allocator->handle = arena;
+    return nk_success_k;
+}
 
 /** Selects host/device shared storage; failures preserve the allocator. */
 NUMKONG_API nk_status_t nk_allocator_init_unified_best(nk_allocator_t *allocator, nk_capability_t capabilities);
@@ -32,28 +88,22 @@ NUMKONG_API nk_status_t nk_allocator_init_pinned_best(nk_allocator_t *allocator,
 /** @copydoc nk_allocator_init_unified_best */
 NUMKONG_API nk_status_t nk_allocator_init_unified_serial(nk_allocator_t *allocator);
 
-#if NUMKONG_ARCH_CUDA_
 /** @copydoc nk_allocator_init_unified_best */
 NUMKONG_API nk_status_t nk_allocator_init_unified_cuda(nk_allocator_t *allocator);
 /** @copydoc nk_allocator_init_device_best */
 NUMKONG_API nk_status_t nk_allocator_init_device_cuda(nk_allocator_t *allocator);
 /** @copydoc nk_allocator_init_pinned_best */
 NUMKONG_API nk_status_t nk_allocator_init_pinned_cuda(nk_allocator_t *allocator);
-#endif
 
-#if NUMKONG_ARCH_ROCM_
 /** @copydoc nk_allocator_init_unified_best */
 NUMKONG_API nk_status_t nk_allocator_init_unified_rocm(nk_allocator_t *allocator);
 /** @copydoc nk_allocator_init_device_best */
 NUMKONG_API nk_status_t nk_allocator_init_device_rocm(nk_allocator_t *allocator);
 /** @copydoc nk_allocator_init_pinned_best */
 NUMKONG_API nk_status_t nk_allocator_init_pinned_rocm(nk_allocator_t *allocator);
-#endif
 
-#if NUMKONG_ARCH_METAL_
 /** @copydoc nk_allocator_init_unified_best */
 NUMKONG_API nk_status_t nk_allocator_init_unified_metal(nk_allocator_t *allocator);
-#endif
 
 /**
  *  @brief Allocates @p bytes that the host and the device of @p stream both address.
@@ -97,26 +147,20 @@ NUMKONG_API nk_status_t nk_memory_allocate_unified_serial(nk_size_t bytes, void 
 /** @copydoc nk_memory_free_unified_best */
 NUMKONG_API nk_status_t nk_memory_free_unified_serial(void *pointer, nk_size_t bytes, nk_stream_t stream);
 
-#if NUMKONG_ARCH_CUDA_
 /** @copydoc nk_memory_allocate_unified_best */
 NUMKONG_API nk_status_t nk_memory_allocate_unified_cuda(nk_size_t bytes, void **pointer, nk_stream_t stream);
 /** @copydoc nk_memory_free_unified_best */
 NUMKONG_API nk_status_t nk_memory_free_unified_cuda(void *pointer, nk_size_t bytes, nk_stream_t stream);
-#endif
 
-#if NUMKONG_ARCH_ROCM_
 /** @copydoc nk_memory_allocate_unified_best */
 NUMKONG_API nk_status_t nk_memory_allocate_unified_rocm(nk_size_t bytes, void **pointer, nk_stream_t stream);
 /** @copydoc nk_memory_free_unified_best */
 NUMKONG_API nk_status_t nk_memory_free_unified_rocm(void *pointer, nk_size_t bytes, nk_stream_t stream);
-#endif
 
-#if NUMKONG_ARCH_METAL_
 /** @copydoc nk_memory_allocate_unified_best */
 NUMKONG_API nk_status_t nk_memory_allocate_unified_metal(nk_size_t bytes, void **pointer, nk_stream_t stream);
 /** @copydoc nk_memory_free_unified_best */
 NUMKONG_API nk_status_t nk_memory_free_unified_metal(void *pointer, nk_size_t bytes, nk_stream_t stream);
-#endif
 
 #if NUMKONG_HEADER_ONLY
 
@@ -148,12 +192,82 @@ NUMKONG_API nk_status_t nk_memory_free_unified_best(void *pointer, nk_size_t byt
     return nk_missing_library_k;
 }
 
+NUMKONG_API nk_status_t nk_allocator_init_unified_cuda(nk_allocator_t *allocator) {
+    nk_unused_(allocator);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_allocator_init_device_cuda(nk_allocator_t *allocator) {
+    nk_unused_(allocator);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_allocator_init_pinned_cuda(nk_allocator_t *allocator) {
+    nk_unused_(allocator);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_allocator_init_unified_rocm(nk_allocator_t *allocator) {
+    nk_unused_(allocator);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_allocator_init_device_rocm(nk_allocator_t *allocator) {
+    nk_unused_(allocator);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_allocator_init_pinned_rocm(nk_allocator_t *allocator) {
+    nk_unused_(allocator);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_allocator_init_unified_metal(nk_allocator_t *allocator) {
+    nk_unused_(allocator);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_memory_allocate_unified_cuda(nk_size_t bytes, void **pointer, nk_stream_t stream) {
+    nk_unused_(bytes), nk_unused_(stream);
+    *pointer = NUMKONG_NULL;
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_memory_free_unified_cuda(void *pointer, nk_size_t bytes, nk_stream_t stream) {
+    nk_unused_(pointer), nk_unused_(bytes), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_memory_allocate_unified_rocm(nk_size_t bytes, void **pointer, nk_stream_t stream) {
+    nk_unused_(bytes), nk_unused_(stream);
+    *pointer = NUMKONG_NULL;
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_memory_free_unified_rocm(void *pointer, nk_size_t bytes, nk_stream_t stream) {
+    nk_unused_(pointer), nk_unused_(bytes), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_memory_allocate_unified_metal(nk_size_t bytes, void **pointer, nk_stream_t stream) {
+    nk_unused_(bytes), nk_unused_(stream);
+    *pointer = NUMKONG_NULL;
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_memory_free_unified_metal(void *pointer, nk_size_t bytes, nk_stream_t stream) {
+    nk_unused_(pointer), nk_unused_(bytes), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
 #endif
 
 #ifdef __cplusplus
 }
 #endif
 
+#if NUMKONG_HEADER_ONLY
 #include "numkong/memory/serial.h"
+#endif
 
 #endif // NUMKONG_MEMORY_H

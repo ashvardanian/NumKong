@@ -14,14 +14,64 @@
 
 #include <cmath> // `std::ldexp`, `std::ilogb`
 
-#include <algorithm> // `std::fill_n`
-#include <random>    // `std::uniform_int_distribution`
+#include <algorithm>   // `std::fill_n`
+#include <random>      // `std::uniform_int_distribution`
+#include <type_traits> // `std::is_same_v`
 
 #include "numkong/reduce.hpp" // `nk::reduce_moments`, `nk::reduce_minmax`
 
 #include "harness.hpp"
 
 namespace ashvardanian::numkong::test {
+
+/** Σ dataᵢ and Σ dataᵢ² over @p count values @p stride bytes apart, saturating in @p sum_type_ and
+ *  @p sumsq_type_, the oracle of the moments kernels. */
+template <typename in_type_, typename sum_type_, typename sumsq_type_>
+void reduce_moments_reference(in_type_ const *data, std::size_t count, std::size_t stride, sum_type_ *sum,
+                              sumsq_type_ *sumsq) noexcept {
+    sum_type_ running_sum {};
+    sumsq_type_ running_sumsq {};
+    // Sub-byte views yield raw FP4 codes, so pairs decode through their nibble accessors
+    if constexpr (std::is_same_v<in_type_, e2m1x2_t>) {
+        char const *bytes = reinterpret_cast<char const *>(data);
+        for (std::size_t i = 0; i < count; ++i) {
+            e2m1x2_t const pair = *reinterpret_cast<e2m1x2_t const *>(bytes + (i / 2) * stride);
+            float const value = (i & 1) ? pair.second() : pair.first();
+            running_sum = saturating_add_reference(running_sum, sum_type_(value));
+            running_sumsq = saturating_add_reference(running_sumsq, sumsq_type_(value * value));
+        }
+    }
+    else {
+        nk::vector_view<in_type_> values(reinterpret_cast<char const *>(data), count, stride);
+        for (std::size_t i = 0; i < count; ++i) {
+            running_sum = saturating_add_reference(running_sum, values[i]);
+            running_sumsq = saturating_fma_reference(values[i], values[i], running_sumsq);
+        }
+    }
+    *sum = running_sum;
+    *sumsq = running_sumsq;
+}
+
+/** The smallest and largest of @p count values @p stride bytes apart in @p minmax_type_, with their
+ *  indices, where the first value that is not NaN takes both sides and an all-NaN run has
+ *  @c NUMKONG_SIZE_MAX indices, the oracle of the minmax kernels. */
+template <typename in_type_, typename minmax_type_>
+void reduce_minmax_reference(in_type_ const *data, std::size_t count, std::size_t stride, minmax_type_ *min_value,
+                             std::size_t *min_index, minmax_type_ *max_value, std::size_t *max_index) noexcept {
+    std::size_t min_offset = NUMKONG_SIZE_MAX, max_offset = NUMKONG_SIZE_MAX;
+    minmax_type_ best_min = nk::finite_max<minmax_type_>(), best_max = nk::finite_min<minmax_type_>();
+    if constexpr (nk::an_infinity_capable_dtype<minmax_type_>)
+        best_min = minmax_type_::positive_infinity(), best_max = minmax_type_::negative_infinity();
+    nk::vector_view<in_type_> values(reinterpret_cast<char const *>(data), count, stride);
+    for (std::size_t i = 0; i < count; ++i) {
+        minmax_type_ value = minmax_type_(values[i]);
+        if (nk::is_nan(value)) continue;
+        if (min_offset == NUMKONG_SIZE_MAX || sorts_before_reference(value, best_min)) best_min = value, min_offset = i;
+        if (max_offset == NUMKONG_SIZE_MAX || sorts_before_reference(best_max, value)) best_max = value, max_offset = i;
+    }
+    *min_value = best_min, *max_value = best_max;
+    *min_index = min_offset, *max_index = max_offset;
+}
 
 constexpr std::size_t max_stride_k = 50;
 
@@ -45,8 +95,8 @@ error_stats_t test_reduce_moments(typename input_type_::reduce_moments_kernel_t 
         if (!stats.expect_status(backend.synchronize())) return false;
         sum_reference_t sum_reference;
         sumsq_reference_t sumsq_reference;
-        stats.expect_status(nk::reduce_moments<input_type_, sum_reference_t, sumsq_reference_t>(
-            input.values_data(), count, stride, &sum_reference, &sumsq_reference, no_tiers_k));
+        reduce_moments_reference<input_type_, sum_reference_t, sumsq_reference_t>(input.values_data(), count, stride,
+                                                                                  &sum_reference, &sumsq_reference);
         stats.accumulate(sum[0], sum_reference);
         stats.accumulate(sumsq[0], sumsq_reference);
         return true;
@@ -59,7 +109,7 @@ error_stats_t test_reduce_moments(typename input_type_::reduce_moments_kernel_t 
         if constexpr (nk::is_integral_dtype<input_type_>() && nk::is_signed_dtype<input_type_>())
             value = input_type_::finite_min();
         else if constexpr (!nk::is_integral_dtype<input_type_>())
-            value = input_type_(std::ldexp(1.0, std::ilogb(static_cast<double>(value)))); // powers of two sum exactly
+            value = narrow<input_type_>(std::ldexp(1.0, std::ilogb(to_double(value)))); // powers of two sum exactly
         std::fill_n(extremes.values_data(), extremes.size_values(), value);
         if (!compare(extremes, 33, sizeof(input_type_)) || !compare(extremes, count, sizeof(input_type_)) ||
             !compare(extremes, count, 8 * sizeof(input_type_)))
@@ -92,9 +142,8 @@ error_stats_t test_reduce_minmax(typename input_type_::reduce_minmax_kernel_t ke
         if (!stats.expect_status(backend.synchronize())) return false;
         output_t reference_min, reference_max;
         std::size_t reference_min_index, reference_max_index;
-        stats.expect_status(nk::reduce_minmax<input_type_, output_t>(buffer.values_data(), n, stride, &reference_min,
-                                                                     &reference_min_index, &reference_max,
-                                                                     &reference_max_index, no_tiers_k));
+        reduce_minmax_reference<input_type_, output_t>(buffer.values_data(), n, stride, &reference_min,
+                                                       &reference_min_index, &reference_max, &reference_max_index);
         stats.accumulate(index_values[0], static_cast<nk_size_t>(reference_min_index));
         stats.accumulate(index_values[1], static_cast<nk_size_t>(reference_max_index));
         if (reference_min_index == NUMKONG_SIZE_MAX) return true; // No index, so the values are only sentinels

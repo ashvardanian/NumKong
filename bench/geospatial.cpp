@@ -49,7 +49,7 @@ void measure_geodesics(loop_t &loop, bench_settings_t const &env, geodesics_pack
                        std::size_t columns) {
     constexpr bool spherical = kind_ == nk_kernel_haversines_packed_k;
     auto const pack_size = spherical ? nk::haversines_pack_size : nk::vincentys_pack_size;
-    auto const pack = spherical ? nk::haversines_pack<> : nk::vincentys_pack<>;
+    auto const pack = spherical ? nk::haversines_pack : nk::vincentys_pack;
     nk_capability_t const capabilities = nk::default_capabilities();
     split_mix_generator_t generator(env.seed);
     std::vector<f64_t> a_latitudes(rows), a_longitudes(rows), b_latitudes(columns), b_longitudes(columns);

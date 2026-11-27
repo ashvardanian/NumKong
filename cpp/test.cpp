@@ -3,7 +3,7 @@
  *  @author Ash Vardanian
  *  @date November 26, 2026
  *  @brief The smoke test of the C++ SDK: a tensor and a vector round trip, a dot product and a
- *      distance, a cast and a packed matrix product, each against a known answer.
+ *      distance, the scalar verbs, a cast and a packed matrix product, each against a known answer.
  *
  *  It links the archive a @c numkong::cpp consumer links, not the header-only engine, so every call
  *  dispatches through the compiled kernels. The precision suites in @c test/ hold each kernel to
@@ -17,7 +17,7 @@
 #include <source_location> // `std::source_location` - where a check failed
 #include <vector>          // `std::vector` - the runs the concept layer takes
 
-#include "numkong/numkong.hpp" // `nk::tensor`, `nk::vector`, `nk::dot`, `nk::cast`, `nk::packed_matrix`
+#include "numkong/numkong.hpp" // `nk::tensor`, `nk::vector`, `nk::dot`, `nk::cast`, `nk::dots_pack`
 
 namespace nk = ashvardanian::numkong;
 
@@ -78,15 +78,30 @@ static void test_dot() noexcept {
     auto [dot, status] = nk::dot<nk::f32_t>(a, b);
     expect_true(nk::succeeded(status) && double(dot) == 32);
 
-    nk::f64_t serial {};
-    expect_true(nk::succeeded(nk::dot(a.data(), b.data(), a.size(), &serial, nk_cap_serial_k)));
-    expect_true(double(serial) == double(dot));
+    nk::f64_t raw {};
+    expect_true(nk::succeeded(nk::dot(a.data(), b.data(), a.size(), &raw, nk::default_capabilities())));
+    expect_true(double(raw) == double(dot));
 
     auto [distance, distance_status] = nk::sqeuclidean<nk::f32_t>(a, b);
     expect_true(nk::succeeded(distance_status) && double(distance) == 27);
 
     std::vector<nk::f32_t> const shorter {1, 2};
     expect_true(nk::dot<nk::f32_t>(a, shorter).status == nk::status_t::unexpected_dimensions_k);
+}
+
+/** The scalar types hold storage only, so converting, ordering, rooting and saturating go through
+ *  the verbs: 1.5 survives @c f32 → @c f16 → @c f32, it sorts after zero, √4 is 2, and 100 + 100
+ *  saturates to 127 in @c i8. */
+static void test_scalar_verbs() noexcept {
+    nk::f16_t const half = nk::cast<nk::f32_t, nk::f16_t>(1.5f);
+    expect_true(nk::to_f32(half) == 1.5f);
+    expect_true(nk::order(half, nk::f16_t::zero()) > 0 && nk::order(half, half) == 0);
+    expect_true(float(nk::sqrt(nk::f32_t {4.0f})) == 2.0f);
+    expect_true(int(nk::saturating_add(nk::i8_t {100}, nk::i8_t {100})) == 127);
+
+    auto [narrow, status] = nk::cast<nk::f32_t, nk::e4m3_t>(nk::f32_t {-2.0f}, nk::default_capabilities(), nullptr);
+    expect_true(nk::succeeded(status) && nk::to_f32(narrow) == -2.0f);
+    expect_true(nk::sqrt(nk::f32_t {4.0f}, 0, nullptr).status == nk::status_t::missing_kernel_k);
 }
 
 /** Small integers and halves survive an @c f32 → @c bf16 → @c f32 round trip exactly. */
@@ -97,16 +112,16 @@ static void test_cast() noexcept {
     expect_true(nk::succeeded(nk::cast<nk::f32_t, nk::bf16_t>(source, narrow)));
     expect_true(nk::succeeded(nk::cast<nk::bf16_t, nk::f32_t>(narrow, wide)));
     for (std::size_t index = 0; index != source.size(); ++index)
-        expect_true(float(wide[index]) == float(source[index]));
+        expect_true(float(wide[index]) == float(source[index]) && nk::to_f32(narrow[index]) == float(source[index]));
 }
 
 /** Ones times a packed matrix of twos over a depth of 4 is a matrix of eights, one row per
  *  left-hand row and one column per packed row. */
-static void test_packed_matrix_make() noexcept {
+static void test_dots_pack() noexcept {
     auto [a, a_status] = nk::tensor<nk::f32_t>::full({2, 4}, nk::f32_t {1});
     auto [b, b_status] = nk::tensor<nk::f32_t>::full({3, 4}, nk::f32_t {2});
     if (!expect_true(nk::succeeded(a_status) && nk::succeeded(b_status))) return;
-    auto [packed, packed_status] = nk::packed_matrix<nk::f32_t>::make(b.as_matrix_view());
+    auto [packed, packed_status] = nk::dots_pack<nk::f32_t>(b.as_matrix_view());
     if (!expect_true(nk::succeeded(packed_status))) return;
     expect_true(packed.rows() == 3 && packed.depth() == 4);
 
@@ -123,8 +138,9 @@ int main() {
     run_test_case("nk::tensor::from", test_tensor_from);
     run_test_case("nk::vector::full", test_vector_full);
     run_test_case("nk::dot", test_dot);
+    run_test_case("nk::cast<f32_t, f16_t>, nk::order, nk::sqrt", test_scalar_verbs);
     run_test_case("nk::cast", test_cast);
-    run_test_case("nk::packed_matrix::make", test_packed_matrix_make);
+    run_test_case("nk::dots_pack", test_dots_pack);
 
     if (test_run.failed_checks != 0) {
         std::fprintf(stderr, "%zu check(s) failed\n", test_run.failed_checks);

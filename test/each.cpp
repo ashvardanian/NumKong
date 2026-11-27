@@ -82,7 +82,6 @@ void run_each_cases() {
     run_kernel_case("nk_each_sum_f16_serial", test_sum<f16_t>, serial, nk_each_sum_f16_serial);
     run_kernel_case("nk_each_scale_f16_serial", test_scale<f16_t>, serial, nk_each_scale_f16_serial);
 
-#if !NUMKONG_HEADER_ONLY
     run_kernel_case("nk_each_scale_f32_best", test_scale<f32_t>, serial, cpu_best<nk_each_scale_f32_best>);
     run_kernel_case("nk_each_sum_f32_best", test_sum<f32_t>, serial, cpu_best<nk_each_sum_f32_best>);
     run_kernel_case("nk_each_blend_f32_best", test_blend<f32_t>, serial, cpu_best<nk_each_blend_f32_best>);
@@ -108,7 +107,6 @@ void run_each_cases() {
     run_kernel_case("nk_each_swiglu_f16_best", test_swiglu<f16_t>, serial, cpu_best<nk_each_swiglu_f16_best>);
     run_kernel_case("nk_each_rmsnorm_f16_best", test_rmsnorm<f16_t>, serial, cpu_best<nk_each_rmsnorm_f16_best>);
     run_kernel_case("nk_each_swiglu_bf16_best", test_swiglu<bf16_t>, serial, cpu_best<nk_each_swiglu_bf16_best>);
-#endif
 
 #if NUMKONG_TARGET_NEON
     auto const neon = nk_cap_neon_k;

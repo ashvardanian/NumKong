@@ -11,6 +11,26 @@
 
 namespace ashvardanian::numkong::test {
 
+/** Σ(aᵢ ⊕ bᵢ) counted in @p result_type_, the oracle of the Hamming kernels. */
+template <typename in_type_, typename result_type_>
+void hamming_reference(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r) noexcept {
+    std::size_t const n = d / nk::dimensions_per_value<in_type_>();
+    typename result_type_::raw_t count = 0;
+    for (std::size_t i = 0; i < n; i++) count += count_differences(a[i], b[i]);
+    *r = result_type_::from_raw(count);
+}
+
+/** 1 − |A ∩ B| / |A ∪ B| in @p result_type_, the oracle of the Jaccard kernels. */
+template <typename in_type_, typename result_type_>
+void jaccard_reference(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r) noexcept {
+    std::size_t const n = d / nk::dimensions_per_value<in_type_>();
+    std::uint32_t intersection_count = 0, union_count = 0;
+    for (std::size_t i = 0; i < n; i++)
+        intersection_count += count_intersection(a[i], b[i]), union_count += count_union(a[i], b[i]);
+    if (union_count == 0) *r = result_type_();
+    else *r = result_type_(1) - result_type_(intersection_count) / result_type_(union_count);
+}
+
 /** Test Hamming distance for binary or integer vectors. */
 template <typename scalar_type_>
 error_stats_t test_hamming(typename scalar_type_::hamming_kernel_t kernel) {
@@ -32,8 +52,8 @@ error_stats_t test_hamming(typename scalar_type_::hamming_kernel_t kernel) {
                                    &result.raw_, nullptr));
 
         result_t reference;
-        stats.expect_status(nk::hamming<scalar_t, result_t>(
-            a.values_data(), b.values_data(), test_run.settings.dense_dimensions, &reference, no_tiers_k));
+        hamming_reference<scalar_t, result_t>(a.values_data(), b.values_data(), test_run.settings.dense_dimensions,
+                                              &reference);
 
         stats.accumulate(result, reference);
     }
@@ -62,8 +82,8 @@ error_stats_t test_jaccard(typename scalar_type_::jaccard_kernel_t kernel) {
                                    &result.raw_, nullptr));
 
         result_t reference;
-        stats.expect_status(nk::jaccard<scalar_t, result_t>(
-            a.values_data(), b.values_data(), test_run.settings.dense_dimensions, &reference, no_tiers_k));
+        jaccard_reference<scalar_t, result_t>(a.values_data(), b.values_data(), test_run.settings.dense_dimensions,
+                                              &reference);
 
         stats.accumulate(result, reference);
     }
@@ -79,10 +99,8 @@ void run_set_cases() {
     run_kernel_case("nk_jaccard_u16_serial", test_jaccard<u16_t>, nk_cap_serial_k, nk_jaccard_u16_serial);
     run_kernel_case("nk_jaccard_u32_serial", test_jaccard<u32_t>, nk_cap_serial_k, nk_jaccard_u32_serial);
 
-#if !NUMKONG_HEADER_ONLY
     run_kernel_case("nk_hamming_u1_best", test_hamming<u1x8_t>, nk_cap_serial_k, cpu_best<nk_hamming_u1_best>);
     run_kernel_case("nk_jaccard_u1_best", test_jaccard<u1x8_t>, nk_cap_serial_k, cpu_best<nk_jaccard_u1_best>);
-#endif
 
 #if NUMKONG_TARGET_NEON
     run_kernel_case("nk_hamming_u1_neon", test_hamming<u1x8_t>, nk_cap_neon_k, nk_hamming_u1_neon);

@@ -2,15 +2,32 @@
  *  @file cpp/numkong/cast.hpp
  *  @author Ash Vardanian
  *  @date March 20, 2026
- *  @brief C++ wrappers for SIMD-accelerated type casting.
+ *  @brief C++ wrappers for SIMD-accelerated type casting, of runs and of single scalars.
+ *
+ *  The scalar verbs convert what the scalar types hold as storage alone: @c nk::cast converts
+ *  one value, @c nk::to_f32 widens one, and @c nk::decode_to and @c nk::encode_from convert one
+ *  block of a block-scaled format.
+ *
+ *  @code{.cpp}
+ *  nk::f16_t half = nk::cast<nk::f32_t, nk::f16_t>(1.5f);
+ *  float wide = nk::to_f32(half);
+ *  auto [narrow, status] = nk::cast<nk::f32_t, nk::e4m3_t>(wide, nk::default_capabilities(), nullptr);
+ *  @endcode
  */
+#if defined(NUMKONG_HEADER_ONLY) && NUMKONG_HEADER_ONLY
+#error "The NumKong C++ SDK links the library; link numkong::cpp, not numkong::header"
+#endif
+
 #ifndef NUMKONG_CAST_HPP
 #define NUMKONG_CAST_HPP
 
 #include <cstddef> // `std::size_t`
 
+#include <type_traits> // `std::is_same_v`
+
 #include "numkong/cast.h"
 
+#include "numkong/devices.hpp" // `default_capabilities`
 #include "numkong/tensor.hpp"
 #include "numkong/types.hpp"
 #include "numkong/vector.hpp"
@@ -31,8 +48,6 @@ namespace ashvardanian::numkong {
 template <a_numeric_dtype from_type_, a_numeric_dtype to_type_>
 status_t cast(from_type_ const *from, std::size_t n, to_type_ *to,
               nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
-    if (!capabilities)
-        return static_cast<status_t>(nk_cast_serial(from, from_type_::dtype(), to, to_type_::dtype(), n, stream));
     return static_cast<status_t>(
         nk_cast_best(from, from_type_::dtype(), to, to_type_::dtype(), n, capabilities, stream));
 }
@@ -51,6 +66,147 @@ status_t cast(from_vector_type_ const &from, to_vector_type_ &&to,
     return cast<from_type_, to_type_>(from_values.value.data(), dimensions, to_values.value.data(), capabilities,
                                       stream);
 }
+
+#pragma region Scalar Casts
+
+/** Whether @p scalar_type_ widens to @c f32 and narrows from it through its own scalar kernels. */
+template <typename scalar_type_>
+constexpr bool has_f32_codec_() noexcept {
+    return std::is_same_v<scalar_type_, f16_t> || std::is_same_v<scalar_type_, bf16_t> ||
+           std::is_same_v<scalar_type_, e4m3_t> || std::is_same_v<scalar_type_, e5m2_t> ||
+           std::is_same_v<scalar_type_, e2m3_t> || std::is_same_v<scalar_type_, e3m2_t> ||
+           std::is_same_v<scalar_type_, ue8m0_t> || std::is_same_v<scalar_type_, ue4m3_t>;
+}
+
+template <typename scalar_type_>
+float widen_to_f32_(scalar_type_ value, nk_capability_t capabilities) noexcept {
+    float result;
+    if constexpr (std::is_same_v<scalar_type_, f16_t>) nk_f16_to_f32_best(&value.raw_, &result, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, bf16_t>) nk_bf16_to_f32_best(&value.raw_, &result, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e4m3_t>) nk_e4m3_to_f32_best(&value.raw_, &result, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e5m2_t>) nk_e5m2_to_f32_best(&value.raw_, &result, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e2m3_t>) nk_e2m3_to_f32_best(&value.raw_, &result, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e3m2_t>) nk_e3m2_to_f32_best(&value.raw_, &result, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, ue8m0_t>) nk_ue8m0_to_f32_best(&value.raw_, &result, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, ue4m3_t>) nk_ue4m3_to_f32_best(&value.raw_, &result, capabilities);
+    else static_assert(sizeof(scalar_type_) == 0, "no scalar kernel widens this dtype");
+    return result;
+}
+
+template <typename scalar_type_>
+scalar_type_ narrow_from_f32_(float value, nk_capability_t capabilities) noexcept {
+    scalar_type_ result;
+    if constexpr (std::is_same_v<scalar_type_, f16_t>) nk_f32_to_f16_best(&value, &result.raw_, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, bf16_t>) nk_f32_to_bf16_best(&value, &result.raw_, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e4m3_t>) nk_f32_to_e4m3_best(&value, &result.raw_, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e5m2_t>) nk_f32_to_e5m2_best(&value, &result.raw_, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e2m3_t>) nk_f32_to_e2m3_best(&value, &result.raw_, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e3m2_t>) nk_f32_to_e3m2_best(&value, &result.raw_, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, ue8m0_t>) nk_f32_to_ue8m0_best(&value, &result.raw_, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, ue4m3_t>) nk_f32_to_ue4m3_best(&value, &result.raw_, capabilities);
+    else static_assert(sizeof(scalar_type_) == 0, "no scalar kernel narrows into this dtype");
+    return result;
+}
+
+/**
+ *  @brief Converts one scalar, rounding to nearest even and saturating integers, as bulk casts do.
+ *  @param[in] value The scalar to convert.
+ *  @return The converted scalar.
+ *
+ *  The narrow floats and the scale formats convert through their scalar kernels, by way of @c f32
+ *  between two of them, and every other pair through @c nk_cast_best.
+ *
+ *  @tparam from_type_ Source type, with one dimension per value.
+ *  @tparam to_type_ Destination type, with one dimension per value.
+ */
+template <a_numeric_dtype from_type_, a_numeric_dtype to_type_>
+to_type_ cast(from_type_ value) noexcept {
+    static_assert(dimensions_per_value<from_type_>() == 1 && dimensions_per_value<to_type_>() == 1,
+                  "a scalar cast converts one dimension");
+    nk_capability_t const capabilities = default_capabilities();
+    if constexpr (std::is_same_v<from_type_, to_type_>) return value;
+    else if constexpr (has_f32_codec_<from_type_>() && std::is_same_v<to_type_, f32_t>)
+        return f32_t {widen_to_f32_(value, capabilities)};
+    else if constexpr (std::is_same_v<from_type_, f32_t> && has_f32_codec_<to_type_>())
+        return narrow_from_f32_<to_type_>(value.raw_, capabilities);
+    else if constexpr (has_f32_codec_<from_type_>())
+        return cast<f32_t, to_type_>(f32_t {widen_to_f32_(value, capabilities)});
+    else {
+        to_type_ result {};
+        [[maybe_unused]] nk_status_t const status = nk_cast_best(&value, from_type_::dtype(), &result,
+                                                                 to_type_::dtype(), 1, capabilities, nullptr);
+        return result;
+    }
+}
+
+/** @copydoc cast(from_type_) */
+template <a_numeric_dtype from_type_, a_numeric_dtype to_type_>
+expected<to_type_> cast(from_type_ value, nk_capability_t capabilities, nk_stream_t stream) noexcept {
+    to_type_ result {};
+    status_t const status = cast<from_type_, to_type_>(&value, 1, &result, capabilities, stream);
+    return {result, status};
+}
+
+/** The value of one scalar as a @c float, like <tt>nk::cast<scalar_type_, nk::f32_t>(value)</tt>. */
+template <a_numeric_dtype scalar_type_>
+float to_f32(scalar_type_ value) noexcept {
+    return cast<scalar_type_, f32_t>(value).raw_;
+}
+
+/** Decodes the 32 elements of one MX block into @p destination, through @c nk_mxfp4_to_f32x32_best
+ *  and its twins. */
+template <a_numeric_dtype block_type_>
+void decode_to(block_type_ const &block, float *destination) noexcept {
+    nk_capability_t const capabilities = default_capabilities();
+    if constexpr (std::is_same_v<block_type_, mxfp4_t>) nk_mxfp4_to_f32x32_best(&block.raw_, destination, capabilities);
+    else if constexpr (std::is_same_v<block_type_, mxfp6e2m3_t>)
+        nk_mxfp6e2m3_to_f32x32_best(&block.raw_, destination, capabilities);
+    else if constexpr (std::is_same_v<block_type_, mxfp6e3m2_t>)
+        nk_mxfp6e3m2_to_f32x32_best(&block.raw_, destination, capabilities);
+    else if constexpr (std::is_same_v<block_type_, mxfp8e4m3_t>)
+        nk_mxfp8e4m3_to_f32x32_best(&block.raw_, destination, capabilities);
+    else if constexpr (std::is_same_v<block_type_, mxfp8e5m2_t>)
+        nk_mxfp8e5m2_to_f32x32_best(&block.raw_, destination, capabilities);
+    else if constexpr (std::is_same_v<block_type_, mxint8_t>)
+        nk_mxint8_to_f32x32_best(&block.raw_, destination, capabilities);
+    else static_assert(sizeof(block_type_) == 0, "no MX block codec for this dtype");
+}
+
+/** Decodes the 16 elements of one NVFP4 block into @p destination, times @p tensor_scale. */
+inline void decode_to(nvfp4_t const &block, float *destination, float tensor_scale) noexcept {
+    nk_nvfp4_to_f32x16_best(&block.raw_, tensor_scale, destination, default_capabilities());
+}
+
+/** Encodes 32 values of @p source into one MX block, deriving its scale. */
+template <a_numeric_dtype block_type_>
+block_type_ encode_from(float const *source) noexcept {
+    nk_capability_t const capabilities = default_capabilities();
+    block_type_ block;
+    if constexpr (std::is_same_v<block_type_, mxfp4_t>) nk_f32x32_to_mxfp4_best(source, &block.raw_, capabilities);
+    else if constexpr (std::is_same_v<block_type_, mxfp6e2m3_t>)
+        nk_f32x32_to_mxfp6e2m3_best(source, &block.raw_, capabilities);
+    else if constexpr (std::is_same_v<block_type_, mxfp6e3m2_t>)
+        nk_f32x32_to_mxfp6e3m2_best(source, &block.raw_, capabilities);
+    else if constexpr (std::is_same_v<block_type_, mxfp8e4m3_t>)
+        nk_f32x32_to_mxfp8e4m3_best(source, &block.raw_, capabilities);
+    else if constexpr (std::is_same_v<block_type_, mxfp8e5m2_t>)
+        nk_f32x32_to_mxfp8e5m2_best(source, &block.raw_, capabilities);
+    else if constexpr (std::is_same_v<block_type_, mxint8_t>)
+        nk_f32x32_to_mxint8_best(source, &block.raw_, capabilities);
+    else static_assert(sizeof(block_type_) == 0, "no MX block codec for this dtype");
+    return block;
+}
+
+/** Encodes 16 values of @p source into one NVFP4 block under @p tensor_scale, deriving a scale. */
+template <a_numeric_dtype block_type_>
+    requires std::is_same_v<block_type_, nvfp4_t>
+nvfp4_t encode_from(float const *source, float tensor_scale) noexcept {
+    nvfp4_t block;
+    nk_f32x16_to_nvfp4_best(source, tensor_scale, &block.raw_, default_capabilities());
+    return block;
+}
+
+#pragma endregion Scalar Casts
 
 #pragma region Block Scaled Casts
 
@@ -97,8 +253,7 @@ struct block_scaled_reference_ {
     nk_f32_t *tensor_scale;
 };
 
-/** The one place the cast kernel is invoked on block-scaled operands; no capability runs the serial
- *  reference. */
+/** The one place the cast kernel is invoked on block-scaled operands. */
 inline status_t block_scaled_cast_(block_scaled_operand_ &source, block_scaled_operand_ &destination, std::size_t count,
                                    nk_capability_t capabilities, nk_stream_t stream) noexcept {
     block_scaled_reference_ source_reference = {source.elements, source.scales,
@@ -107,8 +262,6 @@ inline status_t block_scaled_cast_(block_scaled_operand_ &source, block_scaled_o
         destination.elements, destination.scales, destination.has_tensor_scale ? &destination.tensor_scale : nullptr};
     void const *from = source.scales ? static_cast<void const *>(&source_reference) : source.elements;
     void *to = destination.scales ? static_cast<void *>(&destination_reference) : destination.elements;
-    if (!capabilities)
-        return static_cast<status_t>(nk_cast_serial(from, source.dtype, to, destination.dtype, count, stream));
     return static_cast<status_t>(nk_cast_best(from, source.dtype, to, destination.dtype, count, capabilities, stream));
 }
 

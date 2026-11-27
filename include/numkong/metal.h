@@ -23,7 +23,8 @@
 #ifndef NUMKONG_METAL_H
 #define NUMKONG_METAL_H
 
-#include "numkong/types.h" // `nk_size_t`, `NUMKONG_ARCH_METAL_`
+#include "numkong/types.h"        // `nk_size_t`, `NUMKONG_ARCH_METAL_`
+#include "numkong/capabilities.h" // `nk_cap_metal_k`, `nk_capability_t`
 
 #if NUMKONG_ARCH_METAL_
 #include <TargetConditionals.h> // `TARGET_OS_OSX`
@@ -414,16 +415,13 @@ NUMKONG_INLINE nk_status_t nk_memory_allocate_unified_metal_(nk_size_t bytes, vo
     return nk_success_k;
 }
 
-NUMKONG_INLINE nk_status_t nk_memory_free_unified_metal_(void *pointer, nk_size_t bytes, nk_stream_t stream) {
-    nk_unused_(bytes);
-    if (!pointer) return nk_success_k;
-    nk_metal_context_t *const context = nk_context_metal_(stream);
-    if (!context) return nk_missing_gpu_k;
+/** Unregisters and releases the block starting at @p pointer if @p context holds it, returning
+ *  whether it does. */
+NUMKONG_INLINE int nk_free_in_metal_(nk_metal_context_t *context, void *pointer) {
     os_unfair_lock_lock(&context->lock);
     nk_size_t index = 0;
     while (index != context->blocks_count && context->blocks[index].host != (char *)pointer) ++index;
-    nk_status_t status = index != context->blocks_count ? nk_success_k : nk_device_memory_mismatch_k;
-    void *const buffer = status == nk_success_k ? context->blocks[index].buffer : NULL;
+    void *const buffer = index != context->blocks_count ? context->blocks[index].buffer : NULL;
     if (buffer) {
         memmove(context->blocks + index, context->blocks + index + 1,
                 (context->blocks_count - index - 1) * sizeof(nk_metal_block_t));
@@ -431,7 +429,25 @@ NUMKONG_INLINE nk_status_t nk_memory_free_unified_metal_(void *pointer, nk_size_
     }
     os_unfair_lock_unlock(&context->lock);
     if (buffer) nk_do_metal_(buffer, "release");
-    return status;
+    return buffer != NULL;
+}
+
+NUMKONG_INLINE nk_status_t nk_memory_free_unified_metal_(void *pointer, nk_size_t bytes, nk_stream_t stream) {
+    nk_unused_(bytes);
+    if (!pointer) return nk_success_k;
+    nk_metal_context_t *const context = nk_context_metal_(stream);
+    if (context && nk_free_in_metal_(context, pointer)) return nk_success_k;
+
+    // A null stream may name a different device from the allocation.
+    os_unfair_lock_t contexts_lock;
+    nk_metal_context_t *const contexts = nk_contexts_metal_(&contexts_lock);
+    nk_size_t live = 0;
+    os_unfair_lock_lock(contexts_lock);
+    while (live != nk_metal_contexts_max_k && contexts[live].device) ++live;
+    os_unfair_lock_unlock(contexts_lock);
+    for (nk_size_t index = 0; index != live; ++index)
+        if (contexts + index != context && nk_free_in_metal_(contexts + index, pointer)) return nk_success_k;
+    return context || live ? nk_device_memory_mismatch_k : nk_missing_gpu_k;
 }
 
 NUMKONG_INLINE void *nk_allocate_unified_metal_(nk_size_t bytes, void *handle, nk_stream_t stream) {
@@ -505,21 +521,49 @@ NUMKONG_INLINE nk_status_t nk_stream_synchronize_metal_(nk_stream_t stream) {
     return status;
 }
 
-#if NUMKONG_HEADER_ONLY
-NUMKONG_API nk_status_t nk_memory_allocate_unified_metal(nk_size_t bytes, void **pointer, nk_stream_t stream) {
-    return nk_memory_allocate_unified_metal_(bytes, pointer, stream);
+/** How many Metal devices the system lists. */
+NUMKONG_INLINE nk_size_t nk_count_devices_metal_(void) { return nk_list_devices_metal_(); }
+
+/** The capabilities Metal device @p ordinal runs, in the order the system lists them. The baseline
+ *  needs Apple7, the oldest family the build embeds. */
+NUMKONG_INLINE nk_status_t nk_capabilities_detected_metal_(nk_size_t ordinal, nk_capability_t *capabilities) {
+    *capabilities = 0;
+    if (ordinal >= nk_count_devices_metal_()) return nk_missing_gpu_k;
+    void *const metal_device = nk_device_metal_(ordinal);
+    if (!metal_device) return nk_device_code_mismatch_k;
+    SEL const supports = sel_registerName("supportsFamily:");
+    nk_size_t const apple7 = 1007, apple9 = 1009, apple10 = 1010; // `MTLGPUFamilyApple7`, `9` and `10`
+    nk_capability_t detected = 0;
+    if (((signed char (*)(void *, SEL, nk_size_t))objc_msgSend)(metal_device, supports, apple7))
+        detected |= nk_cap_metal_k;
+    if (((signed char (*)(void *, SEL, nk_size_t))objc_msgSend)(metal_device, supports, apple9))
+        detected |= nk_cap_apple9_k;
+    if (((signed char (*)(void *, SEL, nk_size_t))objc_msgSend)(metal_device, supports, apple10))
+        detected |= nk_cap_apple10_k;
+    nk_do_metal_(metal_device, "release");
+    *capabilities = detected;
+    return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_memory_free_unified_metal(void *pointer, nk_size_t bytes, nk_stream_t stream) {
-    return nk_memory_free_unified_metal_(pointer, bytes, stream);
+/** Opens a retained @c id<MTLCommandQueue> on Metal device @p ordinal, in the order the system
+ *  lists them. */
+NUMKONG_INLINE nk_status_t nk_stream_init_metal_(nk_size_t ordinal, nk_stream_t *stream) {
+    *stream = NUMKONG_NULL;
+    if (ordinal >= nk_count_devices_metal_()) return nk_missing_gpu_k;
+    void *const metal_device = nk_device_metal_(ordinal);
+    if (!metal_device) return nk_device_code_mismatch_k;
+    *stream = (nk_stream_t)nk_get_metal_(metal_device, "newCommandQueue");
+    nk_do_metal_(metal_device, "release");
+    if (!*stream) return nk_bad_alloc_k;
+    return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_allocator_init_unified_metal(nk_allocator_t *allocator) {
-    return nk_allocator_init_unified_metal_(allocator);
+/** Waits for @p stream 's committed work and its deferred frees, then releases it. */
+NUMKONG_INLINE nk_status_t nk_stream_free_metal_(nk_stream_t stream) {
+    nk_status_t const status = nk_stream_synchronize_metal_(stream);
+    nk_do_metal_(stream, "release");
+    return status;
 }
-
-NUMKONG_API nk_status_t nk_stream_synchronize_metal(nk_stream_t stream) { return nk_stream_synchronize_metal_(stream); }
-#endif // NUMKONG_HEADER_ONLY
 
 #pragma endregion Context
 

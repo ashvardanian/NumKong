@@ -87,7 +87,7 @@ error_stats_t test_sqeuclideans3d_f64(sqeuclideans3d_f64_kernel_t kernel) {
                     }
                     // A difference rounds once, its square doubles that: 2 roundings a term.
                     stats.accumulate_bounded(f64_t(results[row * shape.columns + column]), expected,
-                                             3 * stats.term_error_bound * static_cast<double>(expected));
+                                             3 * stats.term_error_bound * to_double(expected));
                 }
         }
     return stats;
@@ -108,7 +108,6 @@ void run_geospatial_cases() {
                     nk_terrain_pack_size_f32_serial, nk_terrain_pack_f32_serial, nk_terrain_heights_packed_f32_serial,
                     nk_clearances_packed_f32_serial);
 
-#if !NUMKONG_HEADER_ONLY
     run_kernel_case("nk_sqeuclideans3d_i32_best", test_sqeuclideans3d_i32, serial,
                     cpu_best<nk_sqeuclideans3d_i32_best>);
     run_kernel_case("nk_sqeuclideans3d_f64_best", test_sqeuclideans3d_f64, serial,
@@ -122,7 +121,6 @@ void run_geospatial_cases() {
     run_kernel_case("nk_clearances_packed_f32_best", test_terrain_packed<f32_t>, serial,
                     nk_terrain_pack_size_f32_serial, nk_terrain_pack_f32_serial, nk_terrain_heights_packed_f32_serial,
                     cpu_best<nk_clearances_packed_f32_best>);
-#endif
 
 #if NUMKONG_TARGET_NEON
     auto const neon = nk_cap_neon_k;

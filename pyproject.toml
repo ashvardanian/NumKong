@@ -246,7 +246,7 @@ wheel.packages = ["python/numkong"]
 
 [tool.scikit-build.cmake.define]
 NUMKONG_BUILD_PYTHON = "ON"
-NUMKONG_BUILD_SHARED = "OFF"
+NUMKONG_BUILD_LIBRARIES = "OFF"
 NUMKONG_INSTALL = "OFF"
 NUMKONG_MARCH = { default = "", env = "NUMKONG_MARCH" }
 

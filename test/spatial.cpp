@@ -11,6 +11,39 @@
 
 namespace ashvardanian::numkong::test {
 
+/** √Σ(aᵢ − bᵢ)² accumulated in @p result_type_, the oracle of the Euclidean kernels. */
+template <typename in_type_, typename result_type_>
+void euclidean_reference(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r) noexcept {
+    result_type_ sum {};
+    for (std::size_t i = 0; i < d / nk::dimensions_per_value<in_type_>(); i++) sum = fdsa_reference(a[i], b[i], sum);
+    *r = square_root_reference(sum);
+}
+
+/** Σ(aᵢ − bᵢ)² accumulated in @p result_type_, the oracle of the squared Euclidean kernels. */
+template <typename in_type_, typename result_type_>
+void sqeuclidean_reference(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r) noexcept {
+    result_type_ sum {};
+    for (std::size_t i = 0; i < d / nk::dimensions_per_value<in_type_>(); i++) sum = fdsa_reference(a[i], b[i], sum);
+    *r = sum;
+}
+
+/** 1 − ⟨a,b⟩ / (‖a‖ × ‖b‖) accumulated in @p result_type_, the oracle of the angular kernels. */
+template <typename in_type_, typename result_type_>
+void angular_reference(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r) noexcept {
+    result_type_ ab {}, aa {}, bb {};
+    for (std::size_t i = 0; i < d / nk::dimensions_per_value<in_type_>(); i++) {
+        ab = fma_reference(a[i], b[i], ab);
+        aa = fma_reference(a[i], a[i], aa);
+        bb = fma_reference(b[i], b[i], bb);
+    }
+    result_type_ const zero(0), one(1);
+    result_type_ distance = one - ab / (square_root_reference(aa) * square_root_reference(bb));
+    // Two zero norms give 0, one zero norm or a zero dot 1, and NaN stays, as in `spatial.h`
+    if (aa == zero && bb == zero) distance = zero;
+    else if (ab == zero || aa == zero || bb == zero) distance = one;
+    *r = distance < zero ? zero : distance;
+}
+
 /** Unified squared Euclidean distance test for float types. Works with f32_t, f64_t, f16_t, bf16_t
  *  wrapper types. */
 template <typename scalar_type_>
@@ -27,8 +60,8 @@ error_stats_t test_sqeuclidean(typename scalar_type_::sqeuclidean_kernel_t kerne
     auto a = make_vector<scalar_t>(n), b = make_vector<scalar_t>(n);
 
     if constexpr (std::is_same_v<scalar_t, f64_t> || std::is_same_v<scalar_t, bf16_t>) {
-        std::fill_n(a.raw_values_data(), n, scalar_t(std::is_same_v<scalar_t, f64_t> ? 1e154 : 1e19).raw_);
-        std::fill_n(b.raw_values_data(), n, scalar_t(0.0).raw_);
+        std::fill_n(a.raw_values_data(), n, narrow<scalar_t>(std::is_same_v<scalar_t, f64_t> ? 1e154 : 1e19).raw_);
+        std::fill_n(b.raw_values_data(), n, narrow<scalar_t>(0.0).raw_);
         result_t result;
         stats.expect_status(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
         stats.expect_true(std::isinf(result.raw_) && result.raw_ > 0, "overflowing squares give +inf");
@@ -42,8 +75,7 @@ error_stats_t test_sqeuclidean(typename scalar_type_::sqeuclidean_kernel_t kerne
         stats.expect_status(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect_status(
-            nk::sqeuclidean<scalar_t, reference_t>(a.values_data(), b.values_data(), n, &reference, no_tiers_k));
+        sqeuclidean_reference<scalar_t, reference_t>(a.values_data(), b.values_data(), n, &reference);
 
         stats.accumulate(result, reference);
     }
@@ -82,8 +114,7 @@ error_stats_t test_angular(typename scalar_type_::angular_kernel_t kernel) {
         stats.expect_status(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect_status(
-            nk::angular<scalar_t, reference_t>(a.values_data(), b.values_data(), n, &reference, no_tiers_k));
+        angular_reference<scalar_t, reference_t>(a.values_data(), b.values_data(), n, &reference);
 
         stats.accumulate(result, reference);
     }
@@ -106,8 +137,8 @@ error_stats_t test_euclidean(typename scalar_type_::euclidean_kernel_t kernel) {
     auto a = make_vector<scalar_t>(n), b = make_vector<scalar_t>(n);
 
     if constexpr (std::is_same_v<scalar_t, f64_t> || std::is_same_v<scalar_t, bf16_t>) {
-        std::fill_n(a.raw_values_data(), n, scalar_t(std::is_same_v<scalar_t, f64_t> ? 1e154 : 1e19).raw_);
-        std::fill_n(b.raw_values_data(), n, scalar_t(0.0).raw_);
+        std::fill_n(a.raw_values_data(), n, narrow<scalar_t>(std::is_same_v<scalar_t, f64_t> ? 1e154 : 1e19).raw_);
+        std::fill_n(b.raw_values_data(), n, narrow<scalar_t>(0.0).raw_);
         result_t result;
         stats.expect_status(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
         stats.expect_true(std::isinf(result.raw_) && result.raw_ > 0, "overflowing squares give +inf");
@@ -129,8 +160,7 @@ error_stats_t test_euclidean(typename scalar_type_::euclidean_kernel_t kernel) {
         stats.expect_status(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect_status(
-            nk::euclidean<scalar_t, reference_t>(a.values_data(), b.values_data(), n, &reference, no_tiers_k));
+        euclidean_reference<scalar_t, reference_t>(a.values_data(), b.values_data(), n, &reference);
 
         stats.accumulate(result, reference);
     }
@@ -177,7 +207,6 @@ void run_spatial_cases() {
     run_kernel_case("nk_sqeuclidean_u8_serial", test_sqeuclidean<u8_t>, serial, nk_sqeuclidean_u8_serial);
     run_kernel_case("nk_euclidean_u8_serial", test_euclidean<u8_t>, serial, nk_euclidean_u8_serial);
 
-#if !NUMKONG_HEADER_ONLY
     run_kernel_case("nk_sqeuclidean_f32_best", test_sqeuclidean<f32_t>, serial, cpu_best<nk_sqeuclidean_f32_best>);
     run_kernel_case("nk_sqeuclidean_f64_best", test_sqeuclidean<f64_t>, serial, cpu_best<nk_sqeuclidean_f64_best>);
     run_kernel_case("nk_sqeuclidean_f16_best", test_sqeuclidean<f16_t>, serial, cpu_best<nk_sqeuclidean_f16_best>);
@@ -200,7 +229,6 @@ void run_spatial_cases() {
     run_kernel_case("nk_sqeuclidean_u4_best", test_sqeuclidean<u4x2_t>, serial, cpu_best<nk_sqeuclidean_u4_best>);
     run_kernel_case("nk_angular_i4_best", test_angular<i4x2_t>, serial, cpu_best<nk_angular_i4_best>);
     run_kernel_case("nk_angular_u4_best", test_angular<u4x2_t>, serial, cpu_best<nk_angular_u4_best>);
-#endif
 
 #if NUMKONG_TARGET_NEON
     run_kernel_case("nk_sqeuclidean_f64_neon", test_sqeuclidean<f64_t>, nk_cap_neon_k, nk_sqeuclidean_f64_neon);

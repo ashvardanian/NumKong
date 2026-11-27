@@ -13,6 +13,48 @@
 
 namespace ashvardanian::numkong::test {
 
+/**
+ *  @brief Exhaustive MaxSim, Σᵢ minⱼ angular(qᵢ, dⱼ), summed in @p result_type_.
+ *  @param[in] queries Query vectors in row-major order.
+ *  @param[in] query_count Number of query vectors.
+ *  @param[in] query_stride Row stride in bytes for query vectors.
+ *  @param[in] documents Document vectors in row-major order.
+ *  @param[in] document_count Number of document vectors.
+ *  @param[in] document_stride Row stride in bytes for document vectors.
+ *  @param[in] depth Number of dimensions per vector.
+ *  @return The sum of per-query minimum angular distances.
+ */
+template <nk::a_numeric_dtype in_type_, nk::a_numeric_dtype result_type_>
+result_type_ maxsim_reference(in_type_ const *queries, std::size_t query_count, std::size_t query_stride,
+                              in_type_ const *documents, std::size_t document_count, std::size_t document_stride,
+                              std::size_t depth) noexcept {
+    result_type_ const zero(0), one(1);
+    result_type_ total_angular_distance {};
+    for (std::size_t query_index = 0; query_index < query_count; query_index++) {
+        in_type_ const *query_row = reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(queries) +
+                                                                       query_index * query_stride);
+        result_type_ min_angular = result_type_::finite_max();
+        for (std::size_t document_index = 0; document_index < document_count; document_index++) {
+            in_type_ const *document_row = reinterpret_cast<in_type_ const *>(
+                reinterpret_cast<char const *>(documents) + document_index * document_stride);
+            result_type_ ab {}, aa {}, bb {};
+            for (std::size_t i = 0; i < depth; i++) {
+                ab = fma_reference(query_row[i], document_row[i], ab);
+                aa = fma_reference(query_row[i], query_row[i], aa);
+                bb = fma_reference(document_row[i], document_row[i], bb);
+            }
+            result_type_ angular_distance = one - ab / (square_root_reference(aa) * square_root_reference(bb));
+            // As in `spatial.h`: two zero norms give 0, one zero norm or a zero dot 1, NaN stays
+            if (aa == zero && bb == zero) angular_distance = zero;
+            else if (ab == zero || aa == zero || bb == zero) angular_distance = one;
+            if (angular_distance < zero) angular_distance = zero;
+            if (angular_distance < min_angular) min_angular = angular_distance;
+        }
+        total_angular_distance = total_angular_distance + min_angular;
+    }
+    return total_angular_distance;
+}
+
 template <typename scalar_type_>
 error_stats_t test_maxsim_packed(typename scalar_type_::dots_pack_size_kernel_t packed_size_fn,
                                  typename scalar_type_::maxsim_pack_kernel_t pack_fn,
@@ -53,11 +95,8 @@ error_stats_t test_maxsim_packed(typename scalar_type_::dots_pack_size_kernel_t 
         stats.expect_status(maxsim_fn(query_packed.raw_values_data(), document_packed.raw_values_data(), query_count,
                                       document_count, depth, &result.raw_, nullptr));
 
-        // Exhaustive scalar reference
-        reference_t reference;
-        stats.expect_status(nk::maxsim_reference<scalar_t, reference_t>(queries.raw_values_data(), query_count, stride,
-                                                                        documents.raw_values_data(), document_count,
-                                                                        stride, depth, &reference, no_tiers_k));
+        reference_t const reference = maxsim_reference<scalar_t, reference_t>(
+            queries.values_data(), query_count, stride, documents.values_data(), document_count, stride, depth);
 
         stats.accumulate(result, reference);
     }
@@ -74,7 +113,6 @@ void run_maxsim_cases() {
     run_kernel_case("nk_maxsim_packed_f16_serial", test_maxsim_packed<f16_t>, serial, nk_maxsim_pack_size_f16_serial,
                     nk_maxsim_pack_f16_serial, nk_maxsim_packed_f16_serial);
 
-#if !NUMKONG_HEADER_ONLY
     run_kernel_case("nk_maxsim_packed_bf16_best", test_maxsim_packed<bf16_t>, serial,
                     cpu_best<nk_maxsim_pack_size_bf16_best>, cpu_best<nk_maxsim_pack_bf16_best>,
                     cpu_best<nk_maxsim_packed_bf16_best>);
@@ -84,7 +122,6 @@ void run_maxsim_cases() {
     run_kernel_case("nk_maxsim_packed_f16_best", test_maxsim_packed<f16_t>, serial,
                     cpu_best<nk_maxsim_pack_size_f16_best>, cpu_best<nk_maxsim_pack_f16_best>,
                     cpu_best<nk_maxsim_packed_f16_best>);
-#endif
 
 #if NUMKONG_TARGET_HASWELL
     auto const haswell = nk_cap_haswell_k;

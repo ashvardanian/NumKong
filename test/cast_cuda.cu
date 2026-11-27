@@ -6,7 +6,8 @@
  */
 #undef NDEBUG // ! A test's oracle must stay live in every build
 
-#include "backend_cuda.hpp"
+#include "backend_cuda.hpp"   // `cuda_device_scope_t`
+#include "backend_device.hpp" // `cuda_backend_t`
 
 #if NUMKONG_ARCH_CUDA_
 #include "cast.hpp"
@@ -571,7 +572,7 @@ static error_stats_t test_cast_from_fp6_cuda(cast_t kernel) {
 }
 
 static void run_cast_cuda_conformance_cases() {
-    cuda_device_scope_t device(test_run.settings.device.ordinal());
+    cuda_device_scope_t device(test_run.settings.device_ordinal);
     if (!expect_device_success(device.status)) return;
 
     auto const cuda = nk_cap_cuda_k;

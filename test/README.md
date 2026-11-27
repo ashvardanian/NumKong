@@ -74,6 +74,8 @@ All floating-point families report `max_abs` and `max_rel`; the rest of each row
 
 C++ tests compare SIMD kernels against high-precision serial references.
 The baseline type depends on the input dtype, selected by the `reference_for<input>` template in `harness.hpp`.
+Each reference is a `<verb>_reference` template beside its family's tests, like `dot_reference` in `dot.cpp`, the packed and symmetric ones in `cross.hpp` and the shapes ones in `shapes.hpp`.
+References read the raw inputs a test holds and never a pack's layout, and the C++ SDK keeps no reference path of its own: its verbs only forward to C.
 
 - __f32 and f64 inputs__ use `f118_t` — a double-double type with ~103-bit mantissa, defined in `types.hpp`.
   Two `double` values track a high and low component, capturing rounding errors that a single `double` would lose.

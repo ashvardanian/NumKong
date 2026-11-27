@@ -1,7 +1,10 @@
 # NumKong for C++
 
-The C++ SDK is a thin, typed layer over the C ABI of [`c/numkong/`](../c/README.md), adding type-level result promotion and owning containers without hiding the dispatch model or the mixed-precision policy.
-It stays allocator-aware and close enough to inline through, and lives in `cpp/numkong/`: `types.hpp`, `memory.hpp`, `random.hpp`, `vector.hpp`, `tensor.hpp` and `matrix.hpp` hold the vocabulary of scalars, allocators, vectors, tensors and packed matrices, and one header per kernel family wraps its C header.
+The C++ SDK is a thin, typed layer over the C ABI of [`c/numkong/`](../c/README.md): every verb forwards to the dispatch point of a C kernel, which runs the best capability a mask allows, and the SDK adds owning containers and views without hiding the dispatch model or the mixed-precision policy.
+Results take each input's own type alias, and the wider references that check the kernels live in [`test/`](../test/README.md), never here.
+It stays allocator-aware and close enough to inline through, in two layers.
+The containers live in `include/numkong/`: `types.hpp`, `memory.hpp`, `vector.hpp`, `tensor.hpp`, `matrix.hpp` and `packed.hpp` hold the vocabulary of scalars, allocators, vectors, tensors and packed owners, need only the C headers, and link nothing.
+The verbs live in `cpp/numkong/` and link the library: `devices.hpp`, `scalar.hpp`, `cast.hpp` and `random.hpp`, and one header per kernel family wrapping its C header.
 `numkong/numkong.hpp` includes them all except `numkong/attention.hpp`, and everything lives in `ashvardanian::numkong`.
 
 The wrappers come in three layers.
@@ -24,8 +27,8 @@ FetchContent_MakeAvailable(numkong)
 target_link_libraries(my_target PRIVATE numkong::cpp) # or numkong::header
 ```
 
-`numkong::cpp` adds `cpp/` as an include root beside the `c/` of `numkong::abi`, requires C++20, and links `numkong::static`, so the wrappers dispatch through the compiled kernels.
-`numkong::header` carries the same SDK with every kernel compiled into your own translation units instead; the [C guide](../c/README.md#installation) lists every target and the header-only trade-off.
+`numkong::cpp` adds `cpp/` as an include root beside the `c/` of `numkong::abi`, requires C++20, and links `numkong::static`, so the verbs dispatch through the compiled kernels.
+`numkong::header` compiles every kernel into your own translation units instead and offers the containers, but not the verbs, which link the library; the [C guide](../c/README.md#installation) lists every target and the header-only trade-off.
 An installed NumKong provides the same targets through `find_package(numkong CONFIG REQUIRED)`.
 
 ## Quickstart
@@ -42,12 +45,12 @@ int main() {
     if (nk::failed(status)) return 1;
 
     nk::f64_t raw {};
-    status = nk::dot(a.data(), b.data(), a.size(), &raw, nk_cap_serial_k); // the raw layer, pinned to serial
+    status = nk::dot(a.data(), b.data(), a.size(), &raw, nk::default_capabilities()); // the raw layer, mask spelled out
     if (nk::failed(status)) return 1;
 
     auto [matrix, matrix_status] = nk::matrix<nk::f32_t>::full({2, 3}, nk::f32_t(1));
     if (nk::failed(matrix_status)) return 1;
-    auto [packed, packed_status] = nk::packed_matrix<nk::f32_t>::make(matrix.view()); // owning, reused across calls
+    auto [packed, packed_status] = nk::dots_pack<nk::f32_t>(matrix.view()); // owning, reused across calls
     return nk::succeeded(packed_status) && dot == raw ? 0 : 1;
 }
 ```
@@ -56,7 +59,7 @@ Standard containers count storage values, so an `std::vector<nk::u1x8_t>` of 4 b
 Runs must fill whole storage values, so odd bit and nibble lengths pad with zero bits up to the next byte, and a view ending mid-value is refused.
 Strided views are refused with `nk::status_t::unexpected_dimensions_k`, and `vector_view::values()` turns a contiguous view into an `std::span` or refuses the same way.
 Outputs of elementwise kernels, like `nk::scale<nk::f32_t>(a, 2.0f, 1.0f, out)`, are any mutable run of the same size, and the call returns an `nk::status_t`.
-Multi-part results come back as small structs: `nk::reduce_moments` returns `{sum, sumsq}`, `nk::reduce_minmax` a `minmax_result`, and `nk::shapes_packed::make` an owner of many packs.
+Multi-part results come back as small structs: `nk::reduce_moments` returns `{sum, sumsq}`, `nk::reduce_minmax` a `minmax_result`, and `nk::shapes_pack` an owner of many packs.
 
 ## Statuses & Devices
 
@@ -64,7 +67,8 @@ Every wrapper ends in the two arguments of its dispatch point, defaulted to `nk:
 That scoped enum mirrors `nk_status_t` value for value, converts to it with `static_cast`, and is tested with `nk::succeeded` and `nk::failed` rather than as a `bool`.
 Factories, like `nk::tensor<T>::zeros`, and the allocating overloads return an `nk::expected<T>` holding the `value` and its `status`, which converts to `true` on success and unpacks with structured bindings.
 A failed factory leaves its `value` empty, while a zero-volume request succeeds with an empty one.
-`nk::default_capabilities()` is the `nk_capabilities_enabled_cpu` mask, and a zero mask runs the C++ reference template instead of any capability's kernel.
+`nk::default_capabilities()` is the `nk_capabilities_enabled_cpu` mask, and a mask naming no capability that has the kernel, a zero one included, answers `nk::status_t::missing_kernel_k`.
+A monoversioned build keeps only its best capability, so a mask narrowed below it answers the same.
 `nk::device_t` names one device by its kind and its runtime's ordinal, and asks the matching `nk_<kind>_*` functions for its masks:
 
 ```cpp
@@ -76,36 +80,41 @@ for (std::size_t ordinal = 0; ordinal != devices; ++ordinal)
         if (auto mask = gpu.value.capabilities_enabled()) { /* dispatch over `mask.value` on that GPU */ }
 ```
 
-In header-only builds the dispatch points report `nk_missing_library_k`, so wrappers there take a zero mask or call a capability's kernel.
+The verbs need the library, and every header in `cpp/numkong/` refuses to compile in a header-only build, which keeps the containers and calls each capability's kernels by name.
 The [C guide](../c/README.md#capabilities-and-devices) describes the masks themselves.
 
 ## Scalar Types
 
-The scalar wrappers in `cpp/numkong/types.hpp` are storage-first types over the C scalars the [C guide](../c/README.md#scalar-types) tabulates.
-They encode raw layout, default output types, and the kernel function pointer signatures for each family.
+The scalar types in `include/numkong/types.hpp` are storage tags over the C scalars the [C guide](../c/README.md#scalar-types) tabulates.
+Each holds its raw layout, its `dtype()`, `from_raw`, the default output types, and the kernel function pointer signatures for each family.
 
 Default promotions are encoded on the type.
 For example, `f32_t::dot_result_t` is wider than `f32_t`.
 `i8_t::dot_result_t` is `i32_t`.
 `u1x8_t::dot_result_t` is `u32_t`.
 
-The higher-level templates use `result_type_ = typename in_type_::dot_result_t` and similar defaults.
-The fast typed overloads are constrained so that overriding the result type away from the native policy can disable the specialized path and fall back to the more generic one.
-If you override result types away from the scalar defaults, document that choice carefully because it can change both performance and numerical policy.
+Every wrapper writes the alias of its input type, like `typename in_type_::dot_result_t`, which is what its C kernel writes, so the result type is never a template argument.
 
-When `__cpp_lib_format >= 202110L` for the C++23 `<format>` header support, all NumKong scalar types provide `std::formatter` specializations with similar format specs to the traditional `float`.
-For the Float16 type, the output for `nk::f16_t::from_f32(3.14f)` will look like:
+An operation a multiversioned kernel of NumKong backs is a verb in `cpp/numkong/`, and its spelling on the type is deleted, naming the verb in its declaration.
+That covers converting a narrow float to or from `float`, comparing and ordering the narrow floats, `sqrt`, `rsqrt` and `fma` of `f32_t`, `f64_t` and `f16_t`, the saturating integer arithmetic, and decoding a block-scaled block:
 
-| Format spec | Output example       | Description                            |
-| :---------- | :------------------- | :------------------------------------- |
-| `{}`        | `3.140625`           | Clean float value                      |
-| `{:#}`      | `3.140625 [0x4248]`  | Annotated with hex bits                |
-| `{:.2f}`    | `3.14`               | Precision forwarded to float formatter |
-| `{:x}`      | `4248`               | Raw hex bits                           |
-| `{:#x}`     | `0x4248`             | Hex with prefix                        |
-| `{:X}`      | `4248`               | Uppercase hex                          |
-| `{:b}`      | `0100001001001000`   | Binary bits                            |
-| `{:#b}`     | `0b0100001001001000` | Binary with prefix                     |
+```cpp
+#include <numkong/numkong.hpp>
+
+namespace nk = ashvardanian::numkong;
+
+nk::f16_t half = nk::cast<nk::f32_t, nk::f16_t>(1.5f);    // was nk::f16_t(1.5f)
+float wide = nk::to_f32(half);                             // was float(half)
+int sign = nk::order(half, nk::f16_t::zero());             // was half > nk::f16_t::zero()
+nk::f32_t root = nk::sqrt(nk::f32_t {2.0f});               // was nk::f32_t {2.0f}.sqrt()
+nk::i8_t clamped = nk::saturating_add(nk::i8_t {100}, nk::i8_t {100}); // 127
+auto [narrow, status] = nk::cast<nk::f32_t, nk::e4m3_t>(wide, nk::default_capabilities(), nullptr);
+```
+
+Each scalar verb takes the default mask and returns its value, and an overload taking a mask and a stream returns an `nk::expected`.
+Operations no kernel of NumKong backs stay on the type: the bit-level ones on every type, like `from_bits`, `is_nan`, `abs` and negation, and the plain arithmetic, comparisons and math of `f32_t`, `f64_t`, the complex types of those and the integers.
+The narrow floats, `f16_t`, `bf16_t`, `e4m3_t`, `e5m2_t`, `e2m3_t`, `e3m2_t`, `ue8m0_t` and `ue4m3_t`, lost their implicit conversion to `float`, their construction from numbers, their arithmetic and comparison operators, their member math, and their `std::formatter`; the half-precision complex types lost their arithmetic and theirs.
+The sub-byte types `i4x2_t`, `u4x2_t` and `u1x8_t` keep their `std::formatter`, which prints bits and nibbles.
 
 ## Tensors and Views
 
@@ -163,7 +172,7 @@ Similar to NumPy, but statically typed:
 
 ```cpp
 tensor_view<f32_t> second_column = t[all, 1, slice]; // strided column view → {2, 5, 8}
-auto minimum_index = nk::argmin(second_column);   // index of the minimum in the second column
+auto [minimum_index, argmin_status] = nk::argmin(second_column); // index of the minimum in the second column
 ```
 
 The view types are conceptually close to `std::mdspan` from C++23.
@@ -207,11 +216,11 @@ namespace nk = ashvardanian::numkong;
 auto [v, v_status] = nk::vector<nk::f16_t>::zeros(128);
 if (nk::failed(v_status)) return v_status;
 for (auto [i, val] : nk::enumerate(v))
-    std::printf("[%zu] = %f\n", i, val.to_f32());
+    std::printf("[%zu] = %f\n", i, nk::to_f32(val));
 
 // index() on raw iterators
 for (auto it = v.begin(); it != v.end(); ++it)
-    std::printf("[%zu] = %f\n", it.index(), (*it).to_f32());
+    std::printf("[%zu] = %f\n", it.index(), nk::to_f32(*it));
 ```
 
 Since `tensor.hpp` includes `vector.hpp`, `enumerate()` works on tensor row views too.
@@ -238,7 +247,7 @@ namespace nk = ashvardanian::numkong;
 auto [a, a_status] = nk::tensor<nk::f32_t>::full({2, 4}, nk::f32_t {1});
 auto [b, b_status] = nk::tensor<nk::f32_t>::full({3, 4}, nk::f32_t {2});
 if (nk::failed(a_status) || nk::failed(b_status)) return nk::failed(a_status) ? a_status : b_status;
-auto [packed, packed_status] = nk::packed_matrix<nk::f32_t>::make(b.as_matrix_view());
+auto [packed, packed_status] = nk::dots_pack<nk::f32_t>(b.as_matrix_view());
 if (nk::failed(packed_status)) return packed_status;
 
 // Dot products, angular distances, and Euclidean distances all reuse the same packed B
@@ -248,6 +257,7 @@ auto [euclideans, euclideans_status] = nk::euclideans_packed<nk::f32_t>(a.as_mat
 ```
 
 Owned `packed_matrix` storage uses its allocator.
+`nk::packed_matrix::make` packs through any pair of size and pack callables instead, like one capability's kernels, and needs no library.
 To pack into your own buffer instead, `nk::dots_pack_size<nk::f32_t>(rows, depth)` returns its byte count as an `nk::expected<std::size_t>`.
 
 ## Symmetric Kernels for SYRK-Like Workloads
@@ -273,13 +283,13 @@ That cuts the pair count almost in half before any micro-kernel details matter.
 
 ## Many-to-Many Shape Distances
 
-`nk::shapes_packed` owns many packs in one allocation and exposes the pointer array the [C shape kernels](../c/README.md#many-to-many-shape-distances) take, and `make_normalized` packs them normalized:
+`nk::shapes_packed` owns many packs in one allocation and exposes the pointer array the [C shape kernels](../c/README.md#many-to-many-shape-distances) take; `nk::shapes_pack` packs them, and `nk::shapes_pack_normalized` packs them normalized:
 
 ```cpp
 nk::f32_t const query[] = {0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1};
 nk::f32_t const candidate[] = {0, 0, 0, 0, 2, 0, 0, 0, 2, 2, 0, 0, 1, 1, 1};
 std::span<nk::f32_t const> clouds[] = {query, candidate};
-auto [packs, status] = nk::shapes_packed<nk::f32_t>::make(clouds);
+auto [packs, status] = nk::shapes_pack<nk::f32_t>(clouds);
 nk::f64_t distances[4];
 status = nk::hausdorffs_packed<nk::f32_t>(packs.data(), 2, packs.data(), 2, distances, 2 * sizeof(nk::f64_t), nullptr,
                                           nk::f64_t::positive_infinity());
@@ -296,10 +306,10 @@ auto [queries, queries_status] = nk::tensor<nk::bf16_t>::full({32, 128}, nk::bf1
 auto [docs, docs_status] = nk::tensor<nk::bf16_t>::full({192, 128}, nk::bf16_t::one());
 if (nk::failed(queries_status) || nk::failed(docs_status)) return nk::failed(queries_status) ? queries_status : docs_status;
 
-auto [q, q_status] = nk::packed_maxsim<nk::bf16_t>::make(queries.as_matrix_view());
-auto [d, d_status] = nk::packed_maxsim<nk::bf16_t>::make(docs.as_matrix_view());
+auto [q, q_status] = nk::maxsim_pack<nk::bf16_t>(queries.as_matrix_view());
+auto [d, d_status] = nk::maxsim_pack<nk::bf16_t>(docs.as_matrix_view());
 if (nk::failed(q_status) || nk::failed(d_status)) return nk::failed(q_status) ? q_status : d_status;
-auto score = nk::maxsim(q, d);
+auto [score, score_status] = nk::maxsim(q, d);
 ```
 
 `packed_maxsim` is allocator-aware in the same way as `packed_matrix`.
@@ -322,7 +332,7 @@ for (nk::status_t made : {keys_status, values_status, queries_status, output_sta
     if (nk::failed(made)) return made;
 nk_u32_t const offsets[] = {0, 32, 96}, lengths[] = {32, 64};
 
-auto [packed, packed_status] = nk::packed_attention<nk::bf16_t>::make(
+auto [packed, packed_status] = nk::attention_pack<nk::bf16_t>(
     keys.view(), values.view(), nk::vector_view<nk_u32_t>(offsets, 3u), nk::vector_view<nk_u32_t>(lengths, 2u));
 if (nk::failed(packed_status)) return packed_status;
 std::size_t const all_keys = std::numeric_limits<std::size_t>::max(), causal = 0;
@@ -359,9 +369,10 @@ SYRK-like symmetric work is partitioned by output row windows on one matrix:
 fork_union.parallel_for(0, worker_count, [&](std::size_t t) {
     auto start = t * rows_per_worker;
     auto count = std::min(rows_per_worker, total_rows - start);
-    statuses[t] = nk::dots_symmetric<value_type_>(vectors.as_matrix_view(), gram.as_matrix_span(), start, count);
+    statuses[t] = nk::dots_symmetric<value_type_>(vectors.as_matrix_view(), gram.as_matrix_span(), start, start + count);
     if (nk::succeeded(statuses[t]))
-        statuses[t] = nk::angulars_symmetric<value_type_>(vectors.as_matrix_view(), angular_dists.as_matrix_span(), start, count);
+        statuses[t] = nk::angulars_symmetric<value_type_>(vectors.as_matrix_view(), angular_dists.as_matrix_span(), start,
+                                                          start + count);
 });
 ```
 

@@ -8,7 +8,7 @@
 # CMake options:
 #
 #   -D CMAKE_BUILD_TYPE=<Release|Debug|RelWithDebInfo>
-#   -D NUMKONG_BUILD_TEST=<ON|OFF>           (default: OFF, with NUMKONG_BUILD_SHARED also the shared-library test)
+#   -D NUMKONG_BUILD_TEST=<ON|OFF>           (default: OFF, with NUMKONG_BUILD_LIBRARIES also the shared-library test)
 #   -D NUMKONG_BUILD_BENCH=<ON|OFF>          (default: OFF)
 #   -D NUMKONG_BUILD_PYTHON=<ON|OFF>         (default: OFF, the CPython extension scikit-build-core packages)
 #   -D NUMKONG_BUILD_NODE=<ON|OFF>           (default: OFF, the Node addon cmake-js builds)
@@ -22,7 +22,8 @@
 #                                            family)
 #   -D NUMKONG_COMPARE_TO_BLAS=<AUTO|ON|OFF> (default: AUTO)
 #   -D NUMKONG_COMPARE_TO_MKL=<AUTO|ON|OFF>  (default: AUTO)
-#   -D NUMKONG_BUILD_SHARED=<ON|OFF>         (default: ON when top-level, OFF as a subproject)
+#   -D NUMKONG_BUILD_LIBRARIES=<ON|OFF>      (default: ON when top-level, building and installing the static and
+#                                            shared libraries; OFF builds them only for a target that links them)
 #   -D NUMKONG_BUILD_SANITIZERS=<off|address|thread> (default: off, address also arms UndefinedBehaviorSanitizer)
 #   -D NUMKONG_WERROR=<ON|OFF>               (default: OFF, the `check` preset switches it on)
 #   -D NUMKONG_MARCH=<arch>                  (default: the NUMKONG_MARCH environment variable, empty for the
@@ -63,7 +64,7 @@
 # To cross-compile for Android ARM64 (requires ANDROID_NDK_ROOT):
 #
 #     cmake -B build_android -D CMAKE_TOOLCHAIN_FILE=cmake/toolchain-android-arm64.cmake \
-#           -D NUMKONG_BUILD_SHARED=ON
+#           -D NUMKONG_BUILD_LIBRARIES=ON
 #
 # To build with Intel ICX (Intel oneAPI DPC++/C++ Compiler):
 #
@@ -128,9 +129,11 @@ if (CMAKE_SYSTEM_NAME STREQUAL "WASI")
     set(numkong_os_wasi_ ON)
 endif ()
 
-option(NUMKONG_BUILD_SHARED "Compile a dynamic library" ${PROJECT_IS_TOP_LEVEL})
+option(NUMKONG_BUILD_LIBRARIES "Compile numkong_static and numkong_shared in the default build and install them"
+       ${PROJECT_IS_TOP_LEVEL}
+)
 option(NUMKONG_INSTALL "Install headers, libraries & the CMake package files" ${PROJECT_IS_TOP_LEVEL})
-option(NUMKONG_BUILD_TEST "Compile precision tests, and shared-library tests with NUMKONG_BUILD_SHARED" OFF)
+option(NUMKONG_BUILD_TEST "Compile precision tests, and shared-library tests with NUMKONG_BUILD_LIBRARIES" OFF)
 option(NUMKONG_BUILD_BENCH "Compile micro-benchmarks for current ISA" OFF)
 option(NUMKONG_BUILD_PYTHON "Compile the CPython extension over the static library" OFF)
 option(NUMKONG_BUILD_NODE "Compile the Node addon over the static library; cmake-js switches it on" OFF)
@@ -196,16 +199,18 @@ endif ()
 
 # What a consumer picks between, spelled as what they get:
 #
-# numkong::abi - the C headers of `c/`, declaring every public function, with nothing to link. numkong::cpp - the C++
-# SDK of `cpp/`, with the static library its wrappers dispatch through. numkong::header - the C headers, the kernels of
-# `include/` and the C++ SDK, compiled into the consumer's own units with `NUMKONG_HEADER_ONLY=1`. numkong::static and
-# numkong::shared - the compiled library, below.
+# numkong::abi - the C headers of `c/`, declaring every public function, with nothing to link. numkong::types - the
+# containers of `include/numkong/*.hpp`, calling nothing the library exports. numkong::header - the C headers and the
+# kernels of `include/`, compiled into the consumer's own units with `NUMKONG_HEADER_ONLY=1`. numkong::static and
+# numkong::shared - the compiled library, below. numkong::cpp - the C++ SDK of `cpp/`, with the static library its
+# verbs dispatch through.
 #
 # The include paths & sources wear `BUILD_INTERFACE` genexes, so the targets stay exportable: the installed package
 # resolves headers under the install prefix instead.
 include(GNUInstallDirs)
 file(GLOB numkong_abi_sources_ c/numkong/*.h)
 file(GLOB numkong_kernel_sources_ include/numkong/*.h)
+file(GLOB numkong_types_sources_ include/numkong/*.hpp)
 file(GLOB numkong_cpp_sources_ cpp/numkong/*.hpp)
 
 add_library(numkong_abi INTERFACE)
@@ -231,19 +236,33 @@ if (MSVC)
     target_compile_options(numkong_abi INTERFACE /Zc:preprocessor)
 endif ()
 
+# The containers, which need no define and link nothing beyond `numkong::abi`, as `cmake/numkong_types.cmake` checks.
+# The roots are listed here, not only inherited from `numkong::abi`, as
+# `$<TARGET_PROPERTY:numkong::types,INTERFACE_INCLUDE_DIRECTORIES>` does not follow links.
+add_library(numkong_types INTERFACE)
+add_library(numkong::types ALIAS numkong_types)
+set_target_properties(numkong_types PROPERTIES EXPORT_NAME types)
+target_sources(numkong_types INTERFACE "$<BUILD_INTERFACE:${numkong_types_sources_}>")
+target_include_directories(
+    numkong_types INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/c> $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+                            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+target_link_libraries(numkong_types INTERFACE numkong_abi)
+
 # The whole library header-only: the C headers of `numkong::abi` include the kernels of `include/` under
-# `NUMKONG_HEADER_ONLY`, and the C++ SDK of `cpp/` runs over them. The three roots are listed here, not only inherited
-# from `numkong::abi`, as `$<TARGET_PROPERTY:numkong::header,INTERFACE_INCLUDE_DIRECTORIES>` does not follow links.
+# `NUMKONG_HEADER_ONLY`, beside the containers. The C++ SDK of `cpp/` links the library, so it stays out. The roots are
+# listed here, not only inherited, as `$<TARGET_PROPERTY:numkong::header,INTERFACE_INCLUDE_DIRECTORIES>` does not follow
+# links.
 add_library(numkong_header INTERFACE)
 add_library(numkong::header ALIAS numkong_header)
 set_target_properties(numkong_header PROPERTIES EXPORT_NAME header)
-target_sources(numkong_header INTERFACE "$<BUILD_INTERFACE:${numkong_kernel_sources_};${numkong_cpp_sources_}>")
+target_sources(numkong_header INTERFACE "$<BUILD_INTERFACE:${numkong_kernel_sources_}>")
 target_include_directories(
     numkong_header
     INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/c> $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-              $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/cpp> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+              $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
-target_link_libraries(numkong_header INTERFACE numkong_abi)
+target_link_libraries(numkong_header INTERFACE numkong_types)
 # Consumers of the header target compile every kernel themselves, and link no dispatch points.
 target_compile_definitions(numkong_header INTERFACE NUMKONG_HEADER_ONLY=1)
 if (APPLE)
@@ -279,6 +298,8 @@ if (CMAKE_C_COMPILER_ID MATCHES "Clang")
 
     message(STATUS "Clang C modules enabled: cache at ${CMAKE_BINARY_DIR}/module-cache")
 endif ()
+
+include(cmake/numkong_types.cmake)
 
 include(cmake/numkong_platform.cmake)
 
@@ -465,7 +486,7 @@ if (NUMKONG_BUILD_BENCH)
         bench/cross_serial.cpp bench/cross_x8664.cpp bench/cross_arm64.cpp bench/cross_blas.cpp bench/cross_riscv64.cpp
         bench/cross_ppc64.cpp bench/cross_wasm.cpp bench/cross_loongarch64.cpp bench/cross_metal.cpp bench/maxsim.cpp
     )
-    target_link_libraries(numkong_bench numkong_static numkong_warnings fmt::fmt)
+    target_link_libraries(numkong_bench numkong_cpp numkong_warnings fmt::fmt)
     target_compile_features(numkong_bench PRIVATE cxx_std_20)
 
     # Mirror the shipped Release codegen.
@@ -488,7 +509,8 @@ endif ()
 # The library's units: one dispatch unit per family, holding its dispatch points and finder, and one
 # unit per enabled CPU capability, defining that capability's kernels of every family. Each unit names its own
 # capability, so every file compiles with the same flags and the units build in parallel. WebAssembly enables its
-# capabilities through NUMKONG_MARCH, so its units follow the platform.
+# capabilities through NUMKONG_MARCH, so its units follow the platform. A GPU vendor left out gets a unit of its runtime
+# services answering `nk_missing_gpu_k`, so every build exports the same names.
 set(numkong_dispatch_units_
     src/dispatch/dot.c src/dispatch/dots.c src/dispatch/spatial.c src/dispatch/spatials.c src/dispatch/set.c
     src/dispatch/sets.c src/dispatch/maxsim.c src/dispatch/attention.c src/dispatch/sparse.c src/dispatch/reduce.c
@@ -498,6 +520,9 @@ set(numkong_dispatch_units_
 set(numkong_library_units_
     ${numkong_dispatch_units_}
     src/capabilities/serial.c
+    $<$<NOT:$<BOOL:${NUMKONG_CUDA_ARCH}>>:src/missing/cuda.c>
+    $<$<NOT:$<BOOL:${NUMKONG_ROCM_ARCH}>>:src/missing/rocm.c>
+    $<$<NOT:$<BOOL:${NUMKONG_METAL_ARCH}>>:src/missing/metal.c>
     $<$<BOOL:${numkong_target_haswell_compiled}>:src/capabilities/haswell.c>
     $<$<BOOL:${numkong_target_alder_compiled}>:src/capabilities/alder.c>
     $<$<BOOL:${numkong_target_sierra_compiled}>:src/capabilities/sierra.c>
@@ -556,7 +581,7 @@ set(numkong_test_precompiled_ <chrono> <complex> <random> <regex> <string> <vect
 if (NUMKONG_BUILD_TEST)
     # C++ precision test (ULP-based error analysis)
     add_executable(numkong_cpu_test ${numkong_test_sources_})
-    target_link_libraries(numkong_cpu_test numkong_static numkong_warnings fmt::fmt ${numkong_cxx_math_library_})
+    target_link_libraries(numkong_cpu_test numkong_cpp numkong_warnings fmt::fmt ${numkong_cxx_math_library_})
     target_compile_features(numkong_cpu_test PRIVATE cxx_std_20)
     target_precompile_headers(numkong_cpu_test PRIVATE ${numkong_test_precompiled_})
 
@@ -583,14 +608,18 @@ if (NUMKONG_BUILD_TEST)
         find_package(Threads REQUIRED)
         add_executable(numkong_parallel_test test/parallel.cpp src/parallel.c)
         target_include_directories(numkong_parallel_test PRIVATE src)
-        target_link_libraries(numkong_parallel_test numkong_static numkong_warnings fmt::fmt Threads::Threads)
+        target_link_libraries(numkong_parallel_test numkong_cpp numkong_warnings fmt::fmt Threads::Threads)
         target_compile_features(numkong_parallel_test PRIVATE cxx_std_20)
         add_test(NAME numkong_parallel_test COMMAND numkong_parallel_test)
     endif ()
 
-    # The same suites compiling every kernel inline, with stubbed dispatch points, skipping the capabilities this CPU
-    # lacks.
-    add_executable(numkong_cpu_header_test ${numkong_test_sources_})
+    # Every capability's cross file compiling its kernels inline, with the stubbed dispatch points and finder, over the C
+    # headers and the containers alone, as the C++ SDK links the library; capabilities this CPU lacks are skipped.
+    add_executable(
+        numkong_cpu_header_test
+        test/main_header.cpp test/cross_serial.cpp test/cross_x8664.cpp test/cross_x8664amx.cpp test/cross_arm64.cpp
+        test/cross_riscv64.cpp test/cross_ppc64.cpp test/cross_loongarch64.cpp test/cross_wasm.cpp
+    )
     target_link_libraries(
         numkong_cpu_header_test numkong_header numkong_cpu_capabilities_compiled numkong_warnings fmt::fmt
         ${numkong_cxx_math_library_}
@@ -601,13 +630,15 @@ if (NUMKONG_BUILD_TEST)
 endif ()
 
 # The static library, which every binding but Swift links and a parent project reaches as `numkong::static`, and the
-# shared library, or the Emscripten JS module
-set(numkong_library_sources_ ${numkong_abi_sources_} ${numkong_kernel_sources_} ${numkong_cpp_sources_} src/numkong.c
-                             ${numkong_library_units_}
-)
+# shared library, or the Emscripten JS module. WASI has no dynamic loader, so it builds the static one alone. Without
+# `NUMKONG_BUILD_LIBRARIES`, they build only for the targets that link them.
+set(numkong_library_sources_ ${numkong_abi_sources_} ${numkong_kernel_sources_} src/numkong.c ${numkong_library_units_})
+if (NOT NUMKONG_BUILD_LIBRARIES)
+    set(numkong_library_exclusion_ EXCLUDE_FROM_ALL)
+endif ()
 
 # Emscripten requires building as executable to generate JS bindings
-if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NUMKONG_BUILD_SHARED)
+if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
     set(numkong_libraries_ numkong_shared numkong_static)
     # Detect wasm64 (memory64) mode
     if (CMAKE_SYSTEM_PROCESSOR STREQUAL "wasm64")
@@ -617,10 +648,10 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NUMKONG_BUILD_SHARED)
     endif ()
 
     # An executable needs `main`, which the stub gives the JS module.
-    add_executable(numkong_shared ${numkong_library_sources_} src/emscripten_stub.c)
+    add_executable(numkong_shared ${numkong_library_exclusion_} ${numkong_library_sources_} src/emscripten_stub.c)
 
     # Consumers that `add_subdirectory(numkong)` link a library, not the `.js` executable.
-    add_library(numkong_static STATIC ${numkong_library_sources_})
+    add_library(numkong_static STATIC ${numkong_library_exclusion_} ${numkong_library_sources_})
     add_library(numkong::static ALIAS numkong_static)
     set_target_properties(numkong_static PROPERTIES EXPORT_NAME static)
 
@@ -664,20 +695,18 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NUMKONG_BUILD_SHARED)
     # add_subdirectory(numkong) and link to numkong_shared need this.
     set_target_properties(numkong_shared PROPERTIES ENABLE_EXPORTS ON)
 else ()
-    if (NUMKONG_BUILD_SHARED)
-        set(numkong_libraries_ numkong_static numkong_shared)
-    else ()
-        set(numkong_libraries_ numkong_static)
-    endif ()
-    add_library(numkong_static STATIC ${numkong_library_sources_})
+    add_library(numkong_static STATIC ${numkong_library_exclusion_} ${numkong_library_sources_})
     add_library(numkong::static ALIAS numkong_static)
     # Position-independent, as the bindings link it into shared objects and position-independent executables.
     set_target_properties(numkong_static PROPERTIES EXPORT_NAME static POSITION_INDEPENDENT_CODE ON)
-    if (NUMKONG_BUILD_SHARED)
-        add_library(numkong_shared SHARED ${numkong_library_sources_})
+    if (CMAKE_SYSTEM_NAME STREQUAL "WASI")
+        set(numkong_libraries_ numkong_static)
+    else ()
+        add_library(numkong_shared SHARED ${numkong_library_exclusion_} ${numkong_library_sources_})
         add_library(numkong::shared ALIAS numkong_shared)
         # Windows exports every symbol, as `NUMKONG_API` spells no `__declspec` for the DLL.
         set_target_properties(numkong_shared PROPERTIES EXPORT_NAME shared WINDOWS_EXPORT_ALL_SYMBOLS ON)
+        set(numkong_libraries_ numkong_static numkong_shared)
     endif ()
     foreach (library_ ${numkong_libraries_})
         # MSVC gates the C11 atomics `src/numkong.c` caches detection in behind a flag.
@@ -728,9 +757,8 @@ foreach (library_ ${numkong_libraries_})
     target_link_libraries(${library_} PRIVATE $<BUILD_INTERFACE:numkong_warnings>)
     target_link_libraries(${library_} PUBLIC numkong_abi)
     target_include_directories(
-        ${library_}
-        PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/cpp>
-               $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+        ${library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+                           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     )
     # The library's units reach their private `dispatch.h` by name.
     target_include_directories(${library_} PRIVATE "${PROJECT_SOURCE_DIR}/src")
@@ -789,7 +817,7 @@ if (NUMKONG_BUILD_NODE)
 endif ()
 
 # Shared-library test (tests runtime dispatch path)
-if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_SHARED)
+if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_LIBRARIES AND TARGET numkong_shared)
     add_executable(numkong_cpu_shared_test ${numkong_test_sources_})
     target_include_directories(
         numkong_cpu_shared_test PRIVATE "${PROJECT_SOURCE_DIR}/c" "${PROJECT_SOURCE_DIR}/include"

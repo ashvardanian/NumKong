@@ -16,15 +16,294 @@
 #include <cmath>   // `std::sqrt`, `std::floor`
 #include <cstring> // `std::memcmp`, `std::memcpy`
 
-#include <limits> // `std::numeric_limits`
-#include <random> // `std::normal_distribution`, `std::uniform_real_distribution`
+#include <limits>      // `std::numeric_limits`
+#include <random>      // `std::normal_distribution`, `std::uniform_real_distribution`
+#include <type_traits> // `std::conditional_t`
 
-#include "numkong/geospatial.h"   // `nk_haversines_error_bound`, `nk_vincentys_error_bound`
-#include "numkong/geospatial.hpp" // `nk::haversines`, `nk::terrain_heights_packed`, `nk::clearances_packed`
+#include "numkong/geospatial.h" // `nk_haversines_error_bound`, `nk_vincentys_error_bound`
+#include "numkong/geospatial.hpp"
+#include "numkong/random.hpp" // `nk::fill_coordinates`
 
 #include "harness.hpp"
 
 namespace ashvardanian::numkong::test {
+
+/**
+ *  @brief Great-circle metres between every row and every column point on the mean sphere,
+ *      through the haversine 2R · atan2(√h, √(1 − h)) evaluated in @p precision_type_,
+ *      where h = sin²(Δφ / 2) + cos φ₁ · cos φ₂ · sin²(Δλ / 2).
+ *  @param[in] a_latitudes The @p rows row latitudes, in radians.
+ *  @param[in] a_longitudes The @p rows row longitudes, in radians.
+ *  @param[in] rows Number of row points.
+ *  @param[in] b_latitudes The @p columns column latitudes, in radians.
+ *  @param[in] b_longitudes The @p columns column longitudes, in radians.
+ *  @param[in] columns Number of column points.
+ *  @param[out] results The @b [rows,columns] distances, @p results_stride bytes apart.
+ *  @param[in] results_stride Bytes between the rows of @p results.
+ */
+template <a_numeric_dtype precision_type_>
+void haversines_reference(f64_t const *a_latitudes, f64_t const *a_longitudes, std::size_t rows,
+                          f64_t const *b_latitudes, f64_t const *b_longitudes, std::size_t columns, f64_t *results,
+                          std::size_t results_stride) noexcept {
+    precision_type_ const earth_radius = precision_type_(NUMKONG_EARTH_MEAN_RADIUS);
+    precision_type_ const half = precision_type_(0.5), one = precision_type_(1.0), two = precision_type_(2.0);
+    for (std::size_t row = 0; row != rows; ++row) {
+        f64_t *output = reinterpret_cast<f64_t *>(reinterpret_cast<char *>(results) + row * results_stride);
+        precision_type_ const first_latitude = precision_type_(a_latitudes[row]);
+        precision_type_ const first_longitude = precision_type_(a_longitudes[row]);
+        for (std::size_t column = 0; column != columns; ++column) {
+            precision_type_ const second_latitude = precision_type_(b_latitudes[column]);
+            precision_type_ const second_longitude = precision_type_(b_longitudes[column]);
+            precision_type_ const sin_latitude_half = ((second_latitude - first_latitude) * half).sin();
+            precision_type_ const sin_longitude_half = ((second_longitude - first_longitude) * half).sin();
+            precision_type_ const haversine = sin_latitude_half * sin_latitude_half +
+                                              first_latitude.cos() * second_latitude.cos() * sin_longitude_half *
+                                                  sin_longitude_half;
+            precision_type_ const angle = two * square_root_reference(haversine).atan2(
+                                                    square_root_reference(one - haversine));
+            output[column] = f64_t(to_double(earth_radius * angle));
+        }
+    }
+}
+
+/** Geodesic metres on the WGS-84 ellipsoid between two points, given the sines and cosines of
+ *  their reduced latitudes and the @p longitude_difference from the first to the second, through
+ *  Vincenty's inverse formula in @p precision_type_. */
+template <a_numeric_dtype precision_type_>
+precision_type_ vincenty_reference_(precision_type_ sin_reduced_first, precision_type_ cos_reduced_first,
+                                    precision_type_ sin_reduced_second, precision_type_ cos_reduced_second,
+                                    precision_type_ longitude_difference) noexcept {
+    using precision_t = precision_type_;
+    precision_t const equatorial_radius = precision_t(NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
+    precision_t const flattening = precision_t(1.0) / precision_t(NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING);
+    precision_t const polar_radius = equatorial_radius * (precision_t(1.0) - flattening);
+    precision_t const convergence_threshold = precision_t(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F64);
+    precision_t lambda = longitude_difference;
+    precision_t sin_angular_distance, cos_angular_distance, angular_distance;
+    precision_t cos_squared_azimuth, cos_double_angular_midpoint;
+    bool coincident = false;
+    for (int iteration = 0; iteration != NUMKONG_VINCENTY_MAX_ITERATIONS; ++iteration) {
+        precision_t const sin_lambda = lambda.sin(), cos_lambda = lambda.cos();
+        precision_t const cross_term = cos_reduced_second * sin_lambda;
+        precision_t const mixed_term = cos_reduced_first * sin_reduced_second -
+                                       sin_reduced_first * cos_reduced_second * cos_lambda;
+        sin_angular_distance = square_root_reference(cross_term * cross_term + mixed_term * mixed_term);
+        if (sin_angular_distance == precision_t(0.0)) {
+            coincident = true;
+            break;
+        }
+        cos_angular_distance = sin_reduced_first * sin_reduced_second +
+                               cos_reduced_first * cos_reduced_second * cos_lambda;
+        angular_distance = sin_angular_distance.atan2(cos_angular_distance);
+        precision_t const sin_azimuth = cos_reduced_first * cos_reduced_second * sin_lambda / sin_angular_distance;
+        cos_squared_azimuth = precision_t(1.0) - sin_azimuth * sin_azimuth;
+        cos_double_angular_midpoint = cos_squared_azimuth != precision_t(0.0)
+                                          ? cos_angular_distance - precision_t(2.0) * sin_reduced_first *
+                                                                       sin_reduced_second / cos_squared_azimuth
+                                          : precision_t(0.0);
+        precision_t const correction_factor =
+            flattening / precision_t(16.0) * cos_squared_azimuth *
+            (precision_t(4.0) + flattening * (precision_t(4.0) - precision_t(3.0) * cos_squared_azimuth));
+        precision_t const lambda_previous = lambda;
+        lambda = longitude_difference +
+                 (precision_t(1.0) - correction_factor) * flattening * sin_azimuth *
+                     (angular_distance + correction_factor * sin_angular_distance *
+                                             (cos_double_angular_midpoint +
+                                              correction_factor * cos_angular_distance *
+                                                  (precision_t(-1.0) + precision_t(2.0) * cos_double_angular_midpoint *
+                                                                           cos_double_angular_midpoint)));
+        if (!((lambda - lambda_previous).abs() > convergence_threshold)) break;
+    }
+    if (coincident) return precision_t(0.0);
+    precision_t const u_squared = cos_squared_azimuth *
+                                  (equatorial_radius * equatorial_radius - polar_radius * polar_radius) /
+                                  (polar_radius * polar_radius);
+    precision_t const series_a =
+        precision_t(1.0) +
+        u_squared / precision_t(16384.0) *
+            (precision_t(4096.0) +
+             u_squared * (precision_t(-768.0) + u_squared * (precision_t(320.0) - precision_t(175.0) * u_squared)));
+    precision_t const series_b =
+        u_squared / precision_t(1024.0) *
+        (precision_t(256.0) +
+         u_squared * (precision_t(-128.0) + u_squared * (precision_t(74.0) - precision_t(47.0) * u_squared)));
+    precision_t const angular_correction =
+        series_b * sin_angular_distance *
+        (cos_double_angular_midpoint +
+         series_b / precision_t(4.0) *
+             (cos_angular_distance *
+                  (precision_t(-1.0) + precision_t(2.0) * cos_double_angular_midpoint * cos_double_angular_midpoint) -
+              series_b / precision_t(6.0) * cos_double_angular_midpoint *
+                  (precision_t(-3.0) + precision_t(4.0) * sin_angular_distance * sin_angular_distance) *
+                  (precision_t(-3.0) + precision_t(4.0) * cos_double_angular_midpoint * cos_double_angular_midpoint)));
+    return polar_radius * series_a * (angular_distance - angular_correction);
+}
+
+/** Geodesic metres on the WGS-84 ellipsoid between every row and every column point, through
+ *  Vincenty's inverse formula in @p precision_type_, with the reduced latitudes taken through
+ *  atan2 to stay finite at the poles; parameters as @c haversines_reference. */
+template <a_numeric_dtype precision_type_>
+void vincentys_reference(f64_t const *a_latitudes, f64_t const *a_longitudes, std::size_t rows,
+                         f64_t const *b_latitudes, f64_t const *b_longitudes, std::size_t columns, f64_t *results,
+                         std::size_t results_stride) noexcept {
+    using precision_t = precision_type_;
+    precision_t const flattening = precision_t(1.0) / precision_t(NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING);
+    auto reduced = [&](f64_t latitude) noexcept {
+        precision_t const angle = precision_t(latitude);
+        return ((precision_t(1.0) - flattening) * angle.sin()).atan2(angle.cos());
+    };
+
+    for (std::size_t row = 0; row != rows; ++row) {
+        f64_t *output = reinterpret_cast<f64_t *>(reinterpret_cast<char *>(results) + row * results_stride);
+        precision_t const reduced_first = reduced(a_latitudes[row]);
+        for (std::size_t column = 0; column != columns; ++column) {
+            precision_t const reduced_second = reduced(b_latitudes[column]);
+            precision_t const longitude_difference = precision_t(b_longitudes[column]) - precision_t(a_longitudes[row]);
+            output[column] = f64_t(to_double(
+                vincenty_reference_<precision_t>(reduced_first.sin(), reduced_first.cos(), reduced_second.sin(),
+                                                 reduced_second.cos(), longitude_difference)));
+        }
+    }
+}
+
+/** Bilinear heights under @p count interleaved [column, row] points of a @p rows × @p columns grid,
+ *  its rows @p stride bytes apart, NaN off the grid, rounding once into @p result_type_ from at
+ *  least @c f64_t, as the kernels do. */
+template <typename result_type_>
+void terrain_heights_reference(f32_t const *heights, std::size_t rows, std::size_t columns, std::size_t stride,
+                               f32_t const *points, std::size_t count, result_type_ *results) noexcept {
+    using math_t = std::conditional_t<(sizeof(result_type_) < sizeof(f64_t)), f64_t, result_type_>;
+    math_t const zero(0.0), last_row(to_double(rows - 1)), last_column(to_double(columns - 1));
+    auto const height = [&](std::size_t row, std::size_t column) noexcept {
+        f32_t const *line = reinterpret_cast<f32_t const *>(reinterpret_cast<char const *>(heights) + row * stride);
+        return math_t(to_double(line[column].raw_));
+    };
+    // The index of the cell a coordinate on the grid falls in, its fraction left to interpolate
+    auto const cell = [](math_t coordinate) noexcept {
+        std::size_t index = static_cast<std::size_t>(to_double(coordinate));
+        if (coordinate < math_t(to_double(index))) --index;
+        return index;
+    };
+    for (std::size_t point = 0; point != count; ++point) {
+        math_t const column(to_double(points[point * 2].raw_));
+        math_t const row(to_double(points[point * 2 + 1].raw_));
+        if (!(zero <= column && column <= last_column && zero <= row && row <= last_row)) {
+            results[point] = result_type_(std::numeric_limits<double>::quiet_NaN());
+            continue;
+        }
+        std::size_t column_first = cell(column), row_first = cell(row);
+        if (column_first + 1 == columns && columns > 1) --column_first;
+        if (row_first + 1 == rows && rows > 1) --row_first;
+        std::size_t const column_second = columns > 1 ? column_first + 1 : column_first;
+        std::size_t const row_second = rows > 1 ? row_first + 1 : row_first;
+        math_t const column_fraction = column - math_t(to_double(column_first));
+        math_t const row_fraction = row - math_t(to_double(row_first));
+        math_t const north_west = height(row_first, column_first), north_east = height(row_first, column_second);
+        math_t const south_west = height(row_second, column_first), south_east = height(row_second, column_second);
+        math_t const north = north_west + column_fraction * (north_east - north_west);
+        math_t const south = south_west + column_fraction * (south_east - south_west);
+        results[point] = result_type_(to_double(north + row_fraction * (south - north)));
+    }
+}
+
+/** Clearances from every row viewpoint to every column target, rounding once into @p result_type_
+ *  from at least @c f64_t: the lowest gap over every crossing of the sight line with the grid
+ *  lines, without the pyramid, NaN when either end leaves the grid, and minus infinity when the
+ *  target falls outside the viewpoint's view. The grid takes the parameters of @c terrain_pack. */
+template <typename result_type_>
+void clearances_reference(f32_t const *heights, std::size_t grid_rows, std::size_t grid_columns, std::size_t stride,
+                          f64_t grid_row_metres, f64_t grid_column_metres, f32_t const *viewpoints, f32_t const *views,
+                          std::size_t rows, f32_t const *targets, std::size_t columns, f64_t refraction,
+                          result_type_ *results, std::size_t results_stride) noexcept {
+    using math_t = std::conditional_t<(sizeof(result_type_) < sizeof(f64_t)), f64_t, result_type_>;
+    math_t const zero(0.0), one(1.0), two(2.0);
+    math_t const last_row(to_double(grid_rows - 1)), last_column(to_double(grid_columns - 1));
+    math_t const row_metres(grid_row_metres.raw_), column_metres(grid_column_metres.raw_);
+    math_t const drop_scale = (one - math_t(refraction.raw_)) / (two * math_t(NUMKONG_EARTH_MEAN_RADIUS));
+    math_t const full_turn(2 * 3.14159265358979323846);
+    auto const value = [](f32_t const *values, std::size_t index) noexcept {
+        return math_t(to_double(values[index].raw_));
+    };
+    auto const height = [&](std::size_t row, std::size_t column) noexcept {
+        f32_t const *line = reinterpret_cast<f32_t const *>(reinterpret_cast<char const *>(heights) + row * stride);
+        return math_t(to_double(line[column].raw_));
+    };
+    auto const cell = [](math_t coordinate) noexcept {
+        std::size_t index = static_cast<std::size_t>(to_double(coordinate));
+        if (coordinate < math_t(to_double(index))) --index;
+        return index;
+    };
+    // Both ends lie on the grid, so only a rounding near an edge can step a crossing outside it
+    auto const clamp = [&](math_t coordinate, math_t last) noexcept {
+        return coordinate < zero ? zero : (last < coordinate ? last : coordinate);
+    };
+    // A view of azimuth, elevation, field and range, all optional, hides what falls outside it
+    auto const outside = [&](math_t east, math_t north, math_t up, f32_t const *view) noexcept {
+        math_t const azimuth = value(view, 0), elevation = value(view, 1), field = value(view, 2);
+        math_t const range = value(view, 3);
+        math_t const slant = square_root_reference(east * east + north * north + up * up);
+        if (range == range && range < slant) return true;
+        if (azimuth != azimuth || !(field < full_turn)) return false;
+        math_t const half_field = field / two;
+        if (elevation != elevation) {
+            math_t const ground = square_root_reference(east * east + north * north);
+            if (ground == zero) return false;
+            return (east * azimuth.sin() + north * azimuth.cos()) / ground < half_field.cos();
+        }
+        if (slant == zero) return false;
+        math_t const cos_elevation = elevation.cos();
+        math_t const along = east * azimuth.sin() * cos_elevation + north * azimuth.cos() * cos_elevation +
+                             up * elevation.sin();
+        return along / slant < half_field.cos();
+    };
+    // One pass per sight line, its viewpoint and target read off the line's index
+    for (std::size_t sight = 0; sight != rows * columns; ++sight) {
+        std::size_t const row = sight / columns, column = sight % columns;
+        result_type_ *output = reinterpret_cast<result_type_ *>(reinterpret_cast<char *>(results) +
+                                                                row * results_stride);
+        math_t const column_start = value(viewpoints, row * 3), row_start = value(viewpoints, row * 3 + 1);
+        math_t const height_start = value(viewpoints, row * 3 + 2);
+        bool const viewpoint_on_grid = zero <= column_start && column_start <= last_column && zero <= row_start &&
+                                       row_start <= last_row;
+        math_t const column_end = value(targets, column * 3), row_end = value(targets, column * 3 + 1);
+        if (!viewpoint_on_grid ||
+            !(zero <= column_end && column_end <= last_column && zero <= row_end && row_end <= last_row)) {
+            output[column] = result_type_(std::numeric_limits<double>::quiet_NaN());
+            continue;
+        }
+        math_t const column_delta = column_end - column_start, row_delta = row_end - row_start;
+        math_t const east = column_delta * column_metres, south = row_delta * row_metres;
+        math_t const distance = square_root_reference(east * east + south * south);
+        math_t const height_delta = value(targets, column * 3 + 2) - drop_scale * distance * distance - height_start;
+        if (views && outside(east, -south, height_delta, views + row * 4)) {
+            output[column] = result_type_(-std::numeric_limits<double>::infinity());
+            continue;
+        }
+        math_t clearance(std::numeric_limits<double>::infinity());
+        auto const fold = [&](math_t u, math_t first, math_t second, math_t fraction) noexcept {
+            math_t const ground = fraction == zero ? first : first + fraction * (second - first);
+            if (ground != ground) return;
+            math_t const along = u * distance;
+            math_t const gap = height_start + u * height_delta - (ground - drop_scale * along * along);
+            if (gap < clearance) clearance = gap;
+        };
+        for (std::size_t line = 0; line != grid_columns && column_delta != zero; ++line) {
+            math_t const u = (math_t(to_double(line)) - column_start) / column_delta;
+            if (!(zero < u && u < one)) continue;
+            math_t const crossing = clamp(row_start + u * row_delta, last_row);
+            std::size_t const first = cell(crossing), second = first + 1 < grid_rows ? first + 1 : first;
+            fold(u, height(first, line), height(second, line), crossing - math_t(to_double(first)));
+        }
+        for (std::size_t line = 0; line != grid_rows && row_delta != zero; ++line) {
+            math_t const u = (math_t(to_double(line)) - row_start) / row_delta;
+            if (!(zero < u && u < one)) continue;
+            math_t const crossing = clamp(column_start + u * column_delta, last_column);
+            std::size_t const first = cell(crossing), second = first + 1 < grid_columns ? first + 1 : first;
+            fold(u, height(line, first), height(line, second), crossing - math_t(to_double(first)));
+        }
+        output[column] = result_type_(to_double(clearance));
+    }
+}
 
 /** Geodesic inputs: columns anywhere within a cap, near their rows, on them, opposite them, or on
  *  the poles, the equator and the antimeridian. */
@@ -115,13 +394,13 @@ error_stats_t test_geodesics_packed(pack_size_type_ pack_size, pack_type_ pack, 
                 if (!stats.expect_status(backend.synchronize())) return stats;
                 std::vector<scalar_t> reference(rows * columns);
                 if constexpr (spherical)
-                    nk::haversines<f118_t>(a_lat, a_lon, rows, b_lat, b_lon, columns, reference.data(),
-                                           columns * sizeof(scalar_t));
+                    haversines_reference<f118_t>(a_lat, a_lon, rows, b_lat, b_lon, columns, reference.data(),
+                                                 columns * sizeof(scalar_t));
                 else
-                    nk::vincentys<f118_t>(a_lat, a_lon, rows, b_lat, b_lon, columns, reference.data(),
-                                          columns * sizeof(scalar_t));
+                    vincentys_reference<f118_t>(a_lat, a_lon, rows, b_lat, b_lon, columns, reference.data(),
+                                                columns * sizeof(scalar_t));
                 for (std::size_t cell = 0; cell != reference.size(); ++cell) {
-                    double const expected = static_cast<double>(reference[cell]);
+                    double const expected = to_double(reference[cell]);
                     double const bound = spherical ? stats.term_error_bound * NUMKONG_EARTH_MEAN_RADIUS *
                                                          (1 + expected / NUMKONG_EARTH_MEAN_RADIUS)
                                                    : stats.term_error_bound * NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS;
@@ -138,9 +417,8 @@ error_stats_t test_geodesics_packed(pack_size_type_ pack_size, pack_type_ pack, 
                              static_cast<void const *>(b_packed.raw_values_data()), results.raw_values_data(),
                              sizeof(raw_t));
                 if (!stats.expect_status(backend.synchronize())) return stats;
-                nk::vincentys<f118_t>(a_lat, a_lon, 1, b_lat, b_lon, 1, reference.data(), sizeof(scalar_t));
-                stats.accumulate_bounded(scalar_t::from_raw(results.raw_values_data()[0]),
-                                         static_cast<double>(reference[0]),
+                vincentys_reference<f118_t>(a_lat, a_lon, 1, b_lat, b_lon, 1, reference.data(), sizeof(scalar_t));
+                stats.accumulate_bounded(scalar_t(results[0]), to_double(reference[0]),
                                          stats.term_error_bound * NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
             }
         }
@@ -262,22 +540,18 @@ error_stats_t test_terrain_packed(pack_size_type_ pack_size, pack_type_ pack_ker
                              clearances.raw_values_data() + pass * cells, targets_count * sizeof(raw_t));
             if (!stats.expect_status(backend.synchronize())) return stats;
 
-            auto expected_packed = make_vector<std::byte>(bytes);
-            stats.expect_status(nk::terrain_pack(heights.values_data(), rows, columns, padded * sizeof(raw_t),
-                                                 row_metres, column_metres, expected_packed.raw_values_data()));
             // Heights and viewed clearances against their templates in f64, as the kernels compute
             std::vector<f64_t> expected(nk::max_of(points_count, cells));
-            stats.expect_status(nk::terrain_heights_packed<scalar_t, f64_t>(
-                heights.values_data(), expected_packed.raw_values_data(), points.values_data(), points_count,
-                expected.data(), no_tiers_k));
+            terrain_heights_reference<f64_t>(heights.values_data(), rows, columns, padded * sizeof(raw_t),
+                                             points.values_data(), points_count, expected.data());
             for (std::size_t point = 0; point != points_count; ++point)
                 stats.expect_true(
                     same(point_heights.raw_values_data()[point], static_cast<raw_t>(expected[point].raw_)),
                     "a terrain height differs from its template");
-            stats.expect_status(nk::clearances_packed<scalar_t, f64_t>(
-                heights.values_data(), expected_packed.raw_values_data(), viewpoints.values_data(), views.values_data(),
-                viewpoints_count, targets.values_data(), targets_count, refractions[1], expected.data(),
-                targets_count * sizeof(f64_t), no_tiers_k));
+            clearances_reference<f64_t>(heights.values_data(), rows, columns, padded * sizeof(raw_t), row_metres,
+                                        column_metres, viewpoints.values_data(), views.values_data(), viewpoints_count,
+                                        targets.values_data(), targets_count, refractions[1], expected.data(),
+                                        targets_count * sizeof(f64_t));
             raw_t const *viewed = clearances.raw_values_data() + cells;
             for (std::size_t cell = 0; cell != cells; ++cell)
                 stats.expect_true(

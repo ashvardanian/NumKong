@@ -1,8 +1,8 @@
 /**
- *  @file cpp/numkong/vector.hpp
+ *  @file include/numkong/vector.hpp
  *  @author Ash Vardanian
  *  @date January 7, 2026
- *  @brief NumKong vector types for C++23 and newer.
+ *  @brief NumKong vector types for C++20 and newer.
  *
  *  Provides owning and non-owning vector types with signed indexing, strided views, and sub-byte
  *  element support built in.
@@ -47,7 +47,7 @@
 #include <utility>     // `std::exchange`, `std::swap`
 
 #include "numkong/memory.hpp" // `aligned_allocator`, `allocator`
-#include "types.hpp"
+#include "numkong/types.hpp"
 
 namespace ashvardanian::numkong {
 
@@ -750,17 +750,6 @@ struct vector {
         else
             for (size_type i = 0; i < values; ++i) ptr[i] = value_type_ {};
         return result;
-    }
-
-    /**
-     *  @brief Factory: allocate a vector filled with ones.
-     *  @return The vector.
-     *
-     *  @par Statuses:
-     *  - @c unexpected_dimensions_k As @c full reports.
-     */
-    static expected<vector> ones(size_type dims, allocator_type_ alloc = {}) noexcept {
-        return full(dims, value_type_ {1}, alloc);
     }
 
     /**

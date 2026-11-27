@@ -8,8 +8,27 @@
 
 #include "harness.hpp"
 #include "numkong/trigonometry.hpp"
+#include "numkong/random.hpp" // `nk::fill_uniform`
 
 namespace ashvardanian::numkong::test {
+
+/** Elementwise sin evaluated in @p precision_type_ and rounded once into @p in_type_. */
+template <typename in_type_, typename precision_type_>
+void sin_reference(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
+    for (std::size_t i = 0; i < n; i++) out[i] = narrow<in_type_>(widen<precision_type_>(in[i]).sin());
+}
+
+/** Elementwise cos evaluated in @p precision_type_ and rounded once into @p in_type_. */
+template <typename in_type_, typename precision_type_>
+void cos_reference(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
+    for (std::size_t i = 0; i < n; i++) out[i] = narrow<in_type_>(widen<precision_type_>(in[i]).cos());
+}
+
+/** Elementwise arctan evaluated in @p precision_type_ and rounded once into @p in_type_. */
+template <typename in_type_, typename precision_type_>
+void atan_reference(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
+    for (std::size_t i = 0; i < n; i++) out[i] = narrow<in_type_>(widen<precision_type_>(in[i]).atan());
+}
 
 /** F16 kernels round an F32 result, which can land on the far side of an F16 tie from the exact
  *  value, so each F16 result may sit one F16 ULP from the rounded reference; wider types are held
@@ -32,17 +51,17 @@ error_stats_t test_sin(typename scalar_type_::trigonometry_kernel_t kernel) {
          reference = make_vector<scalar_t>(test_run.settings.dense_dimensions);
 
     for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
-        nk::fill_uniform(generator, inputs.values_data(), inputs.size_values(), -scalar_t::two_pi_k(),
-                         scalar_t::two_pi_k());
+        nk::fill_uniform(generator, inputs.values_data(), inputs.size_values(), -f64_t::two_pi_k().raw_,
+                         f64_t::two_pi_k().raw_);
 
         stats.expect_status(
             kernel(inputs.raw_values_data(), test_run.settings.dense_dimensions, outputs.raw_values_data(), nullptr));
-        stats.expect_status(nk::sin<scalar_t, reference_t>(inputs.values_data(), test_run.settings.dense_dimensions,
-                                                           reference.values_data(), no_tiers_k));
+        sin_reference<scalar_t, reference_t>(inputs.values_data(), test_run.settings.dense_dimensions,
+                                             reference.values_data());
 
         for (std::size_t i = 0; i < test_run.settings.dense_dimensions; i++)
             if constexpr (trigonometry_bounded<scalar_t>)
-                stats.accumulate_bounded(outputs[i], reference[i], half_ulp<scalar_t>(reference[i]));
+                stats.accumulate_bounded(outputs[i], reference[i], half_ulp<scalar_t>(to_double(reference[i])));
             else stats.accumulate(outputs[i], reference[i]);
     }
     return stats;
@@ -63,17 +82,17 @@ error_stats_t test_cos(typename scalar_type_::trigonometry_kernel_t kernel) {
          reference = make_vector<scalar_t>(test_run.settings.dense_dimensions);
 
     for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
-        nk::fill_uniform(generator, inputs.values_data(), inputs.size_values(), -scalar_t::two_pi_k(),
-                         scalar_t::two_pi_k());
+        nk::fill_uniform(generator, inputs.values_data(), inputs.size_values(), -f64_t::two_pi_k().raw_,
+                         f64_t::two_pi_k().raw_);
 
         stats.expect_status(
             kernel(inputs.raw_values_data(), test_run.settings.dense_dimensions, outputs.raw_values_data(), nullptr));
-        stats.expect_status(nk::cos<scalar_t, reference_t>(inputs.values_data(), test_run.settings.dense_dimensions,
-                                                           reference.values_data(), no_tiers_k));
+        cos_reference<scalar_t, reference_t>(inputs.values_data(), test_run.settings.dense_dimensions,
+                                             reference.values_data());
 
         for (std::size_t i = 0; i < test_run.settings.dense_dimensions; i++)
             if constexpr (trigonometry_bounded<scalar_t>)
-                stats.accumulate_bounded(outputs[i], reference[i], half_ulp<scalar_t>(reference[i]));
+                stats.accumulate_bounded(outputs[i], reference[i], half_ulp<scalar_t>(to_double(reference[i])));
             else stats.accumulate(outputs[i], reference[i]);
     }
     return stats;
@@ -94,16 +113,16 @@ error_stats_t test_atan(typename scalar_type_::trigonometry_kernel_t kernel) {
          reference = make_vector<scalar_t>(test_run.settings.dense_dimensions);
 
     for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
-        nk::fill_uniform(generator, inputs.values_data(), inputs.size_values(), scalar_t(-10.0), scalar_t(10.0));
+        nk::fill_uniform(generator, inputs.values_data(), inputs.size_values(), -10.0, 10.0);
 
         stats.expect_status(
             kernel(inputs.raw_values_data(), test_run.settings.dense_dimensions, outputs.raw_values_data(), nullptr));
-        stats.expect_status(nk::atan<scalar_t, reference_t>(inputs.values_data(), test_run.settings.dense_dimensions,
-                                                            reference.values_data(), no_tiers_k));
+        atan_reference<scalar_t, reference_t>(inputs.values_data(), test_run.settings.dense_dimensions,
+                                              reference.values_data());
 
         for (std::size_t i = 0; i < test_run.settings.dense_dimensions; i++)
             if constexpr (trigonometry_bounded<scalar_t>)
-                stats.accumulate_bounded(outputs[i], reference[i], half_ulp<scalar_t>(reference[i]));
+                stats.accumulate_bounded(outputs[i], reference[i], half_ulp<scalar_t>(to_double(reference[i])));
             else stats.accumulate(outputs[i], reference[i]);
     }
     return stats;
@@ -121,14 +140,12 @@ void run_trigonometry_cases() {
     run_kernel_case("nk_trig_cos_f16_serial", test_cos<f16_t>, nk_cap_serial_k, nk_trig_cos_f16_serial);
     run_kernel_case("nk_trig_atan_f16_serial", test_atan<f16_t>, nk_cap_serial_k, nk_trig_atan_f16_serial);
 
-#if !NUMKONG_HEADER_ONLY
     run_kernel_case("nk_trig_sin_f32_best", test_sin<f32_t>, nk_cap_serial_k, cpu_best<nk_trig_sin_f32_best>);
     run_kernel_case("nk_trig_cos_f32_best", test_cos<f32_t>, nk_cap_serial_k, cpu_best<nk_trig_cos_f32_best>);
     run_kernel_case("nk_trig_atan_f32_best", test_atan<f32_t>, nk_cap_serial_k, cpu_best<nk_trig_atan_f32_best>);
     run_kernel_case("nk_trig_sin_f64_best", test_sin<f64_t>, nk_cap_serial_k, cpu_best<nk_trig_sin_f64_best>);
     run_kernel_case("nk_trig_cos_f64_best", test_cos<f64_t>, nk_cap_serial_k, cpu_best<nk_trig_cos_f64_best>);
     run_kernel_case("nk_trig_atan_f64_best", test_atan<f64_t>, nk_cap_serial_k, cpu_best<nk_trig_atan_f64_best>);
-#endif
 
 #if NUMKONG_TARGET_NEON
     run_kernel_case("nk_trig_sin_f32_neon", test_sin<f32_t>, nk_cap_neon_k, nk_trig_sin_f32_neon);

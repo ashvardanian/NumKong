@@ -4,18 +4,37 @@
  *  @date February 5, 2026
  *  @brief Random number generation utilities for NumKong types.
  *
- *  Lightweight header with random fill functions for testing and benchmarking.
- *  Only depends on types.hpp to minimize compilation overhead.
+ *  Lightweight header with random fill functions for testing and benchmarking. Narrow floats take
+ *  their values through @c nk::cast, so this header links the library.
  */
+#if defined(NUMKONG_HEADER_ONLY) && NUMKONG_HEADER_ONLY
+#error "The NumKong C++ SDK links the library; link numkong::cpp, not numkong::header"
+#endif
+
 #ifndef NUMKONG_RANDOM_HPP
 #define NUMKONG_RANDOM_HPP
 
 #include <algorithm> // `std::sort`
 #include <random>    // `std::uniform_int_distribution`
 
+#include "numkong/cast.hpp" // `nk::cast`, `nk::to_f32`
 #include "numkong/types.hpp"
 
 namespace ashvardanian::numkong {
+
+/** @p value rounded into @p value_type_, through @c nk::cast for the narrow floats. */
+template <typename value_type_, typename float_type_>
+value_type_ from_float_(float_type_ value) noexcept {
+    if constexpr (std::is_constructible_v<value_type_, float_type_>) return static_cast<value_type_>(value);
+    else return cast<f32_t, value_type_>(f32_t {static_cast<float>(value)});
+}
+
+/** The value of @p value as a @p float_type_, through @c nk::to_f32 for the narrow floats. */
+template <typename float_type_, typename value_type_>
+float_type_ to_float_(value_type_ value) noexcept {
+    if constexpr (std::is_constructible_v<float_type_, value_type_>) return static_cast<float_type_>(value);
+    else return static_cast<float_type_>(to_f32(value));
+}
 
 /** Lightweight clamp to avoid pulling in <tt>\<algorithm\></tt> for @c std::clamp. */
 template <typename scalar_type_>
@@ -59,19 +78,20 @@ void fill_uniform(generator_type_ &generator, value_type_ *values_ptr, std::size
     else if constexpr (is_complex_dtype<value_type_>()) {
         using component_t = typename value_type_::component_t;
         using distribution_float_t = std::conditional_t<sizeof(component_t) <= 4, float, double>;
-        std::uniform_real_distribution<distribution_float_t> distribution(min_val, max_val);
+        std::uniform_real_distribution<distribution_float_t> distribution(to_float_<distribution_float_t>(min_val),
+                                                                          to_float_<distribution_float_t>(max_val));
         for (std::size_t i = 0; i < values_count; ++i) {
             auto real = distribution(generator), imag = distribution(generator);
-            values_ptr[i] = value_type_(component_t(static_cast<distribution_float_t>(real)),
-                                        component_t(static_cast<distribution_float_t>(imag)));
+            values_ptr[i] = value_type_(from_float_<component_t>(real), from_float_<component_t>(imag));
         }
     }
     // Floats and other types use a fixed range for better numerical stability
     else {
         using distribution_float_t = std::conditional_t<sizeof(value_type_) <= 4, float, double>;
-        std::uniform_real_distribution<distribution_float_t> distribution(min_val, max_val);
+        std::uniform_real_distribution<distribution_float_t> distribution(to_float_<distribution_float_t>(min_val),
+                                                                          to_float_<distribution_float_t>(max_val));
         for (std::size_t i = 0; i < values_count; ++i)
-            values_ptr[i] = static_cast<value_type_>(distribution(generator));
+            values_ptr[i] = from_float_<value_type_>(distribution(generator));
     }
 }
 
@@ -119,13 +139,13 @@ void fill_lognormal(generator_type_ &generator, value_type_ *values_ptr, std::si
         std::lognormal_distribution<distribution_float_t> distribution(static_cast<distribution_float_t>(mean),
                                                                        static_cast<distribution_float_t>(stddev));
         std::bernoulli_distribution sign_distribution(0.5);
-        distribution_float_t const clamp_max = finite_max<component_t>();
-        distribution_float_t const clamp_min = finite_min<component_t>();
+        distribution_float_t const clamp_max = to_float_<distribution_float_t>(finite_max<component_t>());
+        distribution_float_t const clamp_min = to_float_<distribution_float_t>(finite_min<component_t>());
         constexpr distribution_float_t signs[] = {1, -1};
         for (std::size_t i = 0; i < values_count; ++i) {
             auto real = clamp(distribution(generator) * signs[sign_distribution(generator)], clamp_min, clamp_max);
             auto imag = clamp(distribution(generator) * signs[sign_distribution(generator)], clamp_min, clamp_max);
-            values_ptr[i] = value_type_(component_t(real), component_t(imag));
+            values_ptr[i] = value_type_(from_float_<component_t>(real), from_float_<component_t>(imag));
         }
     }
     // Floats and integers: unified path with trait-based clamping
@@ -134,13 +154,13 @@ void fill_lognormal(generator_type_ &generator, value_type_ *values_ptr, std::si
         std::lognormal_distribution<distribution_float_t> distribution(static_cast<distribution_float_t>(mean),
                                                                        static_cast<distribution_float_t>(stddev));
         std::bernoulli_distribution sign_distribution(0.5);
-        distribution_float_t const clamp_max = static_cast<distribution_float_t>(finite_max<value_type_>());
-        distribution_float_t const clamp_min = static_cast<distribution_float_t>(finite_min<value_type_>());
+        distribution_float_t const clamp_max = to_float_<distribution_float_t>(finite_max<value_type_>());
+        distribution_float_t const clamp_min = to_float_<distribution_float_t>(finite_min<value_type_>());
         constexpr distribution_float_t signs[] = {1, -1};
         for (std::size_t i = 0; i < values_count; ++i) {
             distribution_float_t val = distribution(generator);
             if constexpr (is_signed_dtype<value_type_>()) val *= signs[sign_distribution(generator)];
-            values_ptr[i] = static_cast<value_type_>(clamp(val, clamp_min, clamp_max));
+            values_ptr[i] = from_float_<value_type_>(clamp(val, clamp_min, clamp_max));
         }
     }
 }
@@ -173,12 +193,12 @@ void fill_cauchy(generator_type_ &generator, value_type_ *values_ptr, std::size_
         using distribution_float_t = std::conditional_t<sizeof(component_t) <= 4, float, double>;
         std::cauchy_distribution<distribution_float_t> distribution(static_cast<distribution_float_t>(location),
                                                                     static_cast<distribution_float_t>(scale));
-        distribution_float_t const clamp_max = finite_max<component_t>();
-        distribution_float_t const clamp_min = finite_min<component_t>();
+        distribution_float_t const clamp_max = to_float_<distribution_float_t>(finite_max<component_t>());
+        distribution_float_t const clamp_min = to_float_<distribution_float_t>(finite_min<component_t>());
         for (std::size_t i = 0; i < values_count; ++i) {
             auto real = clamp(distribution(generator), clamp_min, clamp_max);
             auto imag = clamp(distribution(generator), clamp_min, clamp_max);
-            values_ptr[i] = value_type_(component_t(real), component_t(imag));
+            values_ptr[i] = value_type_(from_float_<component_t>(real), from_float_<component_t>(imag));
         }
     }
     // Floats and integers: unified two-sided clamp
@@ -186,10 +206,10 @@ void fill_cauchy(generator_type_ &generator, value_type_ *values_ptr, std::size_
         using distribution_float_t = std::conditional_t<sizeof(value_type_) <= 4, float, double>;
         std::cauchy_distribution<distribution_float_t> distribution(static_cast<distribution_float_t>(location),
                                                                     static_cast<distribution_float_t>(scale));
-        distribution_float_t const clamp_max = static_cast<distribution_float_t>(finite_max<value_type_>());
-        distribution_float_t const clamp_min = static_cast<distribution_float_t>(finite_min<value_type_>());
+        distribution_float_t const clamp_max = to_float_<distribution_float_t>(finite_max<value_type_>());
+        distribution_float_t const clamp_min = to_float_<distribution_float_t>(finite_min<value_type_>());
         for (std::size_t i = 0; i < values_count; ++i)
-            values_ptr[i] = static_cast<value_type_>(clamp(distribution(generator), clamp_min, clamp_max));
+            values_ptr[i] = from_float_<value_type_>(clamp(distribution(generator), clamp_min, clamp_max));
     }
 }
 
@@ -203,8 +223,8 @@ void fill_coordinates(generator_type_ &generator, value_type_ *lats_ptr, value_t
     std::uniform_real_distribution<distribution_float_t> lat_distribution(-pi / 2, pi / 2);
     std::uniform_real_distribution<distribution_float_t> lon_distribution(-pi, pi);
     for (std::size_t i = 0; i < values_count; ++i) {
-        lats_ptr[i] = static_cast<value_type_>(lat_distribution(generator));
-        lons_ptr[i] = static_cast<value_type_>(lon_distribution(generator));
+        lats_ptr[i] = from_float_<value_type_>(lat_distribution(generator));
+        lons_ptr[i] = from_float_<value_type_>(lon_distribution(generator));
     }
 }
 
@@ -225,8 +245,8 @@ void fill_nearby_coordinates(generator_type_ &generator, value_type_ const *orig
     std::uniform_real_distribution<float_t> separation_distribution(0, float_t(max_separation_rad));
     std::uniform_real_distribution<float_t> bearing_distribution(0, float_t(2) * pi);
     for (std::size_t i = 0; i < values_count; ++i) {
-        float_t origin_lat = float_t(origin_lats_ptr[i]);
-        float_t origin_lon = float_t(origin_lons_ptr[i]);
+        float_t origin_lat = to_float_<float_t>(origin_lats_ptr[i]);
+        float_t origin_lon = to_float_<float_t>(origin_lons_ptr[i]);
         float_t separation = separation_distribution(generator);
         float_t bearing = bearing_distribution(generator);
         float_t sin_origin_lat = std::sin(origin_lat), cos_origin_lat = std::cos(origin_lat);
@@ -234,8 +254,8 @@ void fill_nearby_coordinates(generator_type_ &generator, value_type_ const *orig
         float_t dest_lat = std::asin(sin_origin_lat * cos_sep + cos_origin_lat * sin_sep * std::cos(bearing));
         float_t dest_lon = origin_lon + std::atan2(std::sin(bearing) * sin_sep * cos_origin_lat,
                                                    cos_sep - sin_origin_lat * std::sin(dest_lat));
-        dest_lats_ptr[i] = value_type_(dest_lat);
-        dest_lons_ptr[i] = value_type_(dest_lon);
+        dest_lats_ptr[i] = from_float_<value_type_>(dest_lat);
+        dest_lons_ptr[i] = from_float_<value_type_>(dest_lon);
     }
 }
 
@@ -250,11 +270,11 @@ void fill_probability(generator_type_ &generator, value_type_ *values_ptr, std::
     distribution_float_t sum = 0;
     for (std::size_t i = 0; i < values_count; ++i) {
         distribution_float_t val = distribution(generator);
-        values_ptr[i] = static_cast<value_type_>(val);
+        values_ptr[i] = from_float_<value_type_>(val);
         sum += val;
     }
     for (std::size_t i = 0; i < values_count; ++i)
-        values_ptr[i] = static_cast<value_type_>(static_cast<distribution_float_t>(values_ptr[i]) / sum);
+        values_ptr[i] = from_float_<value_type_>(to_float_<distribution_float_t>(values_ptr[i]) / sum);
 }
 
 /**

@@ -17,7 +17,12 @@
 #include "numkong/attention.hpp"
 #include "numkong/cast.hpp"
 #include "numkong/dot.hpp"
+#include "numkong/dots.hpp"
+#include "numkong/each.hpp"
+#include "numkong/maxsim.hpp"
+#include "numkong/random.hpp"
 #include "numkong/spatial.hpp"
+#include "numkong/spatials.hpp"
 #include "numkong/curved.hpp"
 #include "numkong/reduce.hpp"
 #include "numkong/set.hpp"
@@ -434,9 +439,9 @@ error_stats_t test_block_scaled_composites() {
     // Round-trip: encode 16 random f32s into an NVFP4 block, decode back, check bounded error.
     float const src[16] = {-5.3f, 2.1f,  0.5f, -0.1f, 3.7f,  -4.2f, 1.0f, 0.0f,
                            6.0f,  -6.0f, 2.5f, 1.25f, -3.5f, 0.75f, 4.0f, -1.5f};
-    nk::nvfp4_t block = nk::nvfp4_t::encode_from(src, /*global=*/1.0f);
+    nk::nvfp4_t block = nk::encode_from<nk::nvfp4_t>(src, /*global=*/1.0f);
     float decoded[16];
-    block.decode_to(decoded, /*global=*/1.0f);
+    nk::decode_to(block, decoded, /*global=*/1.0f);
     float max_error = 0.0f;
     for (unsigned i = 0; i < 16; ++i) {
         float err = decoded[i] - src[i];
@@ -788,54 +793,59 @@ error_stats_t test_custom_allocator() {
     return stats;
 }
 
-template <typename value_type_, std::size_t cols_>
-void test_sub_byte_tensor_axis_reduction_case(error_stats_t &stats, std::array<int, cols_> const &first_row,
-                                              std::array<int, cols_> const &second_row,
-                                              std::array<int, cols_> const &expected_sums,
-                                              std::array<int, cols_> const &expected_mins,
-                                              std::array<int, cols_> const &expected_maxs) {
+/** Lanes along a leading axis of a sub-byte tensor hold one value per row, which no kernel strides
+ *  over, so they answer @c misaligned_k, while the innermost axis reduces each contiguous row. */
+template <typename value_type_, std::size_t rank_, std::size_t rows_, std::size_t cols_>
+void test_sub_byte_tensor_axis_reduction_case(error_stats_t &stats,
+                                              std::array<std::array<int, cols_>, rows_> const &rows) {
     using tensor_t = nk::tensor<value_type_>;
     using sum_t = typename value_type_::reduce_moments_sum_t;
+    using sumsq_t = typename value_type_::reduce_moments_sumsq_t;
     using minmax_t = typename value_type_::reduce_minmax_value_t;
+    static_assert(rows_ == (std::size_t(1) << (rank_ - 1)), "every leading extent is 2");
 
-    auto [t, t_status] = tensor_t::zeros({2, cols_});
-    stats.expect_true(nk::succeeded(t_status), "tensor allocation failed");
+    std::array<std::size_t, rank_> extents;
+    extents.fill(2);
+    extents[rank_ - 1] = cols_;
+    auto [t, t_status] = tensor_t::zeros(extents.data(), rank_);
+    if (!stats.expect_status(t_status)) return;
+    auto values = t.span().flatten().as_vector();
+    for (std::size_t row = 0; row < rows_; ++row)
+        for (std::size_t i = 0; i < cols_; ++i) values[row * cols_ + i] = rows[row][i];
 
-    auto span = t.span();
-    auto row0 = span.slice_leading(0).as_vector();
-    auto row1 = span.slice_leading(1).as_vector();
-    for (std::size_t i = 0; i < cols_; ++i) {
-        row0[i] = first_row[i];
-        row1[i] = second_row[i];
+    for (std::size_t axis = 0; axis + 1 < rank_; ++axis) {
+        stats.expect_true(nk::sum<value_type_>(t.view(), axis).status == nk::status_t::misaligned_k,
+                          "leading-axis sum must refuse");
+        stats.expect_true(nk::moments<value_type_>(t.view(), axis).status == nk::status_t::misaligned_k,
+                          "leading-axis moments must refuse");
+        stats.expect_true(nk::minmax<value_type_>(t.view(), axis).status == nk::status_t::misaligned_k,
+                          "leading-axis minmax must refuse");
     }
 
-    auto [sums, sums_status] = nk::sum<value_type_>(t.view(), 0);
-    stats.expect_true(nk::succeeded(sums_status) && !sums.empty(), "axis-0 sum failed");
-    auto sum_view = sums.as_vector_view();
-    for (std::size_t i = 0; i < cols_; ++i)
-        stats.expect_true(sum_view[i] == sum_t(expected_sums[i]), "axis-0 sum mismatch");
-
-    auto [minmax, minmax_status] = nk::minmax<value_type_>(t.view(), 0);
-    stats.expect_true(nk::succeeded(minmax_status) && !minmax.min_value.empty() && !minmax.max_value.empty(),
-                      "axis-0 minmax failed");
-    auto min_view = minmax.min_value.as_vector_view();
-    auto max_view = minmax.max_value.as_vector_view();
-    for (std::size_t i = 0; i < cols_; ++i) {
-        stats.expect_true(min_view[i] == minmax_t(expected_mins[i]), "axis-0 min mismatch");
-        stats.expect_true(max_view[i] == minmax_t(expected_maxs[i]), "axis-0 max mismatch");
+    auto [sums, sums_status] = nk::sum<value_type_>(t.view(), rank_ - 1);
+    auto [moments, moments_status] = nk::moments<value_type_>(t.view(), rank_ - 1);
+    auto [minmax, minmax_status] = nk::minmax<value_type_>(t.view(), rank_ - 1);
+    if (!stats.expect_status(sums_status) || !stats.expect_status(moments_status) ||
+        !stats.expect_status(minmax_status))
+        return;
+    auto sum_values = sums.view().flatten().as_vector();
+    auto moment_sums = moments.sum.view().flatten().as_vector();
+    auto moment_sumsqs = moments.sumsq.view().flatten().as_vector();
+    auto min_values = minmax.min_value.view().flatten().as_vector();
+    auto max_values = minmax.max_value.view().flatten().as_vector();
+    if (!stats.expect_true(sum_values.size() == rows_ && moment_sumsqs.size() == rows_ && min_values.size() == rows_,
+                           "innermost-axis reduction must keep one value per row"))
+        return;
+    for (std::size_t row = 0; row < rows_; ++row) {
+        int sum = 0, sumsq = 0, min = rows[row][0], max = rows[row][0];
+        for (int value : rows[row])
+            sum += value, sumsq += value * value, min = nk::min_of(min, value), max = nk::max_of(max, value);
+        stats.expect_true(sum_values[row] == sum_t(sum) && moment_sums[row] == sum_t(sum),
+                          "innermost-axis sum mismatch");
+        stats.expect_true(moment_sumsqs[row] == sumsq_t(sumsq), "innermost-axis sumsq mismatch");
+        stats.expect_true(min_values[row] == minmax_t(min) && max_values[row] == minmax_t(max),
+                          "innermost-axis minmax mismatch");
     }
-}
-
-template <typename tensor_type_, typename expected_type_, std::size_t dims_>
-void assert_flat_tensor_equals(error_stats_t &stats, tensor_type_ const &tensor,
-                               std::array<expected_type_, dims_> const &expected) {
-    auto flat = tensor.view().flatten();
-    stats.expect_true(!flat.empty(), "tensor flatten failed");
-    auto vec = flat.as_vector();
-    stats.expect_true(vec.size() == dims_, "flattened tensor size mismatch");
-    using actual_t = typename tensor_type_::value_type;
-    for (std::size_t i = 0; i < dims_; ++i)
-        stats.expect_true(vec[i] == actual_t(expected[i]), "flattened tensor value mismatch");
 }
 
 template <typename tensor_type_, typename expected_type_>
@@ -853,94 +863,24 @@ void expect_nonempty(error_stats_t &stats, nk::expected<value_type_> const &resu
     stats.expect_true(nk::succeeded(result.status) && !result.value.empty(), what);
 }
 
-template <typename value_type_, std::size_t cols_>
-void test_sub_byte_tensor_rank3_axis_case(
-    error_stats_t &stats, std::array<int, cols_> const &a00, std::array<int, cols_> const &a01,
-    std::array<int, cols_> const &a10, std::array<int, cols_> const &a11,
-    std::array<int, cols_ * 2> const &expected_sum_axis0, std::array<int, cols_ * 2> const &expected_sum_axis1,
-    std::array<int, 4> const &expected_sum_axis2, std::array<int, cols_ * 2> const &expected_min_axis0,
-    std::array<int, cols_ * 2> const &expected_max_axis0, std::array<int, cols_ * 2> const &expected_min_axis1,
-    std::array<int, cols_ * 2> const &expected_max_axis1, std::array<int, 4> const &expected_min_axis2,
-    std::array<int, 4> const &expected_max_axis2) {
-    using tensor_t = nk::tensor<value_type_>;
-
-    auto [t, t_status] = tensor_t::zeros({2, 2, cols_});
-    stats.expect_true(nk::succeeded(t_status), "rank-3 tensor allocation failed");
-
-    auto span = t.span();
-    auto row00 = span.slice_leading(0).slice_leading(0).as_vector();
-    auto row01 = span.slice_leading(0).slice_leading(1).as_vector();
-    auto row10 = span.slice_leading(1).slice_leading(0).as_vector();
-    auto row11 = span.slice_leading(1).slice_leading(1).as_vector();
-    for (std::size_t i = 0; i < cols_; ++i) {
-        row00[i] = a00[i];
-        row01[i] = a01[i];
-        row10[i] = a10[i];
-        row11[i] = a11[i];
-    }
-
-    auto [sums0, sums0_status] = nk::sum<value_type_>(t.view(), 0);
-    auto [sums1, sums1_status] = nk::sum<value_type_>(t.view(), 1);
-    auto [sums2, sums2_status] = nk::sum<value_type_>(t.view(), 2);
-    stats.expect_true(nk::succeeded(sums0_status) && nk::succeeded(sums1_status) && nk::succeeded(sums2_status),
-                      "rank-3 axis sum failed");
-    assert_flat_tensor_equals(stats, sums0, expected_sum_axis0);
-    assert_flat_tensor_equals(stats, sums1, expected_sum_axis1);
-    assert_flat_tensor_equals(stats, sums2, expected_sum_axis2);
-
-    auto [moments0, moments0_status] = nk::moments<value_type_>(t.view(), 0);
-    auto [moments1, moments1_status] = nk::moments<value_type_>(t.view(), 1);
-    auto [moments2, moments2_status] = nk::moments<value_type_>(t.view(), 2);
-    stats.expect_true(
-        nk::succeeded(moments0_status) && nk::succeeded(moments1_status) && nk::succeeded(moments2_status),
-        "rank-3 axis moments failed");
-    assert_flat_tensor_equals(stats, moments0.sum, expected_sum_axis0);
-    assert_flat_tensor_equals(stats, moments1.sum, expected_sum_axis1);
-    assert_flat_tensor_equals(stats, moments2.sum, expected_sum_axis2);
-
-    auto [minmax0, minmax0_status] = nk::minmax<value_type_>(t.view(), 0);
-    auto [minmax1, minmax1_status] = nk::minmax<value_type_>(t.view(), 1);
-    auto [minmax2, minmax2_status] = nk::minmax<value_type_>(t.view(), 2);
-    stats.expect_true(nk::succeeded(minmax0_status) && nk::succeeded(minmax1_status) && nk::succeeded(minmax2_status),
-                      "rank-3 axis minmax failed");
-    assert_flat_tensor_equals(stats, minmax0.min_value, expected_min_axis0);
-    assert_flat_tensor_equals(stats, minmax0.max_value, expected_max_axis0);
-    assert_flat_tensor_equals(stats, minmax1.min_value, expected_min_axis1);
-    assert_flat_tensor_equals(stats, minmax1.max_value, expected_max_axis1);
-    assert_flat_tensor_equals(stats, minmax2.min_value, expected_min_axis2);
-    assert_flat_tensor_equals(stats, minmax2.max_value, expected_max_axis2);
-}
-
 error_stats_t test_sub_byte_tensor_axis_reductions() {
     error_stats_t stats(comparison_family_t::exact_k);
-    test_sub_byte_tensor_axis_reduction_case<nk::i4x2_t, 4>(stats, {1, -2, 7, -8}, {-3, 4, -5, 6}, {-2, 2, 2, -2},
-                                                            {-3, -2, -5, -8}, {1, 4, 7, 6});
-    test_sub_byte_tensor_axis_reduction_case<nk::u4x2_t, 4>(stats, {1, 15, 3, 8}, {14, 2, 9, 7}, {15, 17, 12, 15},
-                                                            {1, 2, 3, 7}, {14, 15, 9, 8});
-    test_sub_byte_tensor_axis_reduction_case<nk::u1x8_t, 8>(stats, {1, 0, 1, 1, 0, 0, 1, 0}, {0, 1, 1, 0, 1, 0, 0, 1},
-                                                            {1, 1, 2, 1, 1, 0, 1, 1}, {0, 0, 1, 0, 0, 0, 0, 0},
-                                                            {1, 1, 1, 1, 1, 0, 1, 1});
+    test_sub_byte_tensor_axis_reduction_case<nk::i4x2_t, 2, 2, 4>(stats, {{{1, -2, 7, -8}, {-3, 4, -5, 6}}});
+    test_sub_byte_tensor_axis_reduction_case<nk::u4x2_t, 2, 2, 4>(stats, {{{1, 15, 3, 8}, {14, 2, 9, 7}}});
+    test_sub_byte_tensor_axis_reduction_case<nk::u1x8_t, 2, 2, 8>(
+        stats, {{{1, 0, 1, 1, 0, 0, 1, 0}, {0, 1, 1, 0, 1, 0, 0, 1}}});
     return stats;
 }
 
 error_stats_t test_sub_byte_tensor_rank3_axis_reductions() {
     error_stats_t stats(comparison_family_t::exact_k);
-    test_sub_byte_tensor_rank3_axis_case<nk::i4x2_t, 4>(
-        stats, {1, -2, 3, -4}, {5, -6, 7, -8}, {-1, 2, -3, 4}, {-5, 6, -7, 7}, {0, 0, 0, 0, 0, 0, 0, -1},
-        {6, -8, 10, -12, -6, 8, -10, 11}, {-2, -2, 2, 1}, {-1, -2, -3, -4, -5, -6, -7, -8}, {1, 2, 3, 4, 5, 6, 7, 7},
-        {1, -6, 3, -8, -5, 2, -7, 4}, {5, -2, 7, -4, -1, 6, -3, 7}, {-4, -8, -3, -7}, {3, 7, 4, 7});
-
-    test_sub_byte_tensor_rank3_axis_case<nk::u4x2_t, 4>(
-        stats, {1, 2, 3, 4}, {5, 6, 7, 8}, {14, 13, 12, 11}, {10, 9, 8, 7}, {15, 15, 15, 15, 15, 15, 15, 15},
-        {6, 8, 10, 12, 24, 22, 20, 18}, {10, 26, 50, 34}, {1, 2, 3, 4, 5, 6, 7, 7}, {14, 13, 12, 11, 10, 9, 8, 8},
-        {1, 2, 3, 4, 10, 9, 8, 7}, {5, 6, 7, 8, 14, 13, 12, 11}, {1, 5, 11, 7}, {4, 8, 14, 10});
-
-    test_sub_byte_tensor_rank3_axis_case<nk::u1x8_t, 8>(
-        stats, {1, 0, 1, 0, 1, 0, 1, 0}, {0, 1, 0, 1, 0, 1, 0, 1}, {1, 1, 0, 0, 1, 1, 0, 0}, {0, 0, 1, 1, 0, 0, 1, 1},
-        {2, 1, 1, 0, 2, 1, 1, 0, 0, 1, 1, 2, 0, 1, 1, 2}, {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-        {4, 4, 4, 4}, {1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1},
-        {1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-        {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, {0, 0, 0, 0}, {1, 1, 1, 1});
+    test_sub_byte_tensor_axis_reduction_case<nk::i4x2_t, 3, 4, 4>(
+        stats, {{{1, -2, 3, -4}, {5, -6, 7, -8}, {-1, 2, -3, 4}, {-5, 6, -7, 7}}});
+    test_sub_byte_tensor_axis_reduction_case<nk::u4x2_t, 3, 4, 4>(
+        stats, {{{1, 2, 3, 4}, {5, 6, 7, 8}, {14, 13, 12, 11}, {10, 9, 8, 7}}});
+    test_sub_byte_tensor_axis_reduction_case<nk::u1x8_t, 3, 4, 8>(
+        stats,
+        {{{1, 0, 1, 0, 1, 0, 1, 0}, {0, 1, 0, 1, 0, 1, 0, 1}, {1, 1, 0, 0, 1, 1, 0, 0}, {0, 0, 1, 1, 0, 0, 1, 1}}});
     return stats;
 }
 
@@ -957,8 +897,10 @@ error_stats_t test_rank1_negative_stride_reductions() {
     shape.strides[0] = -static_cast<std::ptrdiff_t>(sizeof(value_t));
     nk::tensor_view<value_t> reversed(reinterpret_cast<char const *>(data + 3), shape);
 
-    auto m = nk::moments(reversed);
-    auto mm = nk::minmax(reversed);
+    auto [m, moments_status] = nk::moments(reversed);
+    auto [mm, minmax_status] = nk::minmax(reversed);
+    stats.expect_status(moments_status);
+    stats.expect_status(minmax_status);
     stats.expect_true(m.sum == sum_t(10.0), "negative-stride sum mismatch");
     stats.expect_true(m.sumsq == typename value_t::reduce_moments_sumsq_t(30.0), "negative-stride sumsq mismatch");
     stats.expect_true(mm.min_value == minmax_t(1.0f), "negative-stride min mismatch");
@@ -1026,15 +968,24 @@ error_stats_t test_vector_reductions_for_type() {
     fill_random(generator, v);
     auto view = nk::vector_view<value_type_>(v.values_data(), static_cast<std::size_t>(v.size()));
 
-    auto mm = nk::minmax(view);
-    stats.expect_true(!(mm.max_value < mm.min_value), "minmax inverted");
+    auto [mm, minmax_status] = nk::minmax(view);
+    auto [minimum, min_status] = (nk::min)(view);
+    auto [maximum, max_status] = (nk::max)(view);
+    auto [minimum_index, argmin_status] = nk::argmin(view);
+    auto [maximum_index, argmax_status] = nk::argmax(view);
+    auto [sum, sum_status] = nk::sum(view);
+    auto [moments, moments_status] = nk::moments(view);
+    for (nk::status_t status :
+         {minmax_status, min_status, max_status, argmin_status, argmax_status, sum_status, moments_status})
+        stats.expect_status(status);
+    stats.expect_true(!sorts_before_reference(mm.max_value, mm.min_value), "minmax inverted");
     stats.expect_true(mm.min_index < v.size(), "argmin out of range");
     stats.expect_true(mm.max_index < v.size(), "argmax out of range");
-    stats.expect_true((nk::min)(view) == mm.min_value, "min disagrees with minmax");
-    stats.expect_true((nk::max)(view) == mm.max_value, "max disagrees with minmax");
-    stats.expect_true(nk::argmin(view) == mm.min_index, "argmin disagrees with minmax");
-    stats.expect_true(nk::argmax(view) == mm.max_index, "argmax disagrees with minmax");
-    stats.expect_true(nk::sum(view) == nk::moments(view).sum, "sum disagrees with moments");
+    stats.expect_true(to_double(minimum) == to_double(mm.min_value), "min disagrees with minmax");
+    stats.expect_true(to_double(maximum) == to_double(mm.max_value), "max disagrees with minmax");
+    stats.expect_true(minimum_index == mm.min_index, "argmin disagrees with minmax");
+    stats.expect_true(maximum_index == mm.max_index, "argmax disagrees with minmax");
+    stats.expect_true(sum == moments.sum, "sum disagrees with moments");
     return stats;
 }
 
@@ -1217,7 +1168,7 @@ error_stats_t test_tensor_packed_for_type() {
 
     // packed_matrix
     auto bm = b.as_matrix_view();
-    auto [packed, packed_status] = nk::packed_matrix<value_type_, nk::aligned_allocator<char>>::make(bm);
+    auto [packed, packed_status] = nk::dots_pack<value_type_, nk::aligned_allocator<char>>(bm);
     auto am = a.as_matrix_view();
     auto [result, result_status] = nk::matrix<typename value_type_::dot_result_t>::zeros({4, 6});
     stats.expect_true(nk::succeeded(packed_status) && !packed.empty(), "packed matrix empty");
@@ -1237,11 +1188,11 @@ error_stats_t test_tensor_maxsim_for_type() {
     auto qm = q.as_matrix_view();
     auto dm = d.as_matrix_view();
 
-    auto [pq, pq_status] = nk::packed_maxsim<value_type_>::make(qm);
-    auto [pd, pd_status] = nk::packed_maxsim<value_type_>::make(dm);
+    auto [pq, pq_status] = nk::maxsim_pack<value_type_>(qm);
+    auto [pd, pd_status] = nk::maxsim_pack<value_type_>(dm);
     stats.expect_true(nk::succeeded(pq_status) && !pq.empty(), "packed query empty");
     stats.expect_true(nk::succeeded(pd_status) && !pd.empty(), "packed document empty");
-    { [[maybe_unused]] auto r = nk::maxsim(pq, pd); }
+    stats.expect_status(nk::maxsim(pq, pd).status);
     return stats;
 }
 
@@ -1322,7 +1273,7 @@ error_stats_t test_view_overloads() {
                       "add of mismatched lengths");
 
     auto [moments, moments_status] = nk::reduce_moments<nk::f32_t>(a_data);
-    stats.expect_true(nk::succeeded(moments_status) && static_cast<double>(moments.sum) == 8.0, "moments of ones");
+    stats.expect_true(nk::succeeded(moments_status) && to_double(moments.sum) == 8.0, "moments of ones");
     auto [extremes, extremes_status] = nk::reduce_minmax<nk::f32_t>(b_vector);
     stats.expect_true(nk::succeeded(extremes_status) && extremes.min_index == 0, "minmax of zeros");
     return stats;
@@ -1412,26 +1363,10 @@ error_stats_t test_cast_for_types() {
 #if NUMKONG_TEST_FORMAT_
 error_stats_t test_format_scalars() {
     error_stats_t stats(comparison_family_t::exact_k);
-    // Float scalar formatters
-    { [[maybe_unused]] auto s = std::format("{}", nk::f16_t(3.14f)); }
-    { [[maybe_unused]] auto s = std::format("{:#}", nk::f16_t(3.14f)); }
-    { [[maybe_unused]] auto s = std::format("{:.2f}", nk::f16_t(3.14f)); }
-    { [[maybe_unused]] auto s = std::format("{:x}", nk::f16_t(3.14f)); }
-    { [[maybe_unused]] auto s = std::format("{:b}", nk::f16_t(3.14f)); }
-    { [[maybe_unused]] auto s = std::format("{}", nk::bf16_t(2.5f)); }
-    { [[maybe_unused]] auto s = std::format("{}", nk::e4m3_t(1.0f)); }
-    { [[maybe_unused]] auto s = std::format("{}", nk::e5m2_t(1.0f)); }
-    { [[maybe_unused]] auto s = std::format("{}", nk::e2m3_t(1.0f)); }
-    { [[maybe_unused]] auto s = std::format("{}", nk::e3m2_t(1.0f)); }
-
     // Packed type formatters
     { [[maybe_unused]] auto s = std::format("{}", nk::i4x2_t {}); }
     { [[maybe_unused]] auto s = std::format("{:x}", nk::u4x2_t {}); }
     { [[maybe_unused]] auto s = std::format("{}", nk::u1x8_t {}); }
-
-    // Complex type formatters
-    { [[maybe_unused]] auto s = std::format("{}", nk::f16c_t(nk::f16_t(1), nk::f16_t(2))); }
-    { [[maybe_unused]] auto s = std::format("{:#}", nk::bf16c_t(nk::bf16_t(1), nk::bf16_t(2))); }
 
     // Sub-byte ref formatters
     nk_i4x2_t packed_i = 0x53;
@@ -1696,15 +1631,16 @@ error_stats_t test_tensor_attention_for_type() {
     nk::fill_uniform(generator, values.value.data(), values.value.numel());
     nk::fill_uniform(generator, queries.value.data(), queries.value.numel());
 
-    auto packed = nk::packed_attention<value_type_>::make(keys.value.view(), values.value.view(), key_offsets,
-                                                          key_lengths);
+    auto packed = nk::attention_pack<value_type_>(keys.value.view(), values.value.view(), key_offsets, key_lengths);
     stats.expect_status(packed.status);
     if (!packed) return stats;
     stats.expect_true(packed.value.key_value_head_count() == key_value_heads && packed.value.depth() == depth &&
                           packed.value.segment_count() == 2,
                       "packed attention shape mismatch");
-    stats.expect_true(packed.value.key_offsets().size() == 3 && packed.value.key_offsets()[1] == offsets[1] &&
-                          packed.value.key_lengths().size() == 2 && packed.value.key_lengths()[1] == lengths[1],
+    nk::vector_view<nk_u32_t> const packed_offsets = nk::attention_key_offsets(packed.value),
+                                    packed_lengths = nk::attention_key_lengths(packed.value);
+    stats.expect_true(packed_offsets.size() == 3 && packed_offsets[1] == offsets[1] && packed_lengths.size() == 2 &&
+                          packed_lengths[1] == lengths[1],
                       "packed attention must report the slots it was packed with");
 
     auto packed_bytes = nk::attention_pack_size<value_type_>(key_value_heads, depth, tokens, 2);
@@ -1747,20 +1683,22 @@ error_stats_t test_tensor_attention_for_type() {
                       nk::status_t::unexpected_dimensions_k,
         "mismatched output shape must be rejected");
     stats.expect_true(
-        nk::packed_attention<value_type_>::make(keys.value.view(), values.value.view(), key_lengths, key_lengths)
-                .status == nk::status_t::unexpected_dimensions_k,
+        nk::attention_pack<value_type_>(keys.value.view(), values.value.view(), key_lengths, key_lengths).status ==
+            nk::status_t::unexpected_dimensions_k,
         "key offsets must hold one more entry than lengths");
 
     // Slots wider than their keys, as a decode cache with spare capacity has
     nk_u32_t const slot_offsets[] = {0, 6, 10}, slot_lengths[] = {4, 4}, overfull_lengths[] = {4, 5};
     nk::vector_view<nk_u32_t> const slot_offsets_view(slot_offsets, 3u), slot_lengths_view(slot_lengths, 2u);
-    auto spare = nk::packed_attention<value_type_>::make(keys.value.view(), values.value.view(), slot_offsets_view,
-                                                         slot_lengths_view);
+    auto spare = nk::attention_pack<value_type_>(keys.value.view(), values.value.view(), slot_offsets_view,
+                                                 slot_lengths_view);
     stats.expect_status(spare.status);
-    stats.expect_true(spare && spare.value.key_offsets()[1] == 6 && spare.value.key_lengths()[0] == 4,
+    nk::vector_view<nk_u32_t> const spare_offsets = nk::attention_key_offsets(spare.value),
+                                    spare_lengths = nk::attention_key_lengths(spare.value);
+    stats.expect_true(spare && spare_offsets[1] == 6 && spare_lengths[0] == 4,
                       "spare slot capacity must survive the pack");
-    stats.expect_true(nk::packed_attention<value_type_>::make(keys.value.view(), values.value.view(), slot_offsets_view,
-                                                              nk::vector_view<nk_u32_t>(overfull_lengths, 2u))
+    stats.expect_true(nk::attention_pack<value_type_>(keys.value.view(), values.value.view(), slot_offsets_view,
+                                                      nk::vector_view<nk_u32_t>(overfull_lengths, 2u))
                               .status == nk::status_t::unexpected_dimensions_k,
                       "keys must fit their slot");
     return stats;
@@ -1779,7 +1717,6 @@ void run_tensor_cases() {
     run_kernel_case("test_tensor_trig_for_type<nk::f32_t>", test_tensor_trig_for_type<nk::f32_t>, serial);
     run_kernel_case("test_tensor_trig_for_type<nk::f64_t>", test_tensor_trig_for_type<nk::f64_t>, serial);
     run_kernel_case("test_tensor_trig_for_type<nk::f16_t>", test_tensor_trig_for_type<nk::f16_t>, serial);
-    run_kernel_case("test_tensor_trig_for_type<nk::bf16_t>", test_tensor_trig_for_type<nk::bf16_t>, serial);
 
     run_kernel_case("test_sub_byte_tensor_axis_reductions", test_sub_byte_tensor_axis_reductions, serial);
     run_kernel_case("test_sub_byte_tensor_rank3_axis_reductions", test_sub_byte_tensor_rank3_axis_reductions, serial);

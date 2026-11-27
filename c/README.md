@@ -88,7 +88,8 @@ Each target names what it reaches:
 - `numkong::header` is the whole library header-only: the C headers, the kernels of `include/` and the C++ SDK of `cpp/`, compiled into your own translation units.
 - `numkong::static` and `numkong::shared` are the compiled library.
 
-`numkong::static` and `numkong::shared` exist when `NUMKONG_BUILD_SHARED` is on, the default only for a top-level build.
+`numkong::static` and `numkong::shared` are always declared, except that WASI and Emscripten have no shared library.
+`NUMKONG_BUILD_LIBRARIES`, on by default only for a top-level build, builds them by default and installs them; off, they build only for a target that links them.
 An installed NumKong provides the same targets through `find_package(numkong CONFIG REQUIRED)`.
 
 By default the headers declare every public function and the library defines it, each kernel once, in the unit of its capability.

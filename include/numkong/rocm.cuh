@@ -353,42 +353,6 @@ NUMKONG_DEVICE nk_f32_t nk_f32_exp2_rocm_(nk_f32_t exponent) { return exp2f(expo
 
 #pragma endregion Device Primitives
 
-/*  The library defines these once, in `src/capabilities/rocm.hip`; header-only builds define them
- *  here. */
-#if NUMKONG_HEADER_ONLY
-
-NUMKONG_API nk_status_t nk_allocator_init_unified_rocm(nk_allocator_t *allocator) {
-    return nk_allocator_init_unified_rocm_(allocator);
-}
-NUMKONG_API nk_status_t nk_allocator_init_device_rocm(nk_allocator_t *allocator) {
-    return nk_allocator_init_device_rocm_(allocator);
-}
-NUMKONG_API nk_status_t nk_allocator_init_pinned_rocm(nk_allocator_t *allocator) {
-    return nk_allocator_init_pinned_rocm_(allocator);
-}
-
-NUMKONG_API nk_status_t nk_count_devices_rocm(nk_size_t *count) {
-    *count = nk_count_devices_rocm_();
-    return *count ? nk_success_k : nk_missing_gpu_k;
-}
-NUMKONG_API nk_status_t nk_capabilities_detected_rocm(nk_size_t ordinal, nk_capability_t *capabilities) {
-    return nk_capabilities_detected_rocm_(ordinal, capabilities);
-}
-NUMKONG_API nk_status_t nk_stream_init_rocm(nk_size_t ordinal, nk_stream_t *stream) {
-    return nk_stream_init_rocm_(ordinal, stream);
-}
-NUMKONG_API nk_status_t nk_stream_free_rocm(nk_stream_t stream) { return nk_stream_free_rocm_(stream); }
-NUMKONG_API nk_status_t nk_memory_allocate_unified_rocm(nk_size_t bytes, void **pointer, nk_stream_t stream) {
-    return nk_memory_allocate_unified_rocm_(bytes, pointer, stream);
-}
-NUMKONG_API nk_status_t nk_memory_free_unified_rocm(void *pointer, nk_size_t bytes, nk_stream_t stream) {
-    nk_unused_(bytes);
-    return nk_memory_free_unified_rocm_(pointer, stream);
-}
-NUMKONG_API nk_status_t nk_stream_synchronize_rocm(nk_stream_t stream) { return nk_stream_synchronize_rocm_(stream); }
-
-#endif // NUMKONG_HEADER_ONLY
-
 #if defined(__cplusplus)
 } // extern "C"
 #endif

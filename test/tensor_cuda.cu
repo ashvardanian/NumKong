@@ -231,7 +231,7 @@ static bool check_device_tensor_view_ops() {
 }
 
 void run_tensor_cuda_cases() {
-    cuda_device_scope_t device(test_run.settings.device.ordinal());
+    cuda_device_scope_t device(test_run.settings.device_ordinal);
     if (!expect_device_success(device.status)) return;
 
     run_kernel_case(

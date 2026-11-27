@@ -6,8 +6,6 @@
  */
 #undef NDEBUG // ! A test's oracle must stay live in every build
 
-#include "numkong/dot.hpp" // `nk::dot` for BLAS comparison
-
 #include "harness.hpp"
 #include "cross.hpp"
 
@@ -23,7 +21,7 @@ using dots_unpacked_kernel = void (*)(scalar_type_ const *, scalar_type_ const *
 /**
  *  @brief Unified template to test unpacked GEMM against high-precision reference.
  *
- *  Validates BLAS/MKL/Accelerate GEMM implementations by comparing against @c nk::dots_unpacked
+ *  Validates BLAS/MKL/Accelerate GEMM implementations by comparing against @c dots_reference
  *  with high-precision reference accumulation.
  *
  *  @tparam scalar_type_ Input element type (e.g., f32_t, bf16_t)
@@ -55,8 +53,8 @@ error_stats_t test_dots_unpacked(dots_unpacked_kernel<scalar_type_, accumulator_
         fill_random(generator, a_buf);
         fill_random(generator, b_buf);
 
-        nk::dots_unpacked<scalar_t, reference_t>(a_buf.values_data(), b_buf.values_data(), c_ref.data(), m, n, k,
-                                                 a_stride, b_stride, n * sizeof(reference_t));
+        dots_reference<scalar_t, reference_t>(a_buf.values_data(), b_buf.values_data(), c_ref.data(), m, n, k, a_stride,
+                                              b_stride, n * sizeof(reference_t));
         dots_fn(a_buf.values_data(), b_buf.values_data(), c.values_data(), m, n, k, a_stride, c_stride);
 
         for (std::size_t i = 0; i < m * n; i++) stats.accumulate(c[i], c_ref[i]);
@@ -94,8 +92,8 @@ error_stats_t test_dots_unpacked_conjugated(dots_unpacked_kernel<scalar_type_, a
         fill_random(generator, a_buf);
         fill_random(generator, b_buf);
 
-        nk::dots_unpacked_conjugated<scalar_t, reference_t>(a_buf.values_data(), b_buf.values_data(), c_ref.data(), m,
-                                                            n, k, a_stride, b_stride, n * sizeof(reference_t));
+        dots_conjugated_reference<scalar_t, reference_t>(a_buf.values_data(), b_buf.values_data(), c_ref.data(), m, n,
+                                                         k, a_stride, b_stride, n * sizeof(reference_t));
         dots_fn(a_buf.values_data(), b_buf.values_data(), c.values_data(), m, n, k, a_stride, c_stride);
 
         for (std::size_t i = 0; i < m * n; i++) stats.accumulate(c[i], c_ref[i]);
@@ -297,8 +295,11 @@ error_stats_t test_dot_blas(typename scalar_type_::dot_kernel_t kernel, nk_f64_t
                                    &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect_status(nk::dot<scalar_t, reference_t>(a.values_data(), b.values_data(),
-                                                           test_run.settings.dense_dimensions, &reference, no_tiers_k));
+        std::size_t const row_bytes = test_run.settings.dense_dimensions / nk::dimensions_per_value<scalar_t>() *
+                                      sizeof(scalar_t);
+        dots_reference<scalar_t, reference_t>(a.values_data(), b.values_data(), &reference, 1, 1,
+                                              test_run.settings.dense_dimensions, row_bytes, row_bytes,
+                                              sizeof(reference_t));
 
         stats.accumulate(result, reference);
     }
@@ -325,9 +326,12 @@ error_stats_t test_vdot_blas(typename scalar_type_::vdot_kernel_t kernel, nk_f64
         stats.expect_status(kernel(a.raw_values_data(), b.raw_values_data(), test_run.settings.dense_dimensions,
                                    &result.raw_, nullptr));
 
+        // `dots_conjugated_reference` conjugates its second operand, vdot its first
         reference_t reference;
-        stats.expect_status(nk::vdot<scalar_t, reference_t>(
-            a.values_data(), b.values_data(), test_run.settings.dense_dimensions, &reference, no_tiers_k));
+        std::size_t const row_bytes = test_run.settings.dense_dimensions * sizeof(scalar_t);
+        dots_conjugated_reference<scalar_t, reference_t>(b.values_data(), a.values_data(), &reference, 1, 1,
+                                                         test_run.settings.dense_dimensions, row_bytes, row_bytes,
+                                                         sizeof(reference_t));
 
         stats.accumulate(result, reference);
     }

@@ -4,6 +4,10 @@
  *  @date February 5, 2026
  *  @brief C++ wrappers for SIMD-accelerated spatial similarity measures.
  */
+#if defined(NUMKONG_HEADER_ONLY) && NUMKONG_HEADER_ONLY
+#error "The NumKong C++ SDK links the library; link numkong::cpp, not numkong::header"
+#endif
+
 #ifndef NUMKONG_SPATIAL_HPP
 #define NUMKONG_SPATIAL_HPP
 
@@ -12,7 +16,9 @@
 
 #include "numkong/spatial.h"
 
+#include "numkong/tensor.hpp"
 #include "numkong/types.hpp"
+#include "numkong/devices.hpp" // `default_capabilities`
 
 namespace ashvardanian::numkong {
 
@@ -22,47 +28,39 @@ namespace ashvardanian::numkong {
  *  @param[in] b Second vector
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output distance value
- *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] capabilities Capabilities to pick from
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Input vector element type
- *  @tparam result_type_ Accumulator type, defaults to @c in_type_::euclidean_result_t
  */
-template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::euclidean_result_t>
-status_t euclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r,
+template <a_numeric_dtype in_type_>
+status_t euclidean(in_type_ const *a, in_type_ const *b, std::size_t d, typename in_type_::euclidean_result_t *r,
                    nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
-    constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::euclidean_result_t>;
-
-    if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return static_cast<status_t>(nk_euclidean_f64_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(nk_euclidean_f32_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(nk_euclidean_f16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return static_cast<status_t>(nk_euclidean_bf16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
-            return static_cast<status_t>(nk_euclidean_e4m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
-            return static_cast<status_t>(nk_euclidean_e5m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
-            return static_cast<status_t>(nk_euclidean_e2m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
-            return static_cast<status_t>(nk_euclidean_e3m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
-            return static_cast<status_t>(nk_euclidean_i8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
-            return static_cast<status_t>(nk_euclidean_u8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
-            return static_cast<status_t>(nk_euclidean_i4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
-            return static_cast<status_t>(nk_euclidean_u4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-    }
-    result_type_ sum {};
-    for (std::size_t i = 0; i < d / dimensions_per_value<in_type_>(); i++) sum = fdsa(a[i], b[i], sum);
-    *r = sum.sqrt();
-    return status_t::success_k;
+    if constexpr (std::is_same_v<in_type_, f64_t>)
+        return static_cast<status_t>(nk_euclidean_f64_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, f32_t>)
+        return static_cast<status_t>(nk_euclidean_f32_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, f16_t>)
+        return static_cast<status_t>(nk_euclidean_f16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, bf16_t>)
+        return static_cast<status_t>(nk_euclidean_bf16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e4m3_t>)
+        return static_cast<status_t>(nk_euclidean_e4m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e5m2_t>)
+        return static_cast<status_t>(nk_euclidean_e5m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e2m3_t>)
+        return static_cast<status_t>(nk_euclidean_e2m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e3m2_t>)
+        return static_cast<status_t>(nk_euclidean_e3m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, i8_t>)
+        return static_cast<status_t>(nk_euclidean_i8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, u8_t>)
+        return static_cast<status_t>(nk_euclidean_u8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, i4x2_t>)
+        return static_cast<status_t>(nk_euclidean_i4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, u4x2_t>)
+        return static_cast<status_t>(nk_euclidean_u4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else static_assert(sizeof(in_type_) == 0, "nk_euclidean has no kernel for this dtype");
 }
 
 /**
@@ -71,55 +69,39 @@ status_t euclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_t
  *  @param[in] b Second vector
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output distance value
- *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] capabilities Capabilities to pick from
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Input vector element type
- *  @tparam result_type_ Accumulator type, defaults to @c in_type_::sqeuclidean_result_t
  */
-template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::sqeuclidean_result_t>
-status_t sqeuclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r,
+template <a_numeric_dtype in_type_>
+status_t sqeuclidean(in_type_ const *a, in_type_ const *b, std::size_t d, typename in_type_::sqeuclidean_result_t *r,
                      nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
-    constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::sqeuclidean_result_t>;
-
-    if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return static_cast<status_t>(
-                nk_sqeuclidean_f64_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(
-                nk_sqeuclidean_f32_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(
-                nk_sqeuclidean_f16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return static_cast<status_t>(
-                nk_sqeuclidean_bf16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
-            return static_cast<status_t>(
-                nk_sqeuclidean_e4m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
-            return static_cast<status_t>(
-                nk_sqeuclidean_e5m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
-            return static_cast<status_t>(
-                nk_sqeuclidean_e2m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
-            return static_cast<status_t>(
-                nk_sqeuclidean_e3m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
-            return static_cast<status_t>(nk_sqeuclidean_i8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
-            return static_cast<status_t>(nk_sqeuclidean_u8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
-            return static_cast<status_t>(nk_sqeuclidean_i4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
-            return static_cast<status_t>(nk_sqeuclidean_u4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-    }
-    result_type_ sum {};
-    for (std::size_t i = 0; i < d / dimensions_per_value<in_type_>(); i++) sum = fdsa(a[i], b[i], sum);
-    *r = sum;
-    return status_t::success_k;
+    if constexpr (std::is_same_v<in_type_, f64_t>)
+        return static_cast<status_t>(nk_sqeuclidean_f64_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, f32_t>)
+        return static_cast<status_t>(nk_sqeuclidean_f32_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, f16_t>)
+        return static_cast<status_t>(nk_sqeuclidean_f16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, bf16_t>)
+        return static_cast<status_t>(nk_sqeuclidean_bf16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e4m3_t>)
+        return static_cast<status_t>(nk_sqeuclidean_e4m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e5m2_t>)
+        return static_cast<status_t>(nk_sqeuclidean_e5m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e2m3_t>)
+        return static_cast<status_t>(nk_sqeuclidean_e2m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e3m2_t>)
+        return static_cast<status_t>(nk_sqeuclidean_e3m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, i8_t>)
+        return static_cast<status_t>(nk_sqeuclidean_i8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, u8_t>)
+        return static_cast<status_t>(nk_sqeuclidean_u8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, i4x2_t>)
+        return static_cast<status_t>(nk_sqeuclidean_i4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, u4x2_t>)
+        return static_cast<status_t>(nk_sqeuclidean_u4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else static_assert(sizeof(in_type_) == 0, "nk_sqeuclidean has no kernel for this dtype");
 }
 
 /**
@@ -128,110 +110,87 @@ status_t sqeuclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result
  *  @param[in] b Second vector
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output distance value
- *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] capabilities Capabilities to pick from
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Input vector element type
- *  @tparam result_type_ Accumulator type, defaults to @c in_type_::angular_result_t
  */
-template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::angular_result_t>
-status_t angular(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r,
+template <a_numeric_dtype in_type_>
+status_t angular(in_type_ const *a, in_type_ const *b, std::size_t d, typename in_type_::angular_result_t *r,
                  nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
-    constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::angular_result_t>;
-
-    if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return static_cast<status_t>(nk_angular_f64_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(nk_angular_f32_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(nk_angular_f16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return static_cast<status_t>(nk_angular_bf16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
-            return static_cast<status_t>(nk_angular_e4m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
-            return static_cast<status_t>(nk_angular_e5m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
-            return static_cast<status_t>(nk_angular_e2m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
-            return static_cast<status_t>(nk_angular_e3m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
-            return static_cast<status_t>(nk_angular_i8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
-            return static_cast<status_t>(nk_angular_u8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
-            return static_cast<status_t>(nk_angular_i4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
-            return static_cast<status_t>(nk_angular_u4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
-    }
-    result_type_ ab {}, aa {}, bb {};
-    for (std::size_t i = 0; i < d / dimensions_per_value<in_type_>(); i++) {
-        ab = fma(a[i], b[i], ab);
-        aa = fma(a[i], a[i], aa);
-        bb = fma(b[i], b[i], bb);
-    }
-    result_type_ const zero(0), one(1);
-    result_type_ distance = one - ab / (aa.sqrt() * bb.sqrt());
-    // Two zero norms give 0, one zero norm or a zero dot 1, and NaN stays, as in `spatial.h`
-    if (aa == zero && bb == zero) distance = zero;
-    else if (ab == zero || aa == zero || bb == zero) distance = one;
-    *r = distance < zero ? zero : distance;
-    return status_t::success_k;
+    if constexpr (std::is_same_v<in_type_, f64_t>)
+        return static_cast<status_t>(nk_angular_f64_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, f32_t>)
+        return static_cast<status_t>(nk_angular_f32_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, f16_t>)
+        return static_cast<status_t>(nk_angular_f16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, bf16_t>)
+        return static_cast<status_t>(nk_angular_bf16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e4m3_t>)
+        return static_cast<status_t>(nk_angular_e4m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e5m2_t>)
+        return static_cast<status_t>(nk_angular_e5m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e2m3_t>)
+        return static_cast<status_t>(nk_angular_e2m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e3m2_t>)
+        return static_cast<status_t>(nk_angular_e3m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, i8_t>)
+        return static_cast<status_t>(nk_angular_i8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, u8_t>)
+        return static_cast<status_t>(nk_angular_u8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, i4x2_t>)
+        return static_cast<status_t>(nk_angular_i4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, u4x2_t>)
+        return static_cast<status_t>(nk_angular_u4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
+    else static_assert(sizeof(in_type_) == 0, "nk_angular has no kernel for this dtype");
 }
-
-} // namespace ashvardanian::numkong
-
-#include "numkong/tensor.hpp"
-
-namespace ashvardanian::numkong {
 
 /** Euclidean distance between two runs of @p in_type_ with equal dimensions;
  *  @c unexpected_dimensions_k when they differ or either run is strided or ends mid-value. */
-template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::euclidean_result_t,
-          a_vector_of<in_type_> a_type_, a_vector_of<in_type_> b_type_>
-expected<result_type_> euclidean(a_type_ const &a, b_type_ const &b,
-                                 nk_capability_t capabilities = default_capabilities()) noexcept {
+template <a_numeric_dtype in_type_, a_vector_of<in_type_> a_type_, a_vector_of<in_type_> b_type_>
+expected<typename in_type_::euclidean_result_t> euclidean(a_type_ const &a, b_type_ const &b,
+                                                          nk_capability_t capabilities = default_capabilities(),
+                                                          nk_stream_t stream = nullptr) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
     auto b_values = contiguous_values_<in_type_ const>(b);
     std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
     if (!a_values || !b_values || dimensions != b_values.value.size() * dimensions_per_value<in_type_>())
         return {{}, status_t::unexpected_dimensions_k};
-    result_type_ result {};
-    status_t status = euclidean<in_type_, result_type_>(a_values.value.data(), b_values.value.data(), dimensions,
-                                                        &result, capabilities);
+    typename in_type_::euclidean_result_t result {};
+    status_t status = euclidean<in_type_>(a_values.value.data(), b_values.value.data(), dimensions, &result,
+                                          capabilities, stream);
     return {result, status};
 }
 
 /** Squared Euclidean distance between two runs, failing like the concept @c euclidean. */
-template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::sqeuclidean_result_t,
-          a_vector_of<in_type_> a_type_, a_vector_of<in_type_> b_type_>
-expected<result_type_> sqeuclidean(a_type_ const &a, b_type_ const &b,
-                                   nk_capability_t capabilities = default_capabilities()) noexcept {
+template <a_numeric_dtype in_type_, a_vector_of<in_type_> a_type_, a_vector_of<in_type_> b_type_>
+expected<typename in_type_::sqeuclidean_result_t> sqeuclidean(a_type_ const &a, b_type_ const &b,
+                                                              nk_capability_t capabilities = default_capabilities(),
+                                                              nk_stream_t stream = nullptr) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
     auto b_values = contiguous_values_<in_type_ const>(b);
     std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
     if (!a_values || !b_values || dimensions != b_values.value.size() * dimensions_per_value<in_type_>())
         return {{}, status_t::unexpected_dimensions_k};
-    result_type_ result {};
-    status_t status = sqeuclidean<in_type_, result_type_>(a_values.value.data(), b_values.value.data(), dimensions,
-                                                          &result, capabilities);
+    typename in_type_::sqeuclidean_result_t result {};
+    status_t status = sqeuclidean<in_type_>(a_values.value.data(), b_values.value.data(), dimensions, &result,
+                                            capabilities, stream);
     return {result, status};
 }
 
 /** Angular distance between two runs, failing like the concept @c euclidean. */
-template <a_numeric_dtype in_type_, a_numeric_dtype result_type_ = typename in_type_::angular_result_t,
-          a_vector_of<in_type_> a_type_, a_vector_of<in_type_> b_type_>
-expected<result_type_> angular(a_type_ const &a, b_type_ const &b,
-                               nk_capability_t capabilities = default_capabilities()) noexcept {
+template <a_numeric_dtype in_type_, a_vector_of<in_type_> a_type_, a_vector_of<in_type_> b_type_>
+expected<typename in_type_::angular_result_t> angular(a_type_ const &a, b_type_ const &b,
+                                                      nk_capability_t capabilities = default_capabilities(),
+                                                      nk_stream_t stream = nullptr) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
     auto b_values = contiguous_values_<in_type_ const>(b);
     std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
     if (!a_values || !b_values || dimensions != b_values.value.size() * dimensions_per_value<in_type_>())
         return {{}, status_t::unexpected_dimensions_k};
-    result_type_ result {};
-    status_t status = angular<in_type_, result_type_>(a_values.value.data(), b_values.value.data(), dimensions, &result,
-                                                      capabilities);
+    typename in_type_::angular_result_t result {};
+    status_t status = angular<in_type_>(a_values.value.data(), b_values.value.data(), dimensions, &result, capabilities,
+                                        stream);
     return {result, status};
 }
 

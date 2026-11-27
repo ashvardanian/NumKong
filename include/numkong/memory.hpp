@@ -1,8 +1,8 @@
 /**
- *  @file cpp/numkong/memory.hpp
+ *  @file include/numkong/memory.hpp
  *  @author Ash Vardanian
  *  @date October 5, 2026
- *  @brief C++ allocation policies and device stream ownership.
+ *  @brief C++ allocation policies over the C allocator interface.
  */
 #ifndef NUMKONG_MEMORY_HPP
 #define NUMKONG_MEMORY_HPP
@@ -11,10 +11,9 @@
 
 #include <limits>      // `std::numeric_limits`
 #include <type_traits> // `std::true_type`, `std::false_type`
-#include <utility>     // `std::move`, `std::exchange`
 
-#include "numkong/memory.h"  // `nk_allocator_t`
-#include "numkong/types.hpp" // `device_t`, `expected`
+#include "numkong/memory.h"  // `nk_allocator_t`, `nk_allocator_init_heap`
+#include "numkong/types.hpp" // `expected`
 
 namespace ashvardanian::numkong {
 
@@ -84,9 +83,11 @@ struct allocator {
     };
 
     constexpr allocator() noexcept = default;
-    static expected<allocator> make(
-        nk_capability_t capabilities, nk_stream_t stream = nullptr,
-        nk_status_t (*initialize)(nk_allocator_t *, nk_capability_t) = nk_allocator_init_unified_best) noexcept {
+
+    /** An allocator over the policy @p initialize sets up for @p capabilities, through
+     *  one of the C allocator initializers, on @p stream. */
+    static expected<allocator> make(nk_capability_t capabilities, nk_stream_t stream,
+                                    nk_status_t (*initialize)(nk_allocator_t *, nk_capability_t)) noexcept {
         nk_allocator_t policy {};
         nk_status_t const status = initialize(&policy, capabilities);
         return {allocator(policy, stream), static_cast<status_t>(status)};
@@ -115,54 +116,6 @@ struct allocator {
         return policy.allocate == other.policy.allocate && policy.free == other.policy.free &&
                policy.handle == other.policy.handle && stream == other.stream;
     }
-};
-
-/** Owns a device stream; buffers using it must be released before the stream. */
-class stream_t {
-    nk_stream_t handle_ = nullptr;
-    nk_status_t (*free_)(nk_stream_t) = nullptr;
-
-  public:
-    stream_t() noexcept = default;
-    stream_t(stream_t const &) = delete;
-    stream_t &operator=(stream_t const &) = delete;
-    stream_t(stream_t &&other) noexcept : handle_(std::exchange(other.handle_, nullptr)), free_(other.free_) {}
-    stream_t &operator=(stream_t &&other) noexcept {
-        if (this != &other) {
-            if (handle_) { [[maybe_unused]] nk_status_t const status = free_(handle_); }
-            handle_ = std::exchange(other.handle_, nullptr);
-            free_ = other.free_;
-        }
-        return *this;
-    }
-    ~stream_t() {
-        if (handle_) { [[maybe_unused]] nk_status_t const status = free_(handle_); }
-    }
-
-    static expected<stream_t> make(device_t device) noexcept {
-        stream_t result;
-        nk_status_t (*initialize)(nk_size_t, nk_stream_t *) = nullptr;
-        switch (device.kind()) {
-        case device_kind_t::cpu_k: return {std::move(result), status_t::success_k};
-        case device_kind_t::cuda_k:
-            initialize = nk_stream_init_cuda;
-            result.free_ = nk_stream_free_cuda;
-            break;
-        case device_kind_t::rocm_k:
-            initialize = nk_stream_init_rocm;
-            result.free_ = nk_stream_free_rocm;
-            break;
-        case device_kind_t::metal_k:
-            initialize = nk_stream_init_metal;
-            result.free_ = nk_stream_free_metal;
-            break;
-        default: return {std::move(result), status_t::missing_gpu_k};
-        }
-        nk_status_t const status = initialize(device.ordinal(), &result.handle_);
-        return {std::move(result), static_cast<status_t>(status)};
-    }
-
-    nk_stream_t get() const noexcept { return handle_; }
 };
 
 } // namespace ashvardanian::numkong

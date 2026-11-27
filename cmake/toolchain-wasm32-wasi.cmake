@@ -45,9 +45,6 @@ set(CMAKE_RANLIB "${WASI_SDK_PATH}/bin/llvm-ranlib${numkong_wasi_tool_suffix_}")
 set(CMAKE_SYSROOT "${WASI_SDK_PATH}/share/wasi-sysroot")
 set(CMAKE_FIND_ROOT_PATH "${WASI_SDK_PATH}")
 
-# A `-shared` module needs a main module to resolve `__global_base` and kin, which no standalone runtime supplies.
-set(NUMKONG_BUILD_SHARED OFF CACHE BOOL "Compile a dynamic library")
-
 # `CMakeLists.txt` turns the capability into `-msimd128` and `-mrelaxed-simd` for every unit.
 set(NUMKONG_MARCH "v128" CACHE STRING "WebAssembly SIMD capability of this module: serial, v128 or v128relaxed")
 

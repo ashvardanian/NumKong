@@ -18,15 +18,53 @@ inline error_stats_t test_vector_reductions() {
     nk::f32_t data[] = {nk::f32_t(1), nk::f32_t(2), nk::f32_t(3), nk::f32_t(4), nk::f32_t(5)};
     auto view = nk::vector_view<nk::f32_t>(data, std::size_t {5});
 
-    auto m = nk::moments(view);
-    stats.accumulate(m.sum, decltype(m.sum)(15));
-    stats.accumulate(m.sumsq, decltype(m.sumsq)(55));
+    auto [m, moments_status] = nk::moments(view);
+    stats.expect_status(moments_status);
+    stats.accumulate(m.sum, nk::f64_t(15));
+    stats.accumulate(m.sumsq, nk::f64_t(55));
 
-    auto mm = nk::minmax(view);
+    auto [mm, minmax_status] = nk::minmax(view);
+    stats.expect_status(minmax_status);
     stats.accumulate(mm.min_value, nk::f32_t(1));
     stats.accumulate(mm.max_value, nk::f32_t(5));
     stats.accumulate(static_cast<nk_size_t>(mm.min_index), static_cast<nk_size_t>(0));
     stats.accumulate(static_cast<nk_size_t>(mm.max_index), static_cast<nk_size_t>(4));
+
+    // Every scalar reduction also takes the dispatch pair, here the default mask spelled out
+    auto [sum, sum_status] = nk::sum(view, nk::default_capabilities(), nullptr);
+    auto [minimum, min_status] = (nk::min)(view, nk::default_capabilities(), nullptr);
+    auto [maximum, max_status] = (nk::max)(view, nk::default_capabilities(), nullptr);
+    auto [minimum_index, argmin_status] = nk::argmin(view, nk::default_capabilities(), nullptr);
+    auto [maximum_index, argmax_status] = nk::argmax(view, nk::default_capabilities(), nullptr);
+    auto [serial_moments, serial_moments_status] = nk::moments(view, nk::default_capabilities(), nullptr);
+    auto [serial_minmax, serial_minmax_status] = nk::minmax(view, nk::default_capabilities(), nullptr);
+    for (nk::status_t status : {sum_status, min_status, max_status, argmin_status, argmax_status, serial_moments_status,
+                                serial_minmax_status})
+        stats.expect_status(status);
+    stats.accumulate(sum, nk::f64_t(15));
+    stats.accumulate(serial_moments.sumsq, nk::f64_t(55));
+    stats.accumulate(minimum, nk::f32_t(1));
+    stats.accumulate(maximum, serial_minmax.max_value);
+    stats.accumulate(static_cast<nk_size_t>(minimum_index), static_cast<nk_size_t>(0));
+    stats.accumulate(static_cast<nk_size_t>(maximum_index), static_cast<nk_size_t>(4));
+
+    nk::u1x8_t bits[] = {nk::u1x8_t(0xFF), nk::u1x8_t(0x01)};
+    auto bit_view = nk::vector_view<nk::u1x8_t>(std::span<nk::u1x8_t const>(bits));
+    auto [count, popcount_status] = nk::popcount(bit_view, nk::default_capabilities(), nullptr);
+    auto [any, any_status] = nk::any_set(bit_view, nk::default_capabilities(), nullptr);
+    auto [none, none_status] = nk::none_set(bit_view, nk::default_capabilities(), nullptr);
+    auto [all, all_status] = nk::all_set(bit_view, nk::default_capabilities(), nullptr);
+    for (nk::status_t status : {popcount_status, any_status, none_status, all_status}) stats.expect_status(status);
+    stats.accumulate(static_cast<nk_size_t>(count.raw_), static_cast<nk_size_t>(9));
+    stats.expect_true(any && !none && !all, "set predicates of 9 bits out of 16");
+
+    auto [grid, grid_status] = nk::tensor<nk::f32_t>::zeros({2, 3});
+    stats.expect_status(grid_status);
+    auto [grid_sum, grid_sum_status] = nk::sum<nk::f32_t>(grid.view(), nk::default_capabilities(), nullptr);
+    stats.expect_status(grid_sum_status);
+    stats.accumulate(grid_sum, nk::f64_t(0));
+    stats.expect_true(nk::sum(view, 0, nullptr).status == nk::status_t::missing_kernel_k,
+                      "a zero mask names no kernel");
     return stats;
 }
 
@@ -80,7 +118,6 @@ void run_reduce_cases() {
     run_kernel_case("nk_reduce_minmax_u4_serial", test_reduce_minmax<u4x2_t>, serial, nk_reduce_minmax_u4_serial);
     run_kernel_case("nk_reduce_minmax_u1_serial", test_reduce_minmax<u1x8_t>, serial, nk_reduce_minmax_u1_serial);
 
-#if !NUMKONG_HEADER_ONLY
     run_kernel_case("nk_reduce_moments_f32_best", test_reduce_moments<f32_t>, serial,
                     cpu_best<nk_reduce_moments_f32_best>);
     run_kernel_case("nk_reduce_moments_f64_best", test_reduce_moments<f64_t>, serial,
@@ -152,7 +189,6 @@ void run_reduce_cases() {
     run_kernel_case("nk_reduce_minmax_i4_best", test_reduce_minmax<i4x2_t>, serial, cpu_best<nk_reduce_minmax_i4_best>);
     run_kernel_case("nk_reduce_minmax_u4_best", test_reduce_minmax<u4x2_t>, serial, cpu_best<nk_reduce_minmax_u4_best>);
     run_kernel_case("nk_reduce_minmax_u1_best", test_reduce_minmax<u1x8_t>, serial, cpu_best<nk_reduce_minmax_u1_best>);
-#endif
 
 #if NUMKONG_TARGET_NEON
     auto const neon = nk_cap_neon_k;

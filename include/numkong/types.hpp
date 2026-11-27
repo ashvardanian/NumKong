@@ -1,13 +1,13 @@
 /**
- *  @file cpp/numkong/types.hpp
+ *  @file include/numkong/types.hpp
  *  @author Ash Vardanian
  *  @date January 7, 2026
- *  @brief NumKong strong types for C++23 and newer.
+ *  @brief NumKong strong types for C++20 and newer.
  *
  *  C doesn't have a strong type system or composable infrastructure for complex kernels and
  *  datastructures like the C++ templates and Rust traits. Moreover, C++ is the dominant language in
- *  High-Performance Computing and now NumKong exposes all of its unusual types to C++ users with
- *  support for all traditional @c operators, compatible with @c std::mdspan.
+ *  High-Performance Computing and now NumKong exposes all of its unusual types to C++ users,
+ *  compatible with @c std::mdspan.
  *
  *  This file several light-weight mostly @c constexpr classes:
  *
@@ -16,12 +16,11 @@
  *  3. Sub-byte types packed into tuples, like @c u1x8_t, @c u4x2_t, @c i4x2_t
  *  4. Extreme-precision types for accuracy tests, like @c f118_t via double-double logic
  *
- *  Each of those contains:
- *
- *  - Traditional arithmetic operator overloads returning the same storage type
- *  - Trigonometric functions like the @c sin, @c tanh, @c acos
- *  - Rust-style @c order, @c total_cmp, @c round, @c to_radians, @c fma for FMA operations
- *  - Type definitions for NumKong mixed-precision often-widening operations
+ *  Each of those holds its storage, its @c dtype, the type definitions for NumKong mixed-precision
+ *  often-widening operations, and the operations no NumKong kernel backs. A kernel-backed spelling,
+ *  like constructing an @c f16_t from a @c float, comparing two of them, or @c f32_t::sqrt, is
+ *  deleted here and lives as a verb in the @c numkong::cpp headers, like @c nk::cast,
+ *  @c nk::to_f32, @c nk::order and @c nk::sqrt, which link the library.
  *
  *  @section types_terminology Terminology: Word vs Value vs Dimension
  *
@@ -114,8 +113,6 @@
 #include <utility>     // `std::swap`
 
 #include "numkong/types.h"
-#include "numkong/scalar.h"
-#include "numkong/cast.h"
 
 #if __has_include(<format>)
 #include <format> // `std::formatter`, `std::format_parse_context`
@@ -210,125 +207,7 @@ struct [[nodiscard]] expected {
     explicit operator bool() const noexcept { return succeeded(status); }
 };
 
-/** The borrowing face of @ref expected for reference results: there is no null
- *  reference, so the borrow is stored as an address and @c value() binds it only on
- *  @c success_k. */
-template <typename value_type_>
-struct [[nodiscard]] expected<value_type_ &> {
-    value_type_ *borrowed;
-    status_t status;
-
-    value_type_ &value() const noexcept { return *borrowed; }
-    explicit operator bool() const noexcept { return succeeded(status); }
-};
-
 #pragma endregion Status
-
-#pragma region Devices
-
-/** Which runtime a device belongs to, as the <tt>nk_\<kind\>_*</tt> C functions name it. */
-enum class device_kind_t : int { cpu_k, cuda_k, rocm_k, metal_k };
-
-/** One device NumKong can run kernels on: the host CPU, or a GPU by its runtime's own ordinal. */
-class device_t {
-    device_kind_t kind_;
-    std::size_t ordinal_;
-
-    constexpr device_t(device_kind_t kind, std::size_t ordinal) noexcept : kind_(kind), ordinal_(ordinal) {}
-
-  public:
-    /** The host CPU, which every build has. */
-    static constexpr device_t cpu() noexcept { return {device_kind_t::cpu_k, 0}; }
-
-    /** How many devices of @p kind the process sees: one CPU, or @c missing_gpu_k and zero GPUs. */
-    static expected<std::size_t> count(device_kind_t kind) noexcept {
-        nk_size_t count = 1;
-        nk_status_t status = nk_success_k;
-        switch (kind) {
-        case device_kind_t::cpu_k: break;
-        case device_kind_t::cuda_k: status = nk_count_devices_cuda(&count); break;
-        case device_kind_t::rocm_k: status = nk_count_devices_rocm(&count); break;
-        case device_kind_t::metal_k: status = nk_count_devices_metal(&count); break;
-        }
-        return {count, static_cast<status_t>(status)};
-    }
-
-    /** Device @p ordinal of @p kind, or @c missing_gpu_k past the last one. */
-    static expected<device_t> make(device_kind_t kind, std::size_t ordinal) noexcept {
-        expected<std::size_t> const devices = count(kind);
-        status_t const status = devices && ordinal >= devices.value ? status_t::missing_gpu_k : devices.status;
-        return {device_t {kind, ordinal}, status};
-    }
-
-    constexpr device_kind_t kind() const noexcept { return kind_; }
-    constexpr std::size_t ordinal() const noexcept { return ordinal_; }
-
-    /** What this device runs, whether or not this binary holds kernels for it; zero on failure. */
-    expected<nk_capability_t> capabilities_detected() const noexcept {
-        nk_capability_t capabilities = 0;
-        nk_status_t status = nk_success_k;
-        switch (kind_) {
-        case device_kind_t::cpu_k: status = nk_capabilities_detected_cpu(&capabilities); break;
-        case device_kind_t::cuda_k: status = nk_capabilities_detected_cuda(ordinal_, &capabilities); break;
-        case device_kind_t::rocm_k: status = nk_capabilities_detected_rocm(ordinal_, &capabilities); break;
-        case device_kind_t::metal_k: status = nk_capabilities_detected_metal(ordinal_, &capabilities); break;
-        }
-        return {capabilities, static_cast<status_t>(status)};
-    }
-
-    /** What this binary holds code for that this device runs, whether or not it offers the
-     *  capabilities; zero past the last device. */
-    nk_capability_t capabilities_compiled() const noexcept {
-        nk_capability_t capabilities = 0;
-        [[maybe_unused]] nk_status_t status = nk_success_k; // A failure leaves the mask empty
-        switch (kind_) {
-        case device_kind_t::cpu_k: status = nk_capabilities_compiled_cpu(&capabilities); break;
-        case device_kind_t::cuda_k: status = nk_capabilities_compiled_cuda(ordinal_, &capabilities); break;
-        case device_kind_t::rocm_k: status = nk_capabilities_compiled_rocm(ordinal_, &capabilities); break;
-        case device_kind_t::metal_k: status = nk_capabilities_compiled_metal(ordinal_, &capabilities); break;
-        }
-        return capabilities;
-    }
-
-    /** Both at once: the mask for this device's dispatch points; zero on failure. */
-    expected<nk_capability_t> capabilities_enabled() const noexcept {
-        nk_capability_t capabilities = 0;
-        nk_status_t status = nk_success_k;
-        switch (kind_) {
-        case device_kind_t::cpu_k: status = nk_capabilities_enabled_cpu(&capabilities); break;
-        case device_kind_t::cuda_k: status = nk_capabilities_enabled_cuda(ordinal_, &capabilities); break;
-        case device_kind_t::rocm_k: status = nk_capabilities_enabled_rocm(ordinal_, &capabilities); break;
-        case device_kind_t::metal_k: status = nk_capabilities_enabled_metal(ordinal_, &capabilities); break;
-        }
-        return {capabilities, static_cast<status_t>(status)};
-    }
-
-    /** Prepares the calling thread for the CPU kernels of @p capabilities; GPUs have no such
-     *  kernels, so they report @c missing_kernel_k. */
-    status_t configure_thread(nk_capability_t capabilities) const noexcept {
-        if (kind_ != device_kind_t::cpu_k) return status_t::missing_kernel_k;
-        return static_cast<status_t>(nk_configure_thread_cpu(capabilities));
-    }
-};
-
-/**
- *  @brief The mask every wrapper dispatches over by default: the CPU's enabled capabilities, as
- *      @c device_t::cpu().capabilities_enabled() reports them, or none in header-only builds, whose
- *      dispatch points are stubs.
- *
- *  A zero mask names no capability, so the wrappers run their C++ templates instead, the references
- *  every capability is tested against. Header-only and linked C++ units must not share a binary.
- */
-inline nk_capability_t default_capabilities() noexcept {
-#if NUMKONG_HEADER_ONLY
-    return 0;
-#else
-    nk_capability_t capabilities = 0;
-    return nk_capabilities_enabled_cpu(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
-#endif
-}
-
-#pragma endregion Devices
 
 struct f118c_t;
 struct f64c_t;
@@ -420,45 +299,6 @@ constexpr bool is_signed_dtype() noexcept {
     if constexpr (is_numeric_dtype<scalar_type_>()) return scalar_type_::is_signed();
     else if constexpr (is_complex_dtype<scalar_type_>()) return is_signed_dtype<typename scalar_type_::value_type>();
     else return std::is_signed<scalar_type_>::value;
-}
-
-template <std::integral raw_integral_type_>
-constexpr raw_integral_type_ nk_f64_to_integer_(double value) noexcept {
-    using limits_t = std::numeric_limits<raw_integral_type_>;
-    if (value != value) return 0;
-    if constexpr (std::is_unsigned_v<raw_integral_type_>) {
-        if (value <= 0.0) return 0;
-        double max_value = static_cast<double>((limits_t::max)());
-        if (value >= max_value) return (limits_t::max)();
-        std::uint64_t integer_part = static_cast<std::uint64_t>(value);
-        double fractional_part = value - static_cast<double>(integer_part);
-        if (fractional_part > 0.5 || (fractional_part == 0.5 && (integer_part & 1))) ++integer_part;
-        return static_cast<raw_integral_type_>(integer_part);
-    }
-    else {
-        double min_value = static_cast<double>((limits_t::min)());
-        double max_value = static_cast<double>((limits_t::max)());
-        if (value <= min_value) return (limits_t::min)();
-        if (value >= max_value) return (limits_t::max)();
-        std::int64_t integer_part = static_cast<std::int64_t>(value);
-        double fractional_part = value - static_cast<double>(integer_part);
-        if (fractional_part > 0.5 || (fractional_part == 0.5 && (integer_part & 1))) ++integer_part;
-        else if (fractional_part < -0.5 || (fractional_part == -0.5 && (integer_part & 1))) --integer_part;
-        return static_cast<raw_integral_type_>(integer_part);
-    }
-}
-
-template <typename target_type_>
-    requires(is_integral_dtype<target_type_>() && !std::integral<target_type_>)
-constexpr target_type_ nk_f64_to_integer_(double value) noexcept {
-    using raw_t = typename target_type_::raw_t;
-    return target_type_::from_raw(nk_f64_to_integer_<raw_t>(value));
-}
-
-template <typename target_type_>
-constexpr target_type_ nk_f64_to_(double value) noexcept {
-    if constexpr (is_integral_dtype<target_type_>()) return nk_f64_to_integer_<target_type_>(value);
-    else return target_type_(value);
 }
 
 /** @c f118_t integer narrowing is declared here and defined after @c f118_t, because it needs
@@ -688,15 +528,9 @@ struct f32_t {
     NUMKONG_CMATH_CONSTEXPR_ f32_t trunc() const noexcept { return f32_t {std::trunc(raw_)}; }
     NUMKONG_CMATH_CONSTEXPR_ f32_t fract() const noexcept { return f32_t {raw_ - std::trunc(raw_)}; }
 
-    inline f32_t sqrt() const noexcept { return f32_t {nk_f32_sqrt_best(raw_, default_capabilities())}; }
     NUMKONG_CMATH_CONSTEXPR_ f32_t cbrt() const noexcept { return f32_t {std::cbrt(raw_)}; }
-    inline f32_t rsqrt() const noexcept { return f32_t {nk_f32_rsqrt_best(raw_, default_capabilities())}; }
     constexpr f32_t recip() const noexcept { return f32_t {1.0f / raw_}; }
 
-    /** @sa std::fma */
-    inline f32_t fma(f32_t a, f32_t b) const noexcept {
-        return f32_t {nk_f32_fma_best(raw_, a.raw_, b.raw_, default_capabilities())};
-    }
     NUMKONG_CMATH_CONSTEXPR_ f32_t powf(f32_t exp) const noexcept { return f32_t {std::pow(raw_, exp.raw_)}; }
     constexpr f32_t powi(int n) const noexcept {
         float result = 1.0f, base = raw_;
@@ -762,11 +596,14 @@ struct f32_t {
     /** Saturating multiplication: clamps to finite range on overflow. */
     constexpr f32_t saturating_mul(f32_t o) const noexcept { return clamped_to_finite_(raw_ * o.raw_); }
 
-    /** Convert to any numeric type. */
-    template <typename target_type_>
-    constexpr target_type_ to() const noexcept {
-        return nk_f64_to_<target_type_>(raw_);
-    }
+    /** Take the root through @c nk::sqrt, a multiversioned kernel. */
+    f32_t sqrt() const = delete;
+
+    /** Take the reciprocal root through @c nk::rsqrt. */
+    f32_t rsqrt() const = delete;
+
+    /** Fuse through @c nk::fma. */
+    f32_t fma(f32_t, f32_t) const = delete;
 
   private:
     constexpr f32_t(raw_t v, int) noexcept : raw_(v) {} // Private constructor for from_raw
@@ -982,15 +819,9 @@ struct f64_t {
     NUMKONG_CMATH_CONSTEXPR_ f64_t trunc() const noexcept { return f64_t {std::trunc(raw_)}; }
     NUMKONG_CMATH_CONSTEXPR_ f64_t fract() const noexcept { return f64_t {raw_ - std::trunc(raw_)}; }
 
-    inline f64_t sqrt() const noexcept { return f64_t {nk_f64_sqrt_best(raw_, default_capabilities())}; }
     NUMKONG_CMATH_CONSTEXPR_ f64_t cbrt() const noexcept { return f64_t {std::cbrt(raw_)}; }
-    inline f64_t rsqrt() const noexcept { return f64_t {nk_f64_rsqrt_best(raw_, default_capabilities())}; }
     constexpr f64_t recip() const noexcept { return f64_t {1.0 / raw_}; }
 
-    /** @sa std::fma */
-    inline f64_t fma(f64_t a, f64_t b) const noexcept {
-        return f64_t {nk_f64_fma_best(raw_, a.raw_, b.raw_, default_capabilities())};
-    }
     NUMKONG_CMATH_CONSTEXPR_ f64_t powf(f64_t exp) const noexcept { return f64_t {std::pow(raw_, exp.raw_)}; }
     constexpr f64_t powi(int n) const noexcept {
         double result = 1.0, base = raw_;
@@ -1057,11 +888,14 @@ struct f64_t {
     /** Saturating multiplication: clamps to finite range on overflow. */
     constexpr f64_t saturating_mul(f64_t o) const noexcept { return clamped_to_finite_(raw_ * o.raw_); }
 
-    /** Convert to any numeric type. */
-    template <typename target_type_>
-    constexpr target_type_ to() const noexcept {
-        return nk_f64_to_<target_type_>(raw_);
-    }
+    /** Take the root through @c nk::sqrt, a multiversioned kernel. */
+    f64_t sqrt() const = delete;
+
+    /** Take the reciprocal root through @c nk::rsqrt. */
+    f64_t rsqrt() const = delete;
+
+    /** Fuse through @c nk::fma. */
+    f64_t fma(f64_t, f64_t) const = delete;
 };
 
 /**
@@ -1184,7 +1018,7 @@ struct f32c_t {
     constexpr f32_t norm() const noexcept { return f32_t(raw_.real * raw_.real + raw_.imag * raw_.imag); }
 
     /** Magnitude, √(a² + b²). */
-    inline f32_t abs() const noexcept { return norm().sqrt(); }
+    inline f32_t abs() const noexcept { return f32_t(std::sqrt(norm().raw_)); }
 
     /** Phase angle: <tt>atan2(b, a)</tt>. */
     inline f32_t arg() const noexcept { return f32_t(raw_.imag).atan2(f32_t(raw_.real)); }
@@ -1208,7 +1042,7 @@ struct f32c_t {
     inline f32c_t sqrt() const noexcept {
         f32_t r = abs();
         f32_t half_arg = arg() * f32_t {0.5f};
-        f32_t sqrt_r = r.sqrt();
+        f32_t sqrt_r = f32_t(std::sqrt(r.raw_));
         return f32c_t {sqrt_r * half_arg.cos(), sqrt_r * half_arg.sin()};
     }
 
@@ -1436,7 +1270,7 @@ struct f64c_t {
     constexpr f64_t norm() const noexcept { return f64_t(raw_.real * raw_.real + raw_.imag * raw_.imag); }
 
     /** Magnitude, √(a² + b²). */
-    inline f64_t abs() const noexcept { return norm().sqrt(); }
+    inline f64_t abs() const noexcept { return f64_t(std::sqrt(norm().raw_)); }
 
     /** Phase angle: <tt>atan2(b, a)</tt>. */
     inline f64_t arg() const noexcept { return f64_t(raw_.imag).atan2(f64_t(raw_.real)); }
@@ -1460,7 +1294,7 @@ struct f64c_t {
     inline f64c_t sqrt() const noexcept {
         f64_t r = abs();
         f64_t half_arg = arg() * f64_t {0.5};
-        f64_t sqrt_r = r.sqrt();
+        f64_t sqrt_r = f64_t(std::sqrt(r.raw_));
         return f64c_t {sqrt_r * half_arg.cos(), sqrt_r * half_arg.sin()};
     }
 
@@ -1657,30 +1491,7 @@ struct f16_t {
 
     raw_t raw_;
 
-    inline float to_f32() const noexcept {
-        float r;
-        nk_f16_to_f32_best(&raw_, &r, default_capabilities());
-        return r;
-    }
-    static inline f16_t from_f32(float v) noexcept {
-        f16_t r;
-        nk_f32_to_f16_best(&v, &r.raw_, default_capabilities());
-        return r;
-    }
-
     constexpr f16_t() noexcept : raw_(0) {}
-    f16_t(float v) noexcept { nk_f32_to_f16_best(&v, &raw_, default_capabilities()); }
-    explicit f16_t(double v) noexcept {
-        float f = static_cast<float>(v);
-        nk_f32_to_f16_best(&f, &raw_, default_capabilities());
-    }
-    template <std::integral integral_type_>
-    f16_t(integral_type_ v) noexcept {
-        float f = static_cast<float>(v);
-        nk_f32_to_f16_best(&f, &raw_, default_capabilities());
-    }
-    operator float() const noexcept { return to_f32(); }
-    float raw() const noexcept { return to_f32(); }
     static constexpr f16_t from_raw(raw_t r) noexcept {
         f16_t v;
         v.raw_ = r;
@@ -1707,16 +1518,6 @@ struct f16_t {
     static constexpr f16_t quiet_nan() noexcept { return from_bits(0x7E00); }
     static constexpr f16_t signaling_nan() noexcept { return from_bits(0x7C01); }
 
-    // Mathematical constants
-    static inline f16_t pi_k() noexcept { return from_f32(3.14159265358979323846f); }
-    static inline f16_t two_pi_k() noexcept { return from_f32(6.28318530717958647692f); }
-    static inline f16_t half_pi_k() noexcept { return from_f32(1.57079632679489661923f); }
-    static inline f16_t e_k() noexcept { return from_f32(2.71828182845904523536f); }
-    static inline f16_t sqrt2_k() noexcept { return from_f32(1.41421356237309504880f); }
-    static inline f16_t inv_sqrt2_k() noexcept { return from_f32(0.70710678118654752440f); }
-    static inline f16_t ln2_k() noexcept { return from_f32(0.69314718055994530942f); }
-    static inline f16_t log2e_k() noexcept { return from_f32(1.44269504088896340736f); }
-
     constexpr bool is_nan() const noexcept { return (to_bits() & 0x7FFF) > 0x7C00; }
     constexpr bool is_infinite() const noexcept { return (to_bits() & 0x7FFF) == 0x7C00; }
     constexpr bool is_finite() const noexcept { return (to_bits() & 0x7C00) != 0x7C00; }
@@ -1732,115 +1533,32 @@ struct f16_t {
 
     inline f16_t operator+() const noexcept { return *this; }
     constexpr f16_t operator-() const noexcept { return from_bits(to_bits() ^ 0x8000); }
-    inline f16_t operator+(f16_t o) const noexcept { return from_f32(to_f32() + o.to_f32()); }
-    inline f16_t operator-(f16_t o) const noexcept { return from_f32(to_f32() - o.to_f32()); }
-    inline f16_t operator*(f16_t o) const noexcept { return from_f32(to_f32() * o.to_f32()); }
-    inline f16_t operator/(f16_t o) const noexcept { return from_f32(to_f32() / o.to_f32()); }
-
-    inline f16_t &operator+=(f16_t o) noexcept { return *this = *this + o; }
-    inline f16_t &operator-=(f16_t o) noexcept { return *this = *this - o; }
-    inline f16_t &operator*=(f16_t o) noexcept { return *this = *this * o; }
-    inline f16_t &operator/=(f16_t o) noexcept { return *this = *this / o; }
-
-    inline bool operator==(f16_t o) const noexcept {
-        return nk_f16_order_best(raw_, o.raw_, default_capabilities()) == 0;
-    }
-    inline bool operator!=(f16_t o) const noexcept {
-        return nk_f16_order_best(raw_, o.raw_, default_capabilities()) != 0;
-    }
-    inline bool operator<(f16_t o) const noexcept {
-        return nk_f16_order_best(raw_, o.raw_, default_capabilities()) < 0;
-    }
-    inline bool operator>(f16_t o) const noexcept {
-        return nk_f16_order_best(raw_, o.raw_, default_capabilities()) > 0;
-    }
-    inline bool operator<=(f16_t o) const noexcept {
-        return nk_f16_order_best(raw_, o.raw_, default_capabilities()) <= 0;
-    }
-    inline bool operator>=(f16_t o) const noexcept {
-        return nk_f16_order_best(raw_, o.raw_, default_capabilities()) >= 0;
-    }
-
-    /** Total ordering via nk_f16_order_best. */
-    inline int order(f16_t o) const noexcept { return nk_f16_order_best(raw_, o.raw_, default_capabilities()); }
-
-    /** Alias for order(), Rust-style. */
-    inline int total_cmp(f16_t o) const noexcept { return order(o); }
 
     constexpr f16_t abs() const noexcept { return from_bits(to_bits() & 0x7FFF); }
     constexpr f16_t copysign(f16_t sign) const noexcept {
         return from_bits((to_bits() & 0x7FFF) | (sign.to_bits() & 0x8000));
     }
-    inline f16_t signum() const noexcept {
-        if (is_nan()) return *this;
-        return is_sign_negative() ? f16_t {-1.0f} : f16_t {1.0f};
-    }
 
-    NUMKONG_CMATH_CONSTEXPR_ f16_t floor() const noexcept { return from_f32(std::floor(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t ceil() const noexcept { return from_f32(std::ceil(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t round() const noexcept { return from_f32(std::round(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t trunc() const noexcept { return from_f32(std::trunc(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t fract() const noexcept {
-        float f = to_f32();
-        return from_f32(f - std::trunc(f));
-    }
+    /** Construct through @c nk::cast from @c nk::f32_t, a multiversioned kernel. */
+    f16_t(float) = delete;
 
-    inline f16_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), default_capabilities())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t cbrt() const noexcept { return from_f32(std::cbrt(to_f32())); }
-    inline f16_t rsqrt() const noexcept { return from_f32(nk_f32_rsqrt_best(to_f32(), default_capabilities())); }
-    inline f16_t recip() const noexcept { return from_f32(1.0f / to_f32()); }
+    /** Widen through @c nk::to_f32. */
+    operator float() const = delete;
 
-    /** @sa std::fma */
-    inline f16_t fma(f16_t a, f16_t b) const noexcept {
-        return from_f32(nk_f32_fma_best(to_f32(), a.to_f32(), b.to_f32(), default_capabilities()));
-    }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t powf(f16_t exp) const noexcept { return from_f32(std::pow(to_f32(), exp.to_f32())); }
+    /** Add the @c nk::to_f32 of both operands, then @c nk::cast back. */
+    f16_t operator+(f16_t) const = delete;
 
-    NUMKONG_CMATH_CONSTEXPR_ f16_t exp() const noexcept { return from_f32(std::exp(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t exp2() const noexcept { return from_f32(std::exp2(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t exp_m1() const noexcept { return from_f32(std::expm1(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t ln() const noexcept { return from_f32(std::log(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t ln_1p() const noexcept { return from_f32(std::log1p(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t log2() const noexcept { return from_f32(std::log2(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t log10() const noexcept { return from_f32(std::log10(to_f32())); }
+    /** Compare through @c nk::order. */
+    bool operator==(f16_t) const = delete;
 
-    NUMKONG_CMATH_CONSTEXPR_ f16_t sin() const noexcept { return from_f32(std::sin(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t cos() const noexcept { return from_f32(std::cos(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t tan() const noexcept { return from_f32(std::tan(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t asin() const noexcept { return from_f32(std::asin(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t acos() const noexcept { return from_f32(std::acos(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t atan() const noexcept { return from_f32(std::atan(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t atan2(f16_t x) const noexcept { return from_f32(std::atan2(to_f32(), x.to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t hypot(f16_t y) const noexcept { return from_f32(std::hypot(to_f32(), y.to_f32())); }
-    inline f16_t to_radians() const noexcept { return from_f32(to_f32() * 0.017453292519943295f); }
-    inline f16_t to_degrees() const noexcept { return from_f32(to_f32() * 57.29577951308232f); }
+    /** Compare through @c nk::order. */
+    bool operator<(f16_t) const = delete;
 
-    NUMKONG_CMATH_CONSTEXPR_ f16_t sinh() const noexcept { return from_f32(std::sinh(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t cosh() const noexcept { return from_f32(std::cosh(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t tanh() const noexcept { return from_f32(std::tanh(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t asinh() const noexcept { return from_f32(std::asinh(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t acosh() const noexcept { return from_f32(std::acosh(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t atanh() const noexcept { return from_f32(std::atanh(to_f32())); }
+    /** Order through @c nk::order. */
+    int order(f16_t) const = delete;
 
-    NUMKONG_CMATH_CONSTEXPR_ f16_t(min)(f16_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t(max)(f16_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
-    inline f16_t clamp(f16_t lo, f16_t hi) const noexcept { return ((max)(lo).min)(hi); }
-
-    /** Saturating addition: clamps to finite range on overflow. */
-    inline f16_t saturating_add(f16_t o) const noexcept {
-        float result = to_f32() + o.to_f32();
-        if (result >= finite_max().to_f32()) return finite_max();
-        if (result <= finite_min().to_f32()) return finite_min();
-        return from_f32(result);
-    }
-
-    /** Saturating subtraction: clamps to finite range on overflow. */
-    inline f16_t saturating_sub(f16_t o) const noexcept {
-        float result = to_f32() - o.to_f32();
-        if (result >= finite_max().to_f32()) return finite_max();
-        if (result <= finite_min().to_f32()) return finite_min();
-        return from_f32(result);
-    }
+    /** Take the root through @c nk::sqrt. */
+    f16_t sqrt() const = delete;
 };
 
 /**
@@ -1946,30 +1664,7 @@ struct bf16_t {
 
     raw_t raw_;
 
-    inline float to_f32() const noexcept {
-        float r;
-        nk_bf16_to_f32_best(&raw_, &r, default_capabilities());
-        return r;
-    }
-    static inline bf16_t from_f32(float v) noexcept {
-        bf16_t r;
-        nk_f32_to_bf16_best(&v, &r.raw_, default_capabilities());
-        return r;
-    }
-
     constexpr bf16_t() noexcept : raw_(0) {}
-    bf16_t(float v) noexcept { nk_f32_to_bf16_best(&v, &raw_, default_capabilities()); }
-    explicit bf16_t(double v) noexcept {
-        float f = static_cast<float>(v);
-        nk_f32_to_bf16_best(&f, &raw_, default_capabilities());
-    }
-    template <std::integral integral_type_>
-    bf16_t(integral_type_ v) noexcept {
-        float f = static_cast<float>(v);
-        nk_f32_to_bf16_best(&f, &raw_, default_capabilities());
-    }
-    operator float() const noexcept { return to_f32(); }
-    float raw() const noexcept { return to_f32(); }
     static constexpr bf16_t from_raw(raw_t r) noexcept {
         bf16_t v;
         v.raw_ = r;
@@ -1996,16 +1691,6 @@ struct bf16_t {
     static constexpr bf16_t quiet_nan() noexcept { return from_bits(0x7FC0); }
     static constexpr bf16_t signaling_nan() noexcept { return from_bits(0x7F81); }
 
-    // Mathematical constants
-    static inline bf16_t pi_k() noexcept { return from_f32(3.14159265358979323846f); }
-    static inline bf16_t two_pi_k() noexcept { return from_f32(6.28318530717958647692f); }
-    static inline bf16_t half_pi_k() noexcept { return from_f32(1.57079632679489661923f); }
-    static inline bf16_t e_k() noexcept { return from_f32(2.71828182845904523536f); }
-    static inline bf16_t sqrt2_k() noexcept { return from_f32(1.41421356237309504880f); }
-    static inline bf16_t inv_sqrt2_k() noexcept { return from_f32(0.70710678118654752440f); }
-    static inline bf16_t ln2_k() noexcept { return from_f32(0.69314718055994530942f); }
-    static inline bf16_t log2e_k() noexcept { return from_f32(1.44269504088896340736f); }
-
     constexpr bool is_nan() const noexcept { return (to_bits() & 0x7FFF) > 0x7F80; }
     constexpr bool is_infinite() const noexcept { return (to_bits() & 0x7FFF) == 0x7F80; }
     constexpr bool is_finite() const noexcept { return (to_bits() & 0x7F80) != 0x7F80; }
@@ -2019,121 +1704,32 @@ struct bf16_t {
 
     inline bf16_t operator+() const noexcept { return *this; }
     constexpr bf16_t operator-() const noexcept { return from_bits(to_bits() ^ 0x8000); }
-    inline bf16_t operator+(bf16_t o) const noexcept { return from_f32(to_f32() + o.to_f32()); }
-    inline bf16_t operator-(bf16_t o) const noexcept { return from_f32(to_f32() - o.to_f32()); }
-    inline bf16_t operator*(bf16_t o) const noexcept { return from_f32(to_f32() * o.to_f32()); }
-    inline bf16_t operator/(bf16_t o) const noexcept { return from_f32(to_f32() / o.to_f32()); }
-
-    inline bf16_t &operator+=(bf16_t o) noexcept { return *this = *this + o; }
-    inline bf16_t &operator-=(bf16_t o) noexcept { return *this = *this - o; }
-    inline bf16_t &operator*=(bf16_t o) noexcept { return *this = *this * o; }
-    inline bf16_t &operator/=(bf16_t o) noexcept { return *this = *this / o; }
-
-    inline bool operator==(bf16_t o) const noexcept {
-        return nk_bf16_order_best(raw_, o.raw_, default_capabilities()) == 0;
-    }
-    inline bool operator!=(bf16_t o) const noexcept {
-        return nk_bf16_order_best(raw_, o.raw_, default_capabilities()) != 0;
-    }
-    inline bool operator<(bf16_t o) const noexcept {
-        return nk_bf16_order_best(raw_, o.raw_, default_capabilities()) < 0;
-    }
-    inline bool operator>(bf16_t o) const noexcept {
-        return nk_bf16_order_best(raw_, o.raw_, default_capabilities()) > 0;
-    }
-    inline bool operator<=(bf16_t o) const noexcept {
-        return nk_bf16_order_best(raw_, o.raw_, default_capabilities()) <= 0;
-    }
-    inline bool operator>=(bf16_t o) const noexcept {
-        return nk_bf16_order_best(raw_, o.raw_, default_capabilities()) >= 0;
-    }
-
-    /** Total ordering via nk_bf16_order_best. */
-    inline int order(bf16_t o) const noexcept { return nk_bf16_order_best(raw_, o.raw_, default_capabilities()); }
-
-    /** Alias for order(), Rust-style. */
-    inline int total_cmp(bf16_t o) const noexcept { return order(o); }
 
     constexpr bf16_t abs() const noexcept { return from_bits(to_bits() & 0x7FFF); }
     constexpr bf16_t copysign(bf16_t sign) const noexcept {
         return from_bits((to_bits() & 0x7FFF) | (sign.to_bits() & 0x8000));
     }
-    inline bf16_t signum() const noexcept {
-        if (is_nan()) return *this;
-        return is_sign_negative() ? bf16_t {-1.0f} : bf16_t {1.0f};
-    }
 
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t floor() const noexcept { return from_f32(std::floor(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t ceil() const noexcept { return from_f32(std::ceil(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t round() const noexcept { return from_f32(std::round(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t trunc() const noexcept { return from_f32(std::trunc(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t fract() const noexcept {
-        float f = to_f32();
-        return from_f32(f - std::trunc(f));
-    }
+    /** Construct through @c nk::cast from @c nk::f32_t, a multiversioned kernel. */
+    bf16_t(float) = delete;
 
-    inline bf16_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), default_capabilities())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t cbrt() const noexcept { return from_f32(std::cbrt(to_f32())); }
-    inline bf16_t rsqrt() const noexcept { return from_f32(nk_f32_rsqrt_best(to_f32(), default_capabilities())); }
-    inline bf16_t recip() const noexcept { return from_f32(1.0f / to_f32()); }
+    /** Widen through @c nk::to_f32. */
+    operator float() const = delete;
 
-    /** @sa std::fma */
-    inline bf16_t fma(bf16_t a, bf16_t b) const noexcept {
-        return from_f32(nk_f32_fma_best(to_f32(), a.to_f32(), b.to_f32(), default_capabilities()));
-    }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t powf(bf16_t exp) const noexcept {
-        return from_f32(std::pow(to_f32(), exp.to_f32()));
-    }
+    /** Add the @c nk::to_f32 of both operands, then @c nk::cast back. */
+    bf16_t operator+(bf16_t) const = delete;
 
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t exp() const noexcept { return from_f32(std::exp(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t exp2() const noexcept { return from_f32(std::exp2(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t exp_m1() const noexcept { return from_f32(std::expm1(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t ln() const noexcept { return from_f32(std::log(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t ln_1p() const noexcept { return from_f32(std::log1p(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t log2() const noexcept { return from_f32(std::log2(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t log10() const noexcept { return from_f32(std::log10(to_f32())); }
+    /** Compare through @c nk::order. */
+    bool operator==(bf16_t) const = delete;
 
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t sin() const noexcept { return from_f32(std::sin(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t cos() const noexcept { return from_f32(std::cos(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t tan() const noexcept { return from_f32(std::tan(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t asin() const noexcept { return from_f32(std::asin(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t acos() const noexcept { return from_f32(std::acos(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t atan() const noexcept { return from_f32(std::atan(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t atan2(bf16_t x) const noexcept {
-        return from_f32(std::atan2(to_f32(), x.to_f32()));
-    }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t hypot(bf16_t y) const noexcept {
-        return from_f32(std::hypot(to_f32(), y.to_f32()));
-    }
-    inline bf16_t to_radians() const noexcept { return from_f32(to_f32() * 0.017453292519943295f); }
-    inline bf16_t to_degrees() const noexcept { return from_f32(to_f32() * 57.29577951308232f); }
+    /** Compare through @c nk::order. */
+    bool operator<(bf16_t) const = delete;
 
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t sinh() const noexcept { return from_f32(std::sinh(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t cosh() const noexcept { return from_f32(std::cosh(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t tanh() const noexcept { return from_f32(std::tanh(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t asinh() const noexcept { return from_f32(std::asinh(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t acosh() const noexcept { return from_f32(std::acosh(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t atanh() const noexcept { return from_f32(std::atanh(to_f32())); }
+    /** Order through @c nk::order. */
+    int order(bf16_t) const = delete;
 
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t(min)(bf16_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t(max)(bf16_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
-    inline bf16_t clamp(bf16_t lo, bf16_t hi) const noexcept { return ((max)(lo).min)(hi); }
-
-    /** Saturating addition: clamps to finite range on overflow. */
-    inline bf16_t saturating_add(bf16_t o) const noexcept {
-        float result = to_f32() + o.to_f32();
-        if (result >= finite_max().to_f32()) return finite_max();
-        if (result <= finite_min().to_f32()) return finite_min();
-        return from_f32(result);
-    }
-
-    /** Saturating subtraction: clamps to finite range on overflow. */
-    inline bf16_t saturating_sub(bf16_t o) const noexcept {
-        float result = to_f32() - o.to_f32();
-        if (result >= finite_max().to_f32()) return finite_max();
-        if (result <= finite_min().to_f32()) return finite_min();
-        return from_f32(result);
-    }
+    /** Take the root of the @c nk::to_f32 value. */
+    bf16_t sqrt() const = delete;
 };
 
 /**
@@ -2197,39 +1793,13 @@ struct f16c_t {
     inline f16c_t operator+() const noexcept { return *this; }
     inline f16c_t operator-() const noexcept { return f16c_t {-real(), -imag()}; }
 
-    inline f16c_t operator+(f16c_t o) const noexcept { return f16c_t {real() + o.real(), imag() + o.imag()}; }
-    inline f16c_t operator-(f16c_t o) const noexcept { return f16c_t {real() - o.real(), imag() - o.imag()}; }
-
-    inline f16c_t operator*(f16c_t o) const noexcept {
-        return f16c_t {real() * o.real() - imag() * o.imag(), real() * o.imag() + imag() * o.real()};
-    }
-
-    inline f16c_t operator/(f16c_t o) const noexcept {
-        f16_t denom = o.real() * o.real() + o.imag() * o.imag();
-        return f16c_t {(real() * o.real() + imag() * o.imag()) / denom,
-                       (imag() * o.real() - real() * o.imag()) / denom};
-    }
-
-    inline f16c_t &operator+=(f16c_t o) noexcept {
-        raw_.real = (real() + o.real()).raw_;
-        raw_.imag = (imag() + o.imag()).raw_;
-        return *this;
-    }
-    inline f16c_t &operator-=(f16c_t o) noexcept {
-        raw_.real = (real() - o.real()).raw_;
-        raw_.imag = (imag() - o.imag()).raw_;
-        return *this;
-    }
-    inline f16c_t &operator*=(f16c_t o) noexcept { return *this = *this * o; }
-    inline f16c_t &operator/=(f16c_t o) noexcept { return *this = *this / o; }
-
     inline bool operator==(f16c_t o) const noexcept { return raw_.real == o.raw_.real && raw_.imag == o.raw_.imag; }
     inline bool operator!=(f16c_t o) const noexcept { return !(*this == o); }
 
-    explicit operator f32c_t() const noexcept { return f32c_t {real().to_f32(), imag().to_f32()}; }
     inline f16c_t conj() const noexcept { return f16c_t {real(), -imag()}; }
-    inline f16_t norm() const noexcept { return real() * real() + imag() * imag(); }
-    inline f16_t abs() const noexcept { return norm().sqrt(); }
+
+    /** Add the @c nk::to_f32 of each part, then @c nk::cast back. */
+    f16c_t operator+(f16c_t) const = delete;
 };
 
 /**
@@ -2293,39 +1863,13 @@ struct bf16c_t {
     inline bf16c_t operator+() const noexcept { return *this; }
     inline bf16c_t operator-() const noexcept { return bf16c_t {-real(), -imag()}; }
 
-    inline bf16c_t operator+(bf16c_t o) const noexcept { return bf16c_t {real() + o.real(), imag() + o.imag()}; }
-    inline bf16c_t operator-(bf16c_t o) const noexcept { return bf16c_t {real() - o.real(), imag() - o.imag()}; }
-
-    inline bf16c_t operator*(bf16c_t o) const noexcept {
-        return bf16c_t {real() * o.real() - imag() * o.imag(), real() * o.imag() + imag() * o.real()};
-    }
-
-    inline bf16c_t operator/(bf16c_t o) const noexcept {
-        bf16_t denom = o.real() * o.real() + o.imag() * o.imag();
-        return bf16c_t {(real() * o.real() + imag() * o.imag()) / denom,
-                        (imag() * o.real() - real() * o.imag()) / denom};
-    }
-
-    inline bf16c_t &operator+=(bf16c_t o) noexcept {
-        raw_.real = (real() + o.real()).raw_;
-        raw_.imag = (imag() + o.imag()).raw_;
-        return *this;
-    }
-    inline bf16c_t &operator-=(bf16c_t o) noexcept {
-        raw_.real = (real() - o.real()).raw_;
-        raw_.imag = (imag() - o.imag()).raw_;
-        return *this;
-    }
-    inline bf16c_t &operator*=(bf16c_t o) noexcept { return *this = *this * o; }
-    inline bf16c_t &operator/=(bf16c_t o) noexcept { return *this = *this / o; }
-
     inline bool operator==(bf16c_t o) const noexcept { return raw_.real == o.raw_.real && raw_.imag == o.raw_.imag; }
     inline bool operator!=(bf16c_t o) const noexcept { return !(*this == o); }
 
-    explicit operator f32c_t() const noexcept { return f32c_t {real().to_f32(), imag().to_f32()}; }
     inline bf16c_t conj() const noexcept { return bf16c_t {real(), -imag()}; }
-    inline bf16_t norm() const noexcept { return real() * real() + imag() * imag(); }
-    inline bf16_t abs() const noexcept { return norm().sqrt(); }
+
+    /** Add the @c nk::to_f32 of each part, then @c nk::cast back. */
+    bf16c_t operator+(bf16c_t) const = delete;
 };
 
 /**
@@ -2417,30 +1961,7 @@ struct e4m3_t {
 
     raw_t raw_;
 
-    inline float to_f32() const noexcept {
-        float r;
-        nk_e4m3_to_f32_best(&raw_, &r, default_capabilities());
-        return r;
-    }
-    static inline e4m3_t from_f32(float v) noexcept {
-        e4m3_t r;
-        nk_f32_to_e4m3_best(&v, &r.raw_, default_capabilities());
-        return r;
-    }
-
     constexpr e4m3_t() noexcept : raw_(0) {}
-    e4m3_t(float v) noexcept { nk_f32_to_e4m3_best(&v, &raw_, default_capabilities()); }
-    explicit e4m3_t(double v) noexcept {
-        float f = static_cast<float>(v);
-        nk_f32_to_e4m3_best(&f, &raw_, default_capabilities());
-    }
-    template <std::integral integral_type_>
-    e4m3_t(integral_type_ v) noexcept {
-        float f = static_cast<float>(v);
-        nk_f32_to_e4m3_best(&f, &raw_, default_capabilities());
-    }
-    operator float() const noexcept { return to_f32(); }
-    float raw() const noexcept { return to_f32(); }
     static constexpr e4m3_t from_raw(raw_t r) noexcept {
         e4m3_t v;
         v.raw_ = r;
@@ -2488,100 +2009,30 @@ struct e4m3_t {
 
     inline e4m3_t operator+() const noexcept { return *this; }
     constexpr e4m3_t operator-() const noexcept { return from_bits(raw_ ^ 0x80); }
-    inline e4m3_t operator+(e4m3_t o) const noexcept { return from_f32(to_f32() + o.to_f32()); }
-    inline e4m3_t operator-(e4m3_t o) const noexcept { return from_f32(to_f32() - o.to_f32()); }
-    inline e4m3_t operator*(e4m3_t o) const noexcept { return from_f32(to_f32() * o.to_f32()); }
-    inline e4m3_t operator/(e4m3_t o) const noexcept { return from_f32(to_f32() / o.to_f32()); }
-
-    inline e4m3_t &operator+=(e4m3_t o) noexcept { return *this = *this + o; }
-    inline e4m3_t &operator-=(e4m3_t o) noexcept { return *this = *this - o; }
-    inline e4m3_t &operator*=(e4m3_t o) noexcept { return *this = *this * o; }
-    inline e4m3_t &operator/=(e4m3_t o) noexcept { return *this = *this / o; }
-
-    inline bool operator==(e4m3_t o) const noexcept {
-        return nk_e4m3_order_best(raw_, o.raw_, default_capabilities()) == 0;
-    }
-    inline bool operator!=(e4m3_t o) const noexcept {
-        return nk_e4m3_order_best(raw_, o.raw_, default_capabilities()) != 0;
-    }
-    inline bool operator<(e4m3_t o) const noexcept {
-        return nk_e4m3_order_best(raw_, o.raw_, default_capabilities()) < 0;
-    }
-    inline bool operator>(e4m3_t o) const noexcept {
-        return nk_e4m3_order_best(raw_, o.raw_, default_capabilities()) > 0;
-    }
-    inline bool operator<=(e4m3_t o) const noexcept {
-        return nk_e4m3_order_best(raw_, o.raw_, default_capabilities()) <= 0;
-    }
-    inline bool operator>=(e4m3_t o) const noexcept {
-        return nk_e4m3_order_best(raw_, o.raw_, default_capabilities()) >= 0;
-    }
-
-    /** Total ordering via nk_e4m3_order_best. */
-    inline int order(e4m3_t o) const noexcept { return nk_e4m3_order_best(raw_, o.raw_, default_capabilities()); }
-
-    /** Alias for order(), Rust-style. */
-    inline int total_cmp(e4m3_t o) const noexcept { return order(o); }
 
     constexpr e4m3_t abs() const noexcept { return from_bits(raw_ & 0x7F); }
     constexpr e4m3_t copysign(e4m3_t sign) const noexcept { return from_bits((raw_ & 0x7F) | (sign.raw_ & 0x80)); }
-    inline e4m3_t signum() const noexcept {
-        if (is_nan()) return *this;
-        return is_sign_negative() ? e4m3_t {-1.0f} : e4m3_t {1.0f};
-    }
 
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t floor() const noexcept { return from_f32(std::floor(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t ceil() const noexcept { return from_f32(std::ceil(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t round() const noexcept { return from_f32(std::round(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t trunc() const noexcept { return from_f32(std::trunc(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t fract() const noexcept {
-        float f = to_f32();
-        return from_f32(f - std::trunc(f));
-    }
+    /** Construct through @c nk::cast from @c nk::f32_t, a multiversioned kernel. */
+    e4m3_t(float) = delete;
 
-    inline e4m3_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), default_capabilities())); }
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t cbrt() const noexcept { return from_f32(std::cbrt(to_f32())); }
-    inline e4m3_t rsqrt() const noexcept { return from_f32(nk_f32_rsqrt_best(to_f32(), default_capabilities())); }
-    inline e4m3_t recip() const noexcept { return from_f32(1.0f / to_f32()); }
+    /** Widen through @c nk::to_f32. */
+    operator float() const = delete;
 
-    /** @sa std::fma */
-    inline e4m3_t fma(e4m3_t a, e4m3_t b) const noexcept {
-        return from_f32(nk_f32_fma_best(to_f32(), a.to_f32(), b.to_f32(), default_capabilities()));
-    }
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t powf(e4m3_t exp) const noexcept {
-        return from_f32(std::pow(to_f32(), exp.to_f32()));
-    }
+    /** Add the @c nk::to_f32 of both operands, then @c nk::cast back. */
+    e4m3_t operator+(e4m3_t) const = delete;
 
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t exp() const noexcept { return from_f32(std::exp(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t exp2() const noexcept { return from_f32(std::exp2(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t ln() const noexcept { return from_f32(std::log(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t log2() const noexcept { return from_f32(std::log2(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t log10() const noexcept { return from_f32(std::log10(to_f32())); }
+    /** Compare through @c nk::order. */
+    bool operator==(e4m3_t) const = delete;
 
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t sin() const noexcept { return from_f32(std::sin(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t cos() const noexcept { return from_f32(std::cos(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t tan() const noexcept { return from_f32(std::tan(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t tanh() const noexcept { return from_f32(std::tanh(to_f32())); }
+    /** Compare through @c nk::order. */
+    bool operator<(e4m3_t) const = delete;
 
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t(min)(e4m3_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t(max)(e4m3_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
-    inline e4m3_t clamp(e4m3_t lo, e4m3_t hi) const noexcept { return ((max)(lo).min)(hi); }
+    /** Order through @c nk::order. */
+    int order(e4m3_t) const = delete;
 
-    /** Saturating addition: clamps to finite range on overflow. */
-    inline e4m3_t saturating_add(e4m3_t o) const noexcept {
-        float result = to_f32() + o.to_f32();
-        if (result >= finite_max().to_f32()) return finite_max();
-        if (result <= finite_min().to_f32()) return finite_min();
-        return from_f32(result);
-    }
-
-    /** Saturating subtraction: clamps to finite range on overflow. */
-    inline e4m3_t saturating_sub(e4m3_t o) const noexcept {
-        float result = to_f32() - o.to_f32();
-        if (result >= finite_max().to_f32()) return finite_max();
-        if (result <= finite_min().to_f32()) return finite_min();
-        return from_f32(result);
-    }
+    /** Take the root of the @c nk::to_f32 value. */
+    e4m3_t sqrt() const = delete;
 };
 
 /**
@@ -2661,30 +2112,7 @@ struct e5m2_t {
 
     raw_t raw_;
 
-    inline float to_f32() const noexcept {
-        float r;
-        nk_e5m2_to_f32_best(&raw_, &r, default_capabilities());
-        return r;
-    }
-    static inline e5m2_t from_f32(float v) noexcept {
-        e5m2_t r;
-        nk_f32_to_e5m2_best(&v, &r.raw_, default_capabilities());
-        return r;
-    }
-
     constexpr e5m2_t() noexcept : raw_(0) {}
-    e5m2_t(float v) noexcept { nk_f32_to_e5m2_best(&v, &raw_, default_capabilities()); }
-    explicit e5m2_t(double v) noexcept {
-        float f = static_cast<float>(v);
-        nk_f32_to_e5m2_best(&f, &raw_, default_capabilities());
-    }
-    template <std::integral integral_type_>
-    e5m2_t(integral_type_ v) noexcept {
-        float f = static_cast<float>(v);
-        nk_f32_to_e5m2_best(&f, &raw_, default_capabilities());
-    }
-    operator float() const noexcept { return to_f32(); }
-    float raw() const noexcept { return to_f32(); }
     static constexpr e5m2_t from_raw(raw_t r) noexcept {
         e5m2_t v;
         v.raw_ = r;
@@ -2734,100 +2162,30 @@ struct e5m2_t {
 
     inline e5m2_t operator+() const noexcept { return *this; }
     constexpr e5m2_t operator-() const noexcept { return from_bits(raw_ ^ 0x80); }
-    inline e5m2_t operator+(e5m2_t o) const noexcept { return from_f32(to_f32() + o.to_f32()); }
-    inline e5m2_t operator-(e5m2_t o) const noexcept { return from_f32(to_f32() - o.to_f32()); }
-    inline e5m2_t operator*(e5m2_t o) const noexcept { return from_f32(to_f32() * o.to_f32()); }
-    inline e5m2_t operator/(e5m2_t o) const noexcept { return from_f32(to_f32() / o.to_f32()); }
-
-    inline e5m2_t &operator+=(e5m2_t o) noexcept { return *this = *this + o; }
-    inline e5m2_t &operator-=(e5m2_t o) noexcept { return *this = *this - o; }
-    inline e5m2_t &operator*=(e5m2_t o) noexcept { return *this = *this * o; }
-    inline e5m2_t &operator/=(e5m2_t o) noexcept { return *this = *this / o; }
-
-    inline bool operator==(e5m2_t o) const noexcept {
-        return nk_e5m2_order_best(raw_, o.raw_, default_capabilities()) == 0;
-    }
-    inline bool operator!=(e5m2_t o) const noexcept {
-        return nk_e5m2_order_best(raw_, o.raw_, default_capabilities()) != 0;
-    }
-    inline bool operator<(e5m2_t o) const noexcept {
-        return nk_e5m2_order_best(raw_, o.raw_, default_capabilities()) < 0;
-    }
-    inline bool operator>(e5m2_t o) const noexcept {
-        return nk_e5m2_order_best(raw_, o.raw_, default_capabilities()) > 0;
-    }
-    inline bool operator<=(e5m2_t o) const noexcept {
-        return nk_e5m2_order_best(raw_, o.raw_, default_capabilities()) <= 0;
-    }
-    inline bool operator>=(e5m2_t o) const noexcept {
-        return nk_e5m2_order_best(raw_, o.raw_, default_capabilities()) >= 0;
-    }
-
-    /** Total ordering via nk_e5m2_order_best. */
-    inline int order(e5m2_t o) const noexcept { return nk_e5m2_order_best(raw_, o.raw_, default_capabilities()); }
-
-    /** Alias for order(), Rust-style. */
-    inline int total_cmp(e5m2_t o) const noexcept { return order(o); }
 
     constexpr e5m2_t abs() const noexcept { return from_bits(raw_ & 0x7F); }
     constexpr e5m2_t copysign(e5m2_t sign) const noexcept { return from_bits((raw_ & 0x7F) | (sign.raw_ & 0x80)); }
-    inline e5m2_t signum() const noexcept {
-        if (is_nan()) return *this;
-        return is_sign_negative() ? e5m2_t {-1.0f} : e5m2_t {1.0f};
-    }
 
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t floor() const noexcept { return from_f32(std::floor(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t ceil() const noexcept { return from_f32(std::ceil(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t round() const noexcept { return from_f32(std::round(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t trunc() const noexcept { return from_f32(std::trunc(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t fract() const noexcept {
-        float f = to_f32();
-        return from_f32(f - std::trunc(f));
-    }
+    /** Construct through @c nk::cast from @c nk::f32_t, a multiversioned kernel. */
+    e5m2_t(float) = delete;
 
-    inline e5m2_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), default_capabilities())); }
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t cbrt() const noexcept { return from_f32(std::cbrt(to_f32())); }
-    inline e5m2_t rsqrt() const noexcept { return from_f32(nk_f32_rsqrt_best(to_f32(), default_capabilities())); }
-    inline e5m2_t recip() const noexcept { return from_f32(1.0f / to_f32()); }
+    /** Widen through @c nk::to_f32. */
+    operator float() const = delete;
 
-    /** @sa std::fma */
-    inline e5m2_t fma(e5m2_t a, e5m2_t b) const noexcept {
-        return from_f32(nk_f32_fma_best(to_f32(), a.to_f32(), b.to_f32(), default_capabilities()));
-    }
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t powf(e5m2_t exp) const noexcept {
-        return from_f32(std::pow(to_f32(), exp.to_f32()));
-    }
+    /** Add the @c nk::to_f32 of both operands, then @c nk::cast back. */
+    e5m2_t operator+(e5m2_t) const = delete;
 
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t exp() const noexcept { return from_f32(std::exp(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t exp2() const noexcept { return from_f32(std::exp2(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t ln() const noexcept { return from_f32(std::log(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t log2() const noexcept { return from_f32(std::log2(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t log10() const noexcept { return from_f32(std::log10(to_f32())); }
+    /** Compare through @c nk::order. */
+    bool operator==(e5m2_t) const = delete;
 
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t sin() const noexcept { return from_f32(std::sin(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t cos() const noexcept { return from_f32(std::cos(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t tan() const noexcept { return from_f32(std::tan(to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t tanh() const noexcept { return from_f32(std::tanh(to_f32())); }
+    /** Compare through @c nk::order. */
+    bool operator<(e5m2_t) const = delete;
 
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t(min)(e5m2_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t(max)(e5m2_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
-    inline e5m2_t clamp(e5m2_t lo, e5m2_t hi) const noexcept { return ((max)(lo).min)(hi); }
+    /** Order through @c nk::order. */
+    int order(e5m2_t) const = delete;
 
-    /** Saturating addition: clamps to finite range on overflow. */
-    inline e5m2_t saturating_add(e5m2_t o) const noexcept {
-        float result = to_f32() + o.to_f32();
-        if (result >= finite_max().to_f32()) return finite_max();
-        if (result <= finite_min().to_f32()) return finite_min();
-        return from_f32(result);
-    }
-
-    /** Saturating subtraction: clamps to finite range on overflow. */
-    inline e5m2_t saturating_sub(e5m2_t o) const noexcept {
-        float result = to_f32() - o.to_f32();
-        if (result >= finite_max().to_f32()) return finite_max();
-        if (result <= finite_min().to_f32()) return finite_min();
-        return from_f32(result);
-    }
+    /** Take the root of the @c nk::to_f32 value. */
+    e5m2_t sqrt() const = delete;
 };
 
 /**
@@ -2910,30 +2268,7 @@ struct e2m3_t {
 
     raw_t raw_;
 
-    inline float to_f32() const noexcept {
-        float r;
-        nk_e2m3_to_f32_best(&raw_, &r, default_capabilities());
-        return r;
-    }
-    static inline e2m3_t from_f32(float v) noexcept {
-        e2m3_t r;
-        nk_f32_to_e2m3_best(&v, &r.raw_, default_capabilities());
-        return r;
-    }
-
     constexpr e2m3_t() noexcept : raw_(0) {}
-    inline e2m3_t(float v) noexcept { nk_f32_to_e2m3_best(&v, &raw_, default_capabilities()); }
-    explicit e2m3_t(double v) noexcept {
-        float f = static_cast<float>(v);
-        nk_f32_to_e2m3_best(&f, &raw_, default_capabilities());
-    }
-    template <std::integral integral_type_>
-    e2m3_t(integral_type_ v) noexcept {
-        float f = static_cast<float>(v);
-        nk_f32_to_e2m3_best(&f, &raw_, default_capabilities());
-    }
-    inline operator float() const noexcept { return to_f32(); }
-    inline float raw() const noexcept { return to_f32(); }
     static constexpr e2m3_t from_raw(raw_t r) noexcept {
         e2m3_t v;
         v.raw_ = r;
@@ -2980,62 +2315,30 @@ struct e2m3_t {
 
     inline e2m3_t operator+() const noexcept { return *this; }
     constexpr e2m3_t operator-() const noexcept { return from_bits(raw_ ^ 0x20); }
-    inline e2m3_t operator+(e2m3_t o) const noexcept { return from_f32(to_f32() + o.to_f32()); }
-    inline e2m3_t operator-(e2m3_t o) const noexcept { return from_f32(to_f32() - o.to_f32()); }
-    inline e2m3_t operator*(e2m3_t o) const noexcept { return from_f32(to_f32() * o.to_f32()); }
-    inline e2m3_t operator/(e2m3_t o) const noexcept { return from_f32(to_f32() / o.to_f32()); }
-
-    inline e2m3_t &operator+=(e2m3_t o) noexcept { return *this = *this + o; }
-    inline e2m3_t &operator-=(e2m3_t o) noexcept { return *this = *this - o; }
-    inline e2m3_t &operator*=(e2m3_t o) noexcept { return *this = *this * o; }
-    inline e2m3_t &operator/=(e2m3_t o) noexcept { return *this = *this / o; }
-
-    inline bool operator==(e2m3_t o) const noexcept {
-        return nk_e2m3_order_best(raw_, o.raw_, default_capabilities()) == 0;
-    }
-    inline bool operator!=(e2m3_t o) const noexcept {
-        return nk_e2m3_order_best(raw_, o.raw_, default_capabilities()) != 0;
-    }
-    inline bool operator<(e2m3_t o) const noexcept {
-        return nk_e2m3_order_best(raw_, o.raw_, default_capabilities()) < 0;
-    }
-    inline bool operator>(e2m3_t o) const noexcept {
-        return nk_e2m3_order_best(raw_, o.raw_, default_capabilities()) > 0;
-    }
-    inline bool operator<=(e2m3_t o) const noexcept {
-        return nk_e2m3_order_best(raw_, o.raw_, default_capabilities()) <= 0;
-    }
-    inline bool operator>=(e2m3_t o) const noexcept {
-        return nk_e2m3_order_best(raw_, o.raw_, default_capabilities()) >= 0;
-    }
-
-    /** Total ordering via nk_e2m3_order_best. */
-    inline int order(e2m3_t o) const noexcept { return nk_e2m3_order_best(raw_, o.raw_, default_capabilities()); }
-
-    /** Alias for order(), Rust-style. */
-    inline int total_cmp(e2m3_t o) const noexcept { return order(o); }
 
     constexpr e2m3_t abs() const noexcept { return from_bits(raw_ & 0x1F); }
     constexpr e2m3_t copysign(e2m3_t sign) const noexcept { return from_bits((raw_ & 0x1F) | (sign.raw_ & 0x20)); }
 
-    inline e2m3_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), default_capabilities())); }
-    NUMKONG_CMATH_CONSTEXPR_ e2m3_t(min)(e2m3_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e2m3_t(max)(e2m3_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
-    inline e2m3_t clamp(e2m3_t lo, e2m3_t hi) const noexcept { return ((max)(lo).min)(hi); }
+    /** Construct through @c nk::cast from @c nk::f32_t, a multiversioned kernel. */
+    e2m3_t(float) = delete;
 
-    inline e2m3_t saturating_add(e2m3_t o) const noexcept {
-        float result = to_f32() + o.to_f32();
-        if (result >= finite_max().to_f32()) return finite_max();
-        if (result <= finite_min().to_f32()) return finite_min();
-        return from_f32(result);
-    }
+    /** Widen through @c nk::to_f32. */
+    operator float() const = delete;
 
-    inline e2m3_t saturating_sub(e2m3_t o) const noexcept {
-        float result = to_f32() - o.to_f32();
-        if (result >= finite_max().to_f32()) return finite_max();
-        if (result <= finite_min().to_f32()) return finite_min();
-        return from_f32(result);
-    }
+    /** Add the @c nk::to_f32 of both operands, then @c nk::cast back. */
+    e2m3_t operator+(e2m3_t) const = delete;
+
+    /** Compare through @c nk::order. */
+    bool operator==(e2m3_t) const = delete;
+
+    /** Compare through @c nk::order. */
+    bool operator<(e2m3_t) const = delete;
+
+    /** Order through @c nk::order. */
+    int order(e2m3_t) const = delete;
+
+    /** Take the root of the @c nk::to_f32 value. */
+    e2m3_t sqrt() const = delete;
 };
 
 /**
@@ -3118,30 +2421,7 @@ struct e3m2_t {
 
     raw_t raw_;
 
-    inline float to_f32() const noexcept {
-        float r;
-        nk_e3m2_to_f32_best(&raw_, &r, default_capabilities());
-        return r;
-    }
-    static inline e3m2_t from_f32(float v) noexcept {
-        e3m2_t r;
-        nk_f32_to_e3m2_best(&v, &r.raw_, default_capabilities());
-        return r;
-    }
-
     constexpr e3m2_t() noexcept : raw_(0) {}
-    inline e3m2_t(float v) noexcept { nk_f32_to_e3m2_best(&v, &raw_, default_capabilities()); }
-    explicit e3m2_t(double v) noexcept {
-        float f = static_cast<float>(v);
-        nk_f32_to_e3m2_best(&f, &raw_, default_capabilities());
-    }
-    template <std::integral integral_type_>
-    e3m2_t(integral_type_ v) noexcept {
-        float f = static_cast<float>(v);
-        nk_f32_to_e3m2_best(&f, &raw_, default_capabilities());
-    }
-    inline operator float() const noexcept { return to_f32(); }
-    inline float raw() const noexcept { return to_f32(); }
     static constexpr e3m2_t from_raw(raw_t r) noexcept {
         e3m2_t v;
         v.raw_ = r;
@@ -3188,62 +2468,30 @@ struct e3m2_t {
 
     inline e3m2_t operator+() const noexcept { return *this; }
     constexpr e3m2_t operator-() const noexcept { return from_bits(raw_ ^ 0x20); }
-    inline e3m2_t operator+(e3m2_t o) const noexcept { return from_f32(to_f32() + o.to_f32()); }
-    inline e3m2_t operator-(e3m2_t o) const noexcept { return from_f32(to_f32() - o.to_f32()); }
-    inline e3m2_t operator*(e3m2_t o) const noexcept { return from_f32(to_f32() * o.to_f32()); }
-    inline e3m2_t operator/(e3m2_t o) const noexcept { return from_f32(to_f32() / o.to_f32()); }
-
-    inline e3m2_t &operator+=(e3m2_t o) noexcept { return *this = *this + o; }
-    inline e3m2_t &operator-=(e3m2_t o) noexcept { return *this = *this - o; }
-    inline e3m2_t &operator*=(e3m2_t o) noexcept { return *this = *this * o; }
-    inline e3m2_t &operator/=(e3m2_t o) noexcept { return *this = *this / o; }
-
-    inline bool operator==(e3m2_t o) const noexcept {
-        return nk_e3m2_order_best(raw_, o.raw_, default_capabilities()) == 0;
-    }
-    inline bool operator!=(e3m2_t o) const noexcept {
-        return nk_e3m2_order_best(raw_, o.raw_, default_capabilities()) != 0;
-    }
-    inline bool operator<(e3m2_t o) const noexcept {
-        return nk_e3m2_order_best(raw_, o.raw_, default_capabilities()) < 0;
-    }
-    inline bool operator>(e3m2_t o) const noexcept {
-        return nk_e3m2_order_best(raw_, o.raw_, default_capabilities()) > 0;
-    }
-    inline bool operator<=(e3m2_t o) const noexcept {
-        return nk_e3m2_order_best(raw_, o.raw_, default_capabilities()) <= 0;
-    }
-    inline bool operator>=(e3m2_t o) const noexcept {
-        return nk_e3m2_order_best(raw_, o.raw_, default_capabilities()) >= 0;
-    }
-
-    /** Total ordering via nk_e3m2_order_best. */
-    inline int order(e3m2_t o) const noexcept { return nk_e3m2_order_best(raw_, o.raw_, default_capabilities()); }
-
-    /** Alias for order(), Rust-style. */
-    inline int total_cmp(e3m2_t o) const noexcept { return order(o); }
 
     constexpr e3m2_t abs() const noexcept { return from_bits(raw_ & 0x1F); }
     constexpr e3m2_t copysign(e3m2_t sign) const noexcept { return from_bits((raw_ & 0x1F) | (sign.raw_ & 0x20)); }
 
-    inline e3m2_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), default_capabilities())); }
-    NUMKONG_CMATH_CONSTEXPR_ e3m2_t(min)(e3m2_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e3m2_t(max)(e3m2_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
-    inline e3m2_t clamp(e3m2_t lo, e3m2_t hi) const noexcept { return ((max)(lo).min)(hi); }
+    /** Construct through @c nk::cast from @c nk::f32_t, a multiversioned kernel. */
+    e3m2_t(float) = delete;
 
-    inline e3m2_t saturating_add(e3m2_t o) const noexcept {
-        float result = to_f32() + o.to_f32();
-        if (result >= finite_max().to_f32()) return finite_max();
-        if (result <= finite_min().to_f32()) return finite_min();
-        return from_f32(result);
-    }
+    /** Widen through @c nk::to_f32. */
+    operator float() const = delete;
 
-    inline e3m2_t saturating_sub(e3m2_t o) const noexcept {
-        float result = to_f32() - o.to_f32();
-        if (result >= finite_max().to_f32()) return finite_max();
-        if (result <= finite_min().to_f32()) return finite_min();
-        return from_f32(result);
-    }
+    /** Add the @c nk::to_f32 of both operands, then @c nk::cast back. */
+    e3m2_t operator+(e3m2_t) const = delete;
+
+    /** Compare through @c nk::order. */
+    bool operator==(e3m2_t) const = delete;
+
+    /** Compare through @c nk::order. */
+    bool operator<(e3m2_t) const = delete;
+
+    /** Order through @c nk::order. */
+    int order(e3m2_t) const = delete;
+
+    /** Take the root of the @c nk::to_f32 value. */
+    e3m2_t sqrt() const = delete;
 };
 
 /**
@@ -3277,29 +2525,7 @@ struct ue8m0_t {
 
     raw_t raw_;
 
-    inline float to_f32() const noexcept {
-        float result;
-        nk_ue8m0_to_f32_serial(&raw_, &result);
-        return result;
-    }
-    static inline ue8m0_t from_f32(float value) noexcept {
-        ue8m0_t result;
-        nk_f32_to_ue8m0_serial(&value, &result.raw_);
-        return result;
-    }
-
     constexpr ue8m0_t() noexcept : raw_(0) {}
-    inline ue8m0_t(float value) noexcept { nk_f32_to_ue8m0_serial(&value, &raw_); }
-    explicit ue8m0_t(double value) noexcept {
-        float narrowed = static_cast<float>(value);
-        nk_f32_to_ue8m0_serial(&narrowed, &raw_);
-    }
-    template <std::integral integral_type_>
-    ue8m0_t(integral_type_ value) noexcept {
-        float as_float = static_cast<float>(value);
-        nk_f32_to_ue8m0_serial(&as_float, &raw_);
-    }
-    inline operator float() const noexcept { return to_f32(); }
 
     static constexpr ue8m0_t from_raw(raw_t r) noexcept {
         ue8m0_t v;
@@ -3313,6 +2539,15 @@ struct ue8m0_t {
     static constexpr ue8m0_t epsilon() noexcept { return from_raw(0x7F); }      // 1, the step from 1 to 2
     static constexpr ue8m0_t round_error() noexcept { return from_raw(0x7E); }  // 0.5
     static constexpr ue8m0_t quiet_nan() noexcept { return from_raw(0xFF); }
+
+    /** Construct through @c nk::cast from @c nk::f32_t, a multiversioned kernel. */
+    ue8m0_t(float) = delete;
+
+    /** Widen through @c nk::to_f32. */
+    operator float() const = delete;
+
+    /** Add the @c nk::to_f32 of both operands, then @c nk::cast back. */
+    ue8m0_t operator+(ue8m0_t) const = delete;
 };
 
 /**
@@ -3344,29 +2579,7 @@ struct ue4m3_t {
 
     raw_t raw_;
 
-    inline float to_f32() const noexcept {
-        float result;
-        nk_ue4m3_to_f32_serial(&raw_, &result);
-        return result;
-    }
-    static inline ue4m3_t from_f32(float value) noexcept {
-        ue4m3_t result;
-        nk_f32_to_ue4m3_serial(&value, &result.raw_);
-        return result;
-    }
-
     constexpr ue4m3_t() noexcept : raw_(0) {}
-    inline ue4m3_t(float value) noexcept { nk_f32_to_ue4m3_serial(&value, &raw_); }
-    explicit ue4m3_t(double value) noexcept {
-        float narrowed = static_cast<float>(value);
-        nk_f32_to_ue4m3_serial(&narrowed, &raw_);
-    }
-    template <std::integral integral_type_>
-    ue4m3_t(integral_type_ value) noexcept {
-        float as_float = static_cast<float>(value);
-        nk_f32_to_ue4m3_serial(&as_float, &raw_);
-    }
-    inline operator float() const noexcept { return to_f32(); }
 
     static constexpr ue4m3_t from_raw(raw_t r) noexcept {
         ue4m3_t v;
@@ -3381,6 +2594,15 @@ struct ue4m3_t {
     static constexpr ue4m3_t epsilon() noexcept { return from_raw(0x20); }       // 2⁻³ = 0.125
     static constexpr ue4m3_t round_error() noexcept { return from_raw(0x30); }   // 0.5
     static constexpr ue4m3_t quiet_nan() noexcept { return from_raw(0x7F); }
+
+    /** Construct through @c nk::cast from @c nk::f32_t, a multiversioned kernel. */
+    ue4m3_t(float) = delete;
+
+    /** Widen through @c nk::to_f32. */
+    operator float() const = delete;
+
+    /** Add the @c nk::to_f32 of both operands, then @c nk::cast back. */
+    ue4m3_t operator+(ue4m3_t) const = delete;
 };
 
 /**
@@ -3584,7 +2806,6 @@ struct f118_t {
     constexpr explicit operator float() const noexcept { return static_cast<float>(high_ + low_); }
     constexpr explicit operator f64_t() const noexcept { return {static_cast<double>(*this)}; }
     constexpr explicit operator f32_t() const noexcept { return {static_cast<float>(*this)}; }
-    inline explicit operator f16_t() const noexcept { return {static_cast<float>(*this)}; }
 
     /** Convert to any numeric type. */
     template <typename target_type_>
@@ -4354,8 +3575,6 @@ struct f118c_t {
 
     constexpr f118c_t(f32c_t c) noexcept : real_(c.real()), imag_(c.imag()) {}
     constexpr f118c_t(f64c_t c) noexcept : real_(c.real()), imag_(c.imag()) {}
-    inline f118c_t(f16c_t c) noexcept : real_(static_cast<float>(c.real())), imag_(static_cast<float>(c.imag())) {}
-    inline f118c_t(bf16c_t c) noexcept : real_(static_cast<float>(c.real())), imag_(static_cast<float>(c.imag())) {}
 
     constexpr f118_t real() const noexcept { return real_; }
     constexpr f118_t imag() const noexcept { return imag_; }
@@ -4568,21 +3787,18 @@ struct i8_t {
     constexpr i8_t(max)(i8_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
     constexpr i8_t clamp(i8_t lo, i8_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
-    constexpr i8_t saturating_add(i8_t o) const noexcept {
-        nk_i32_t result = nk_i32_t(raw_) + nk_i32_t(o.raw_);
-        if (result > NUMKONG_I8_MAX) return i8_t::finite_max();
-        if (result < NUMKONG_I8_MIN) return i8_t::finite_min();
-        return i8_t {static_cast<raw_t>(result)};
-    }
     constexpr i8_t saturating_sub(i8_t o) const noexcept {
         nk_i32_t result = nk_i32_t(raw_) - nk_i32_t(o.raw_);
         if (result > NUMKONG_I8_MAX) return i8_t::finite_max();
         if (result < NUMKONG_I8_MIN) return i8_t::finite_min();
         return i8_t {static_cast<raw_t>(result)};
     }
-    inline i8_t saturating_mul(i8_t o) const noexcept {
-        return i8_t {nk_i8_saturating_mul_best(raw_, o.raw_, default_capabilities())};
-    }
+
+    /** Add through @c nk::saturating_add, a multiversioned kernel. */
+    i8_t saturating_add(i8_t) const = delete;
+
+    /** Multiply through @c nk::saturating_mul. */
+    i8_t saturating_mul(i8_t) const = delete;
 };
 
 /**
@@ -4739,16 +3955,15 @@ struct u8_t {
     constexpr u8_t(max)(u8_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
     constexpr u8_t clamp(u8_t lo, u8_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
-    constexpr u8_t saturating_add(u8_t o) const noexcept {
-        nk_u32_t result = nk_u32_t(raw_) + nk_u32_t(o.raw_);
-        return result > NUMKONG_U8_MAX ? u8_t::finite_max() : u8_t {static_cast<raw_t>(result)};
-    }
     constexpr u8_t saturating_sub(u8_t o) const noexcept {
         return o.raw_ > raw_ ? u8_t::zero() : u8_t {static_cast<raw_t>(raw_ - o.raw_)};
     }
-    inline u8_t saturating_mul(u8_t o) const noexcept {
-        return u8_t {nk_u8_saturating_mul_best(raw_, o.raw_, default_capabilities())};
-    }
+
+    /** Add through @c nk::saturating_add, a multiversioned kernel. */
+    u8_t saturating_add(u8_t) const = delete;
+
+    /** Multiply through @c nk::saturating_mul. */
+    u8_t saturating_mul(u8_t) const = delete;
 };
 
 /**
@@ -4882,21 +4097,18 @@ struct i32_t {
     constexpr i32_t(max)(i32_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
     constexpr i32_t clamp(i32_t lo, i32_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
-    constexpr i32_t saturating_add(i32_t o) const noexcept {
-        nk_i64_t result = nk_i64_t(raw_) + nk_i64_t(o.raw_);
-        if (result > NUMKONG_I32_MAX) return i32_t::finite_max();
-        if (result < NUMKONG_I32_MIN) return i32_t::finite_min();
-        return i32_t {static_cast<raw_t>(result)};
-    }
     constexpr i32_t saturating_sub(i32_t o) const noexcept {
         nk_i64_t result = nk_i64_t(raw_) - nk_i64_t(o.raw_);
         if (result > NUMKONG_I32_MAX) return i32_t::finite_max();
         if (result < NUMKONG_I32_MIN) return i32_t::finite_min();
         return i32_t {static_cast<raw_t>(result)};
     }
-    inline i32_t saturating_mul(i32_t o) const noexcept {
-        return i32_t {nk_i32_saturating_mul_best(raw_, o.raw_, default_capabilities())};
-    }
+
+    /** Add through @c nk::saturating_add, a multiversioned kernel. */
+    i32_t saturating_add(i32_t) const = delete;
+
+    /** Multiply through @c nk::saturating_mul. */
+    i32_t saturating_mul(i32_t) const = delete;
 };
 
 /**
@@ -5022,16 +4234,15 @@ struct u32_t {
     constexpr u32_t(max)(u32_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
     constexpr u32_t clamp(u32_t lo, u32_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
-    constexpr u32_t saturating_add(u32_t o) const noexcept {
-        nk_u64_t result = nk_u64_t(raw_) + nk_u64_t(o.raw_);
-        return result > NUMKONG_U32_MAX ? u32_t::finite_max() : u32_t {static_cast<raw_t>(result)};
-    }
     constexpr u32_t saturating_sub(u32_t o) const noexcept {
         return o.raw_ > raw_ ? u32_t::zero() : u32_t {static_cast<raw_t>(raw_ - o.raw_)};
     }
-    inline u32_t saturating_mul(u32_t o) const noexcept {
-        return u32_t {nk_u32_saturating_mul_best(raw_, o.raw_, default_capabilities())};
-    }
+
+    /** Add through @c nk::saturating_add, a multiversioned kernel. */
+    u32_t saturating_add(u32_t) const = delete;
+
+    /** Multiply through @c nk::saturating_mul. */
+    u32_t saturating_mul(u32_t) const = delete;
 };
 
 /**
@@ -5165,22 +4376,18 @@ struct i64_t {
     constexpr i64_t(max)(i64_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
     constexpr i64_t clamp(i64_t lo, i64_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
-    constexpr i64_t saturating_add(i64_t o) const noexcept {
-        // Check for overflow: if signs match and result has different sign
-        nk_i64_t result = raw_ + o.raw_;
-        if (o.raw_ > 0 && raw_ > NUMKONG_I64_MAX - o.raw_) return i64_t::finite_max();
-        if (o.raw_ < 0 && raw_ < NUMKONG_I64_MIN - o.raw_) return i64_t::finite_min();
-        return i64_t {result};
-    }
     constexpr i64_t saturating_sub(i64_t o) const noexcept {
         nk_i64_t result = raw_ - o.raw_;
         if (o.raw_ < 0 && raw_ > NUMKONG_I64_MAX + o.raw_) return i64_t::finite_max();
         if (o.raw_ > 0 && raw_ < NUMKONG_I64_MIN + o.raw_) return i64_t::finite_min();
         return i64_t {result};
     }
-    inline i64_t saturating_mul(i64_t o) const noexcept {
-        return i64_t {nk_i64_saturating_mul_best(raw_, o.raw_, default_capabilities())};
-    }
+
+    /** Add through @c nk::saturating_add, a multiversioned kernel. */
+    i64_t saturating_add(i64_t) const = delete;
+
+    /** Multiply through @c nk::saturating_mul. */
+    i64_t saturating_mul(i64_t) const = delete;
 };
 
 /**
@@ -5304,16 +4511,15 @@ struct u64_t {
     constexpr u64_t(max)(u64_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
     constexpr u64_t clamp(u64_t lo, u64_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
-    constexpr u64_t saturating_add(u64_t o) const noexcept {
-        nk_u64_t result = raw_ + o.raw_;
-        return result < raw_ ? u64_t::finite_max() : u64_t {result}; // overflow check
-    }
     constexpr u64_t saturating_sub(u64_t o) const noexcept {
         return o.raw_ > raw_ ? u64_t::zero() : u64_t {raw_ - o.raw_};
     }
-    inline u64_t saturating_mul(u64_t o) const noexcept {
-        return u64_t {nk_u64_saturating_mul_best(raw_, o.raw_, default_capabilities())};
-    }
+
+    /** Add through @c nk::saturating_add, a multiversioned kernel. */
+    u64_t saturating_add(u64_t) const = delete;
+
+    /** Multiply through @c nk::saturating_mul. */
+    u64_t saturating_mul(u64_t) const = delete;
 };
 
 /**
@@ -5442,21 +4648,18 @@ struct i16_t {
     constexpr i16_t(max)(i16_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
     constexpr i16_t clamp(i16_t lo, i16_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
-    constexpr i16_t saturating_add(i16_t o) const noexcept {
-        nk_i32_t result = nk_i32_t(raw_) + nk_i32_t(o.raw_);
-        if (result > NUMKONG_I16_MAX) return i16_t::finite_max();
-        if (result < NUMKONG_I16_MIN) return i16_t::finite_min();
-        return i16_t {static_cast<raw_t>(result)};
-    }
     constexpr i16_t saturating_sub(i16_t o) const noexcept {
         nk_i32_t result = nk_i32_t(raw_) - nk_i32_t(o.raw_);
         if (result > NUMKONG_I16_MAX) return i16_t::finite_max();
         if (result < NUMKONG_I16_MIN) return i16_t::finite_min();
         return i16_t {static_cast<raw_t>(result)};
     }
-    inline i16_t saturating_mul(i16_t o) const noexcept {
-        return i16_t {nk_i16_saturating_mul_best(raw_, o.raw_, default_capabilities())};
-    }
+
+    /** Add through @c nk::saturating_add, a multiversioned kernel. */
+    i16_t saturating_add(i16_t) const = delete;
+
+    /** Multiply through @c nk::saturating_mul. */
+    i16_t saturating_mul(i16_t) const = delete;
 };
 
 /**
@@ -5582,16 +4785,15 @@ struct u16_t {
     constexpr u16_t(max)(u16_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
     constexpr u16_t clamp(u16_t lo, u16_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
-    constexpr u16_t saturating_add(u16_t o) const noexcept {
-        nk_u32_t result = nk_u32_t(raw_) + nk_u32_t(o.raw_);
-        return result > NUMKONG_U16_MAX ? u16_t::finite_max() : u16_t {static_cast<raw_t>(result)};
-    }
     constexpr u16_t saturating_sub(u16_t o) const noexcept {
         return o.raw_ > raw_ ? u16_t::zero() : u16_t {static_cast<raw_t>(raw_ - o.raw_)};
     }
-    inline u16_t saturating_mul(u16_t o) const noexcept {
-        return u16_t {nk_u16_saturating_mul_best(raw_, o.raw_, default_capabilities())};
-    }
+
+    /** Add through @c nk::saturating_add, a multiversioned kernel. */
+    u16_t saturating_add(u16_t) const = delete;
+
+    /** Multiply through @c nk::saturating_mul. */
+    u16_t saturating_mul(u16_t) const = delete;
 };
 
 struct u1x8_t;
@@ -6068,15 +5270,6 @@ struct i4x2_t {
         return {first() * o.first(), second() * o.second()};
     }
 
-    constexpr i4x2_t saturating_add(i4x2_t o) const noexcept {
-        auto clamp = [](int v) -> component_t {
-            if (v < -8) return component_t(-8);
-            if (v > 7) return component_t(7);
-            return component_t(v);
-        };
-        return i4x2_t {clamp(first() + o.first()), clamp(second() + o.second())};
-    }
-
     constexpr i4x2_t saturating_sub(i4x2_t o) const noexcept {
         auto clamp = [](int v) -> component_t {
             if (v < -8) return component_t(-8);
@@ -6086,16 +5279,18 @@ struct i4x2_t {
         return i4x2_t {clamp(first() - o.first()), clamp(second() - o.second())};
     }
 
-    inline i4x2_t saturating_mul(i4x2_t o) const noexcept {
-        return i4x2_t {nk_i4x2_saturating_mul_best(raw_, o.raw_, default_capabilities())};
-    }
-
     constexpr i4x2_t wrapping_add(i4x2_t o) const noexcept {
         return i4x2_t {component_t(static_cast<nk_i8_t>((first() + o.first()).raw() & 0x0F)),
                        component_t(static_cast<nk_i8_t>((second() + o.second()).raw() & 0x0F))};
     }
 
     constexpr std::strong_ordering operator<=>(i4x2_t const &o) const noexcept = default;
+
+    /** Add through @c nk::saturating_add, a multiversioned kernel. */
+    i4x2_t saturating_add(i4x2_t) const = delete;
+
+    /** Multiply through @c nk::saturating_mul. */
+    i4x2_t saturating_mul(i4x2_t) const = delete;
 };
 
 /**
@@ -6195,19 +5390,10 @@ struct u4x2_t {
         return {first() * o.first(), second() * o.second()};
     }
 
-    constexpr u4x2_t saturating_add(u4x2_t o) const noexcept {
-        auto clamp = [](unsigned v) -> component_t { return v > 15 ? component_t(15) : component_t(v); };
-        return u4x2_t {clamp(first() + o.first()), clamp(second() + o.second())};
-    }
-
     constexpr u4x2_t saturating_sub(u4x2_t o) const noexcept {
         auto clamp = [](int v) -> component_t { return v < 0 ? component_t(0) : component_t(v); };
         return u4x2_t {clamp(static_cast<int>(first().raw()) - static_cast<int>(o.first().raw())),
                        clamp(static_cast<int>(second().raw()) - static_cast<int>(o.second().raw()))};
-    }
-
-    inline u4x2_t saturating_mul(u4x2_t o) const noexcept {
-        return u4x2_t {nk_u4x2_saturating_mul_best(raw_, o.raw_, default_capabilities())};
     }
 
     constexpr u4x2_t wrapping_add(u4x2_t o) const noexcept {
@@ -6216,6 +5402,12 @@ struct u4x2_t {
     }
 
     constexpr std::strong_ordering operator<=>(u4x2_t const &o) const noexcept = default;
+
+    /** Add through @c nk::saturating_add, a multiversioned kernel. */
+    u4x2_t saturating_add(u4x2_t) const = delete;
+
+    /** Multiply through @c nk::saturating_mul. */
+    u4x2_t saturating_mul(u4x2_t) const = delete;
 };
 
 /**
@@ -6355,16 +5547,10 @@ struct nvfp4_t {
     constexpr explicit nvfp4_t(raw_t v) noexcept : raw_(v) {}
     static constexpr nvfp4_t from_raw(raw_t r) noexcept { return nvfp4_t {r}; }
 
-    inline void decode_to(float *dest, float tensor_scale) const noexcept {
-        nk_nvfp4_to_f32x16_serial(&raw_, tensor_scale, dest);
-    }
-    static inline nvfp4_t encode_from(float const *src, float tensor_scale) noexcept {
-        nvfp4_t result;
-        nk_f32x16_to_nvfp4_serial(src, tensor_scale, &result.raw_);
-        return result;
-    }
-
     constexpr sub_byte_ref<nvfp4_t> operator[](unsigned i) & noexcept { return {&raw_, i}; }
+
+    /** Decode through @c nk::decode_to, a multiversioned kernel. */
+    void decode_to(float *) const = delete;
 };
 
 /** OCP MXFP4 block value: 32 E2M1 nibbles + 1 UE8M0 pow-2 scale byte per value. */
@@ -6416,14 +5602,10 @@ struct mxfp4_t {
     constexpr explicit mxfp4_t(raw_t v) noexcept : raw_(v) {}
     static constexpr mxfp4_t from_raw(raw_t r) noexcept { return mxfp4_t {r}; }
 
-    inline void decode_to(float *dest) const noexcept { nk_mxfp4_to_f32x32_serial(&raw_, dest); }
-    static inline mxfp4_t encode_from(float const *src) noexcept {
-        mxfp4_t result;
-        nk_f32x32_to_mxfp4_serial(src, &result.raw_);
-        return result;
-    }
-
     constexpr sub_byte_ref<mxfp4_t> operator[](unsigned i) & noexcept { return {&raw_, i}; }
+
+    /** Decode through @c nk::decode_to, a multiversioned kernel. */
+    void decode_to(float *) const = delete;
 };
 
 /** OCP MXFP6 E2M3 block value: 32 E2M3 elements + 1 UE8M0 scale byte per value. */
@@ -6467,14 +5649,10 @@ struct mxfp6e2m3_t {
     constexpr explicit mxfp6e2m3_t(raw_t v) noexcept : raw_(v) {}
     static constexpr mxfp6e2m3_t from_raw(raw_t r) noexcept { return mxfp6e2m3_t {r}; }
 
-    inline void decode_to(float *dest) const noexcept { nk_mxfp6e2m3_to_f32x32_serial(&raw_, dest); }
-    static inline mxfp6e2m3_t encode_from(float const *src) noexcept {
-        mxfp6e2m3_t result;
-        nk_f32x32_to_mxfp6e2m3_serial(src, &result.raw_);
-        return result;
-    }
-
     constexpr sub_byte_ref<mxfp6e2m3_t> operator[](unsigned i) & noexcept { return {&raw_, i}; }
+
+    /** Decode through @c nk::decode_to, a multiversioned kernel. */
+    void decode_to(float *) const = delete;
 };
 
 /** OCP MXFP6 E3M2 block value: 32 E3M2 elements + 1 UE8M0 scale byte per value. */
@@ -6518,14 +5696,10 @@ struct mxfp6e3m2_t {
     constexpr explicit mxfp6e3m2_t(raw_t v) noexcept : raw_(v) {}
     static constexpr mxfp6e3m2_t from_raw(raw_t r) noexcept { return mxfp6e3m2_t {r}; }
 
-    inline void decode_to(float *dest) const noexcept { nk_mxfp6e3m2_to_f32x32_serial(&raw_, dest); }
-    static inline mxfp6e3m2_t encode_from(float const *src) noexcept {
-        mxfp6e3m2_t result;
-        nk_f32x32_to_mxfp6e3m2_serial(src, &result.raw_);
-        return result;
-    }
-
     constexpr sub_byte_ref<mxfp6e3m2_t> operator[](unsigned i) & noexcept { return {&raw_, i}; }
+
+    /** Decode through @c nk::decode_to, a multiversioned kernel. */
+    void decode_to(float *) const = delete;
 };
 
 /** OCP MXFP8 E4M3 block value: 32 E4M3 elements + 1 UE8M0 scale byte per value. */
@@ -6577,14 +5751,10 @@ struct mxfp8e4m3_t {
     constexpr explicit mxfp8e4m3_t(raw_t v) noexcept : raw_(v) {}
     static constexpr mxfp8e4m3_t from_raw(raw_t r) noexcept { return mxfp8e4m3_t {r}; }
 
-    inline void decode_to(float *dest) const noexcept { nk_mxfp8e4m3_to_f32x32_serial(&raw_, dest); }
-    static inline mxfp8e4m3_t encode_from(float const *src) noexcept {
-        mxfp8e4m3_t result;
-        nk_f32x32_to_mxfp8e4m3_serial(src, &result.raw_);
-        return result;
-    }
-
     constexpr sub_byte_ref<mxfp8e4m3_t> operator[](unsigned i) & noexcept { return {&raw_, i}; }
+
+    /** Decode through @c nk::decode_to, a multiversioned kernel. */
+    void decode_to(float *) const = delete;
 };
 
 /** OCP MXFP8 E5M2 block value: 32 E5M2 elements + 1 UE8M0 scale byte per value. */
@@ -6636,14 +5806,10 @@ struct mxfp8e5m2_t {
     constexpr explicit mxfp8e5m2_t(raw_t v) noexcept : raw_(v) {}
     static constexpr mxfp8e5m2_t from_raw(raw_t r) noexcept { return mxfp8e5m2_t {r}; }
 
-    inline void decode_to(float *dest) const noexcept { nk_mxfp8e5m2_to_f32x32_serial(&raw_, dest); }
-    static inline mxfp8e5m2_t encode_from(float const *src) noexcept {
-        mxfp8e5m2_t result;
-        nk_f32x32_to_mxfp8e5m2_serial(src, &result.raw_);
-        return result;
-    }
-
     constexpr sub_byte_ref<mxfp8e5m2_t> operator[](unsigned i) & noexcept { return {&raw_, i}; }
+
+    /** Decode through @c nk::decode_to, a multiversioned kernel. */
+    void decode_to(float *) const = delete;
 };
 
 /** OCP MXINT8 block value: 32 signed i8 elements + 1 UE8M0 scale byte per value. */
@@ -6681,14 +5847,10 @@ struct mxint8_t {
     constexpr explicit mxint8_t(raw_t v) noexcept : raw_(v) {}
     static constexpr mxint8_t from_raw(raw_t r) noexcept { return mxint8_t {r}; }
 
-    inline void decode_to(float *dest) const noexcept { nk_mxint8_to_f32x32_serial(&raw_, dest); }
-    static inline mxint8_t encode_from(float const *src) noexcept {
-        mxint8_t result;
-        nk_f32x32_to_mxint8_serial(src, &result.raw_);
-        return result;
-    }
-
     constexpr sub_byte_ref<mxint8_t> operator[](unsigned i) & noexcept { return {&raw_, i}; }
+
+    /** Decode through @c nk::decode_to, a multiversioned kernel. */
+    void decode_to(float *) const = delete;
 };
 
 #pragma region Enum Conversion
@@ -7001,177 +6163,6 @@ constexpr std::size_t round_up_to_multiple(std::size_t n) {
 
 #pragma endregion Numeric Limits
 
-#pragma region SIMD Dispatch Helpers
-
-/** FMA helper template for baseline dot-product implementations. */
-template <typename in_type_, typename accumulator_type_>
-    requires(dimensions_per_value<in_type_>() == 1)
-inline accumulator_type_ fma(in_type_ a, in_type_ b, accumulator_type_ acc) noexcept {
-    // Integer wrappers cast to F32 ambiguously, via float or double, so they cast their raw value
-    if constexpr (!std::is_constructible_v<accumulator_type_, in_type_>)
-        return acc + accumulator_type_(a.raw_) * accumulator_type_(b.raw_);
-    else return acc + static_cast<accumulator_type_>(a) * static_cast<accumulator_type_>(b);
-}
-
-/** FMA helper template for baseline conjugate complex dot-product implementations. */
-template <typename in_type_, typename accumulator_type_>
-    requires(dimensions_per_value<in_type_>() == 1)
-inline accumulator_type_ fcma(in_type_ a, in_type_ b, accumulator_type_ acc) noexcept {
-    return acc + static_cast<accumulator_type_>(a.conj()) * static_cast<accumulator_type_>(b);
-}
-
-/** Fused addition of squared differences for baseline L2 implementations. */
-template <typename in_type_, typename accumulator_type_>
-    requires(dimensions_per_value<in_type_>() == 1)
-constexpr accumulator_type_ fdsa(in_type_ a, in_type_ b, accumulator_type_ acc) noexcept {
-    accumulator_type_ d;
-    if constexpr (!std::is_constructible_v<accumulator_type_, in_type_>)
-        d = accumulator_type_(a.raw_) - accumulator_type_(b.raw_);
-    else d = static_cast<accumulator_type_>(a) - static_cast<accumulator_type_>(b);
-    return acc + d * d;
-}
-
-/** Free-standing saturating addition for baseline implementations. */
-template <typename accumulator_type_, typename in_type_>
-    requires(std::is_same<accumulator_type_, in_type_>::value || dimensions_per_value<in_type_>() == 1)
-constexpr accumulator_type_ saturating_add(accumulator_type_ a, in_type_ b) noexcept {
-    return a.saturating_add(static_cast<accumulator_type_>(b));
-}
-
-/** Free-standing saturating multiplication for baseline implementations. */
-template <typename accumulator_type_, typename in_type_>
-    requires(std::is_same<accumulator_type_, in_type_>::value || dimensions_per_value<in_type_>() == 1)
-constexpr accumulator_type_ saturating_mul(accumulator_type_ a, in_type_ b) noexcept {
-    return a.saturating_mul(static_cast<accumulator_type_>(b));
-}
-
-/** Operands of the free-standing FMA: scalars into any accumulator, packed values into their own
- *  type. */
-template <typename in_type_, typename accumulator_type_>
-concept an_fma_operand_pair = dimensions_per_value<in_type_>() == 1 || std::is_same_v<accumulator_type_, in_type_>;
-
-/** Signed scalars into an unsigned integer accumulator, which a negative operand cannot be cast
- *  into. */
-template <typename in_type_, typename accumulator_type_>
-concept a_signed_into_unsigned_fma_operand_pair =
-    an_fma_operand_pair<in_type_, accumulator_type_> && dimensions_per_value<in_type_>() == 1 &&
-    is_signed_dtype<in_type_>() && is_integral_dtype<accumulator_type_>() && !is_signed_dtype<accumulator_type_>();
-
-/** Free-standing saturating FMA, a*b + c, for baseline implementations. */
-template <typename in_type_, typename accumulator_type_>
-    requires an_fma_operand_pair<in_type_, accumulator_type_>
-constexpr accumulator_type_ saturating_fma(in_type_ a, in_type_ b, accumulator_type_ acc) noexcept {
-    return saturating_add(acc, saturating_mul(static_cast<accumulator_type_>(a), static_cast<accumulator_type_>(b)));
-}
-
-/** Saturating FMA of signed operands into an unsigned integer accumulator, multiplied in @c i64_t
- *  first. */
-template <typename in_type_, typename accumulator_type_>
-    requires a_signed_into_unsigned_fma_operand_pair<in_type_, accumulator_type_>
-constexpr accumulator_type_ saturating_fma(in_type_ a, in_type_ b, accumulator_type_ acc) noexcept {
-    std::int64_t const product = i64_t(a).saturating_mul(i64_t(b));
-    if (product >= 0) return acc.saturating_add(accumulator_type_(static_cast<std::uint64_t>(product)));
-    return acc.saturating_sub(accumulator_type_(0 - static_cast<std::uint64_t>(product)));
-}
-
-/** FMA specialization for i4x2_t, signed 4-bit packed pairs. */
-template <typename accumulator_type_>
-constexpr accumulator_type_ fma(i4x2_t a, i4x2_t b, accumulator_type_ acc) noexcept {
-    return acc +
-           accumulator_type_(nk_i32_t(a.first()) * nk_i32_t(b.first()) + nk_i32_t(a.second()) * nk_i32_t(b.second()));
-}
-
-/** FMA specialization for u4x2_t, unsigned 4-bit packed pairs. */
-template <typename accumulator_type_>
-constexpr accumulator_type_ fma(u4x2_t a, u4x2_t b, accumulator_type_ acc) noexcept {
-    return acc +
-           accumulator_type_(nk_u32_t(a.first()) * nk_u32_t(b.first()) + nk_u32_t(a.second()) * nk_u32_t(b.second()));
-}
-
-/** FMA specialization for e2m1x2_t, FP4 packed pairs; both nibble products are exact in f32. */
-template <typename accumulator_type_>
-constexpr accumulator_type_ fma(e2m1x2_t a, e2m1x2_t b, accumulator_type_ acc) noexcept {
-    return acc + accumulator_type_(a.first() * b.first() + a.second() * b.second());
-}
-
-/** FMA specialization for u1x8_t, 8 packed bits. Counts matching set bits, popcount of AND. */
-template <typename accumulator_type_>
-constexpr accumulator_type_ fma(u1x8_t a, u1x8_t b, accumulator_type_ acc) noexcept {
-    return acc + accumulator_type_(std::popcount(static_cast<unsigned>(a.raw() & b.raw())));
-}
-
-/** Squared difference specialization for i4x2_t, signed 4-bit packed pairs. */
-template <typename accumulator_type_>
-constexpr accumulator_type_ fdsa(i4x2_t a, i4x2_t b, accumulator_type_ acc) noexcept {
-    nk_i32_t first_difference = nk_i32_t(a.first()) - nk_i32_t(b.first());
-    nk_i32_t second_difference = nk_i32_t(a.second()) - nk_i32_t(b.second());
-    return acc + accumulator_type_(first_difference * first_difference + second_difference * second_difference);
-}
-
-/** Squared difference specialization for u4x2_t, unsigned 4-bit packed pairs. */
-template <typename accumulator_type_>
-constexpr accumulator_type_ fdsa(u4x2_t a, u4x2_t b, accumulator_type_ acc) noexcept {
-    nk_i32_t first_difference = nk_i32_t(a.first()) - nk_i32_t(b.first());
-    nk_i32_t second_difference = nk_i32_t(a.second()) - nk_i32_t(b.second());
-    return acc + accumulator_type_(first_difference * first_difference + second_difference * second_difference);
-}
-
-/** Saturating addition specialization for i4x2_t, signed 4-bit packed pairs. */
-template <typename accumulator_type_>
-constexpr accumulator_type_ saturating_add(accumulator_type_ a, i4x2_t b) noexcept {
-    return saturating_add(saturating_add(a, b.first()), b.second());
-}
-
-/** Saturating addition specialization for u4x2_t, unsigned 4-bit packed pairs. */
-template <typename accumulator_type_>
-constexpr accumulator_type_ saturating_add(accumulator_type_ a, u4x2_t b) noexcept {
-    return saturating_add(saturating_add(a, b.first()), b.second());
-}
-
-/** Saturating FMA specialization for i4x2_t, signed 4-bit packed pairs. */
-template <typename accumulator_type_>
-    requires(!is_integral_dtype<accumulator_type_>())
-constexpr accumulator_type_ saturating_fma(i4x2_t a, i4x2_t b, accumulator_type_ acc) noexcept {
-    return fma(a, b, acc);
-}
-
-/** Saturating FMA specialization for u4x2_t, unsigned 4-bit packed pairs. */
-template <typename accumulator_type_>
-    requires(!is_integral_dtype<accumulator_type_>())
-constexpr accumulator_type_ saturating_fma(u4x2_t a, u4x2_t b, accumulator_type_ acc) noexcept {
-    return fma(a, b, acc);
-}
-
-/** Count element-level differences. For scalar types, returns 1 if different, 0 if equal. */
-template <typename scalar_type_>
-constexpr unsigned count_differences(scalar_type_ a, scalar_type_ b) noexcept {
-    return (a != b) ? 1 : 0;
-}
-
-/** Count bit-level differences for u1x8_t, 8 packed bits. Returns popcount of XOR. */
-constexpr unsigned count_differences(u1x8_t a, u1x8_t b) noexcept { return a.hamming(b); }
-
-/** Count element-level intersection. For scalar types, returns 1 if equal, 0 if different. */
-template <typename scalar_type_>
-constexpr unsigned count_intersection(scalar_type_ a, scalar_type_ b) noexcept {
-    return (a == b) ? 1 : 0;
-}
-
-/** Count element-level union. For scalar types, always returns 1, one element per pair. */
-template <typename scalar_type_>
-constexpr unsigned count_union(scalar_type_ a, scalar_type_ b) noexcept {
-    nk_unused_(a), nk_unused_(b);
-    return 1;
-}
-
-/** Count bit-level intersection for u1x8_t, 8 packed bits. Returns popcount of AND. */
-constexpr unsigned count_intersection(u1x8_t a, u1x8_t b) noexcept { return a.intersection(b); }
-
-/** Count bit-level union for u1x8_t, 8 packed bits. Returns popcount of OR. */
-constexpr unsigned count_union(u1x8_t a, u1x8_t b) noexcept { return a.union_size(b); }
-
-#pragma endregion SIMD Dispatch Helpers
-
 #pragma region F118 Mixed Operators
 
 constexpr f118_t operator+(double a, f118_t b) noexcept { return f118_t(a) + b; }
@@ -7416,56 +6407,7 @@ inline std::format_context::iterator format_hex_suffix_(std::format_context::ite
     return std::format_to(out, " [0x{:02x}]", bits);
 }
 
-/**
- *  @brief Formatter implementation for float-like scalar types: f16, bf16, e4m3, e5m2, e2m3, e3m2.
- *  @tparam value_type_ The NumKong scalar type.
- *  @tparam hex_width_ Number of hex digits, 4 for 16-bit and 2 for 8-bit.
- *  @tparam bin_width_ Number of binary digits, 16 for 16-bit and 8 for 8-bit.
- */
-template <typename value_type_, unsigned hex_width_, unsigned bin_width_>
-struct float_scalar_formatter_ {
-    scalar_format_spec_t spec_;
-
-    constexpr std::format_parse_context::iterator parse(std::format_parse_context &ctx) { return spec_.parse(ctx); }
-
-    std::format_context::iterator format(value_type_ v, std::format_context &ctx) const {
-        using mode_t = scalar_format_spec_t::mode_t;
-        unsigned bits;
-        if constexpr (requires { v.to_bits(); }) bits = static_cast<unsigned>(v.to_bits());
-        else bits = static_cast<unsigned>(v.raw_);
-
-        switch (spec_.mode_) {
-        case mode_t::hex_k: return format_hex_(ctx.out(), bits, hex_width_, spec_.prefix_, spec_.upper_);
-        case mode_t::binary_k: return format_bin_(ctx.out(), bits, bin_width_, spec_.prefix_);
-        default: {
-            auto out = spec_.float_fmt_.format(v.to_f32(), ctx);
-            if (spec_.annotate_) out = format_hex_suffix_(out, bits, hex_width_);
-            return out;
-        }
-        }
-    }
-};
-
 } // namespace ashvardanian::numkong
-
-template <>
-struct std::formatter<ashvardanian::numkong::f16_t>
-    : ashvardanian::numkong::float_scalar_formatter_<ashvardanian::numkong::f16_t, 4, 16> {};
-template <>
-struct std::formatter<ashvardanian::numkong::bf16_t>
-    : ashvardanian::numkong::float_scalar_formatter_<ashvardanian::numkong::bf16_t, 4, 16> {};
-template <>
-struct std::formatter<ashvardanian::numkong::e4m3_t>
-    : ashvardanian::numkong::float_scalar_formatter_<ashvardanian::numkong::e4m3_t, 2, 8> {};
-template <>
-struct std::formatter<ashvardanian::numkong::e5m2_t>
-    : ashvardanian::numkong::float_scalar_formatter_<ashvardanian::numkong::e5m2_t, 2, 8> {};
-template <>
-struct std::formatter<ashvardanian::numkong::e2m3_t>
-    : ashvardanian::numkong::float_scalar_formatter_<ashvardanian::numkong::e2m3_t, 2, 8> {};
-template <>
-struct std::formatter<ashvardanian::numkong::e3m2_t>
-    : ashvardanian::numkong::float_scalar_formatter_<ashvardanian::numkong::e3m2_t, 2, 8> {};
 
 template <>
 struct std::formatter<ashvardanian::numkong::i4x2_t> {
@@ -7593,76 +6535,6 @@ struct std::formatter<ashvardanian::numkong::sub_byte_ref<ashvardanian::numkong:
     std::format_context::iterator format(ashvardanian::numkong::sub_byte_ref<ashvardanian::numkong::u1x8_t> v,
                                          std::format_context &ctx) const {
         return std::format_to(ctx.out(), "{}", v.get() ? 1u : 0u);
-    }
-};
-
-template <>
-struct std::formatter<ashvardanian::numkong::f16c_t> {
-    ashvardanian::numkong::scalar_format_spec_t spec_;
-
-    constexpr std::format_parse_context::iterator parse(std::format_parse_context &ctx) { return spec_.parse(ctx); }
-
-    std::format_context::iterator format(ashvardanian::numkong::f16c_t v, std::format_context &ctx) const {
-        namespace nk = ashvardanian::numkong;
-        using mode_t = nk::scalar_format_spec_t::mode_t;
-        unsigned re_bits = static_cast<unsigned>(v.real().to_bits());
-        unsigned im_bits = static_cast<unsigned>(v.imag().to_bits());
-        switch (spec_.mode_) {
-        case mode_t::hex_k: {
-            auto out = std::format_to(ctx.out(), "(");
-            out = nk::format_hex_(out, re_bits, 4, spec_.prefix_, spec_.upper_);
-            out = std::format_to(out, ", ");
-            out = nk::format_hex_(out, im_bits, 4, spec_.prefix_, spec_.upper_);
-            return std::format_to(out, ")");
-        }
-        case mode_t::binary_k: {
-            auto out = std::format_to(ctx.out(), "(");
-            out = nk::format_bin_(out, re_bits, 16, spec_.prefix_);
-            out = std::format_to(out, ", ");
-            out = nk::format_bin_(out, im_bits, 16, spec_.prefix_);
-            return std::format_to(out, ")");
-        }
-        default:
-            if (spec_.annotate_)
-                return std::format_to(ctx.out(), "({} [0x{:04x}], {} [0x{:04x}])", v.real().to_f32(), re_bits,
-                                      v.imag().to_f32(), im_bits);
-            return std::format_to(ctx.out(), "({}, {})", v.real().to_f32(), v.imag().to_f32());
-        }
-    }
-};
-
-template <>
-struct std::formatter<ashvardanian::numkong::bf16c_t> {
-    ashvardanian::numkong::scalar_format_spec_t spec_;
-
-    constexpr std::format_parse_context::iterator parse(std::format_parse_context &ctx) { return spec_.parse(ctx); }
-
-    std::format_context::iterator format(ashvardanian::numkong::bf16c_t v, std::format_context &ctx) const {
-        namespace nk = ashvardanian::numkong;
-        using mode_t = nk::scalar_format_spec_t::mode_t;
-        unsigned re_bits = static_cast<unsigned>(v.real().to_bits());
-        unsigned im_bits = static_cast<unsigned>(v.imag().to_bits());
-        switch (spec_.mode_) {
-        case mode_t::hex_k: {
-            auto out = std::format_to(ctx.out(), "(");
-            out = nk::format_hex_(out, re_bits, 4, spec_.prefix_, spec_.upper_);
-            out = std::format_to(out, ", ");
-            out = nk::format_hex_(out, im_bits, 4, spec_.prefix_, spec_.upper_);
-            return std::format_to(out, ")");
-        }
-        case mode_t::binary_k: {
-            auto out = std::format_to(ctx.out(), "(");
-            out = nk::format_bin_(out, re_bits, 16, spec_.prefix_);
-            out = std::format_to(out, ", ");
-            out = nk::format_bin_(out, im_bits, 16, spec_.prefix_);
-            return std::format_to(out, ")");
-        }
-        default:
-            if (spec_.annotate_)
-                return std::format_to(ctx.out(), "({} [0x{:04x}], {} [0x{:04x}])", v.real().to_f32(), re_bits,
-                                      v.imag().to_f32(), im_bits);
-            return std::format_to(ctx.out(), "({}, {})", v.real().to_f32(), v.imag().to_f32());
-        }
     }
 };
 

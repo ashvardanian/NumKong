@@ -17,11 +17,17 @@
 #include <iterator> // `std::size`
 #include <random>   // `std::uniform_real_distribution`
 
-#include "numkong/each.hpp" // `nk::add`, `nk_each_rmsnorm_error_bound`, `nk_each_swiglu_error_bound`
+#include "numkong/each.hpp" // `nk_each_rmsnorm_error_bound`, `nk_each_swiglu_error_bound`
 
 #include "harness.hpp"
 
 namespace ashvardanian::numkong::test {
+
+/** Element-wise saturating sums cᵢ = aᵢ + bᵢ, the oracle of the sum kernels. */
+template <typename in_type_>
+void add_reference(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ *c) noexcept {
+    for (std::size_t i = 0; i < d; i++) c[i] = saturating_add_reference(a[i], b[i]);
+}
 
 /** A random α or β for @p scalar_type_, each part in [-2, 2]. */
 template <typename scalar_type_, typename generator_type_>
@@ -163,8 +169,7 @@ error_stats_t test_sum(typename scalar_type_::sum_kernel_t kernel) {
     auto const score = [&](std::size_t length) {
         backend.call(kernel, a.raw_values_data(), b.raw_values_data(), length, result.raw_values_data());
         if (!stats.expect_status(backend.synchronize())) return;
-        stats.expect_status(
-            nk::add<scalar_t>(a.values_data(), b.values_data(), length, reference.values_data(), no_tiers_k));
+        add_reference<scalar_t>(a.values_data(), b.values_data(), length, reference.values_data());
         for (std::size_t i = 0; i < length; i++) stats.accumulate(result[i], reference[i]);
     };
     for (deadline_t const deadline = test_run.settings.deadline(); deadline.ahead();) {
@@ -177,11 +182,11 @@ error_stats_t test_sum(typename scalar_type_::sum_kernel_t kernel) {
     // Subnormal operands, sums that fall below the normals and sums that climb into them, held to
     // the same bound as every other sum
     if constexpr (requires { scalar_t::subnormal_min(); }) {
-        nk_f64_t const smallest = nk_f64_t(scalar_t::subnormal_min()), normal = nk_f64_t(scalar_t::positive_min());
+        nk_f64_t const smallest = to_double(scalar_t::subnormal_min()), normal = to_double(scalar_t::positive_min());
         for (std::size_t i = 0; i < count; i++) {
             nk_f64_t const step = smallest * nk_f64_t(1 + i % 7);
-            a[i] = scalar_t(i % 3 ? step : normal - step);
-            b[i] = scalar_t(i % 2 ? step : -smallest * nk_f64_t(i % 5));
+            a[i] = narrow<scalar_t>(i % 3 ? step : normal - step);
+            b[i] = narrow<scalar_t>(i % 2 ? step : -smallest * nk_f64_t(i % 5));
         }
         score(count);
     }
@@ -231,13 +236,12 @@ error_stats_t test_rmsnorm(rmsnorm_kernel_type_ rmsnorm_fn) {
                     std::size_t const first = row * row_values + group * columns;
                     double sum_squares = 0;
                     for (std::size_t col = 0; col < columns; col++) {
-                        double const value = static_cast<double>(x[first + col]);
+                        double const value = to_double(x[first + col]);
                         sum_squares += value * value;
                     }
                     double const inverse_rms = 1 / std::sqrt(sum_squares / columns + epsilon);
                     for (std::size_t col = 0; col < columns; col++) {
-                        double const expected = static_cast<double>(x[first + col]) * inverse_rms *
-                                                (gains ? gains[col] : 1.0f);
+                        double const expected = to_double(x[first + col]) * inverse_rms * (gains ? gains[col] : 1.0f);
                         stats.accumulate_bounded(y[first + col], expected, bound * std::fabs(expected));
                     }
                 }
@@ -258,8 +262,8 @@ error_stats_t test_rmsnorm(rmsnorm_kernel_type_ rmsnorm_fn) {
         auto gamma = make_vector<f32_t>(backend, columns);
         for (std::size_t col = 0; col < columns; col++) {
             gamma[col] = edge_gains[col % std::size(edge_gains)];
-            x[col] = input_t(input_t::is_signed() && col % 2 ? -8 : 8);
-            x[2 * columns + col] = input_t(8), x[3 * columns + col] = input_t(8);
+            x[col] = narrow<input_t>(input_t::is_signed() && col % 2 ? -8 : 8);
+            x[2 * columns + col] = narrow<input_t>(8), x[3 * columns + col] = narrow<input_t>(8);
         }
         if constexpr (non_finite) x[2 * columns] = input_t::quiet_nan(), x[3 * columns] = input_t::positive_infinity();
         backend.call(rmsnorm_fn, x.raw_values_data(), gamma.raw_values_data(), y.raw_values_data(), edge_rows, 1,
@@ -278,10 +282,10 @@ error_stats_t test_rmsnorm(rmsnorm_kernel_type_ rmsnorm_fn) {
             stats.expect_true(std::memcmp(&expected[2], &zero, sizeof(scalar_t)) == 0,
                               "a zero row stays a signed zero");
             if constexpr (non_finite)
-                stats.expect_true(std::isnan(static_cast<double>(y[2 * columns + col])), "a NaN poisons its vector");
+                stats.expect_true(std::isnan(to_double(y[2 * columns + col])), "a NaN poisons its vector");
         }
         if constexpr (non_finite)
-            stats.expect_true(std::isnan(static_cast<double>(y[3 * columns])), "an infinity normalizes to NaN");
+            stats.expect_true(std::isnan(to_double(y[3 * columns])), "an infinity normalizes to NaN");
     }
 
     // Rows whose squares leave the tier below the reduction's: F32 RMSNorm and F64 RMSCast
@@ -301,22 +305,23 @@ error_stats_t test_rmsnorm(rmsnorm_kernel_type_ rmsnorm_fn) {
         std::uniform_real_distribution<double> unit_distribution(0.5, 1.5);
         for (std::size_t row = 0; row < rows; row++)
             for (std::size_t col = 0; col < columns; col++)
-                x[row * columns + col] = input_t((col % 3 ? 1 : -1) * unit_distribution(generator) * magnitudes[row]);
+                x[row * columns + col] = narrow<input_t>((col % 3 ? 1 : -1) * unit_distribution(generator) *
+                                                         magnitudes[row]);
         backend.call(rmsnorm_fn, x.raw_values_data(), nullptr, y.raw_values_data(), rows, 1, columns,
                      columns * sizeof(input_t), columns * sizeof(scalar_t), 0.0f);
         if (!stats.expect_status(backend.synchronize())) return stats;
         for (std::size_t row = 0; row < rows; row++) {
             double sum_squares = 0;
             for (std::size_t col = 0; col < columns; col++)
-                sum_squares += std::pow(static_cast<double>(x[row * columns + col]) / magnitudes[row], 2);
+                sum_squares += std::pow(to_double(x[row * columns + col]) / magnitudes[row], 2);
             double const inverse_rms = 1 / std::sqrt(sum_squares / columns);
             for (std::size_t col = 0; col < columns; col++) {
-                double const output = static_cast<double>(y[row * columns + col]);
+                double const output = to_double(y[row * columns + col]);
                 if constexpr (narrow_tier)
                     stats.expect_true(output == 0 && std::signbit(output) == (col % 3 == 0),
                                       "F32 squares overflow to zero");
                 else {
-                    double const expected = static_cast<double>(x[row * columns + col]) / magnitudes[row] * inverse_rms;
+                    double const expected = to_double(x[row * columns + col]) / magnitudes[row] * inverse_rms;
                     stats.accumulate_bounded(y[row * columns + col], expected, bound * std::fabs(expected));
                 }
             }
@@ -353,9 +358,9 @@ error_stats_t test_swiglu(swiglu_kernel_type_ swiglu_fn) {
 
             for (std::size_t row = 0; row < rows; row++)
                 for (std::size_t col = 0; col < columns; col++) {
-                    double const gate_value = static_cast<double>(fused[row * fused_values + col]) * gate_scale;
+                    double const gate_value = to_double(fused[row * fused_values + col]) * gate_scale;
                     double expected = gate_value / (1 + std::exp(-gate_value));
-                    if (gated) expected *= static_cast<double>(fused[row * fused_values + columns + col]);
+                    if (gated) expected *= to_double(fused[row * fused_values + columns + col]);
                     expected *= output_scale;
                     stats.accumulate_bounded(y[row * output_values + col], expected,
                                              stats.term_error_bound * std::fabs(expected));

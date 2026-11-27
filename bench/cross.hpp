@@ -317,7 +317,7 @@ struct unit_block_scales {
         if constexpr (format.block_size) {
             std::size_t const scale_stride = stride / format.block_bytes;
             blocks = blocks_t::uninitialized({rows, scale_stride}, allocator_of<scale_t>(backend)).value;
-            std::vector<scale_t> const host(rows * scale_stride, scale_t(1.0f));
+            std::vector<scale_t> const host(rows * scale_stride, nk::cast<nk::f32_t, scale_t>(1.0f));
             if (blocks.empty()) return nk_bad_alloc_k;
             return backend.copy(blocks.data(), host.data(), host.size() * sizeof(scale_t));
         }

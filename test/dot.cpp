@@ -7,9 +7,26 @@
 #undef NDEBUG // ! A test's oracle must stay live in every build
 
 #include "harness.hpp"
-#include "numkong/dot.hpp" // `nk::dot`
+#include "numkong/dot.hpp"
 
 namespace ashvardanian::numkong::test {
+
+/** ⟨a,b⟩ accumulated in @p result_type_, the oracle of the dot kernels. */
+template <typename in_type_, typename result_type_>
+void dot_reference(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r) noexcept {
+    result_type_ sum {};
+    std::size_t const n = d / nk::dimensions_per_value<in_type_>();
+    for (std::size_t i = 0; i < n; i++) sum = fma_reference(a[i], b[i], sum);
+    *r = sum;
+}
+
+/** Conjugated ⟨a,b⟩ accumulated in @p result_type_, the oracle of the vdot kernels. */
+template <typename in_type_, typename result_type_>
+void vdot_reference(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r) noexcept {
+    result_type_ sum {};
+    for (std::size_t i = 0; i < d; i++) sum = fcma_reference(a[i], b[i], sum);
+    *r = sum;
+}
 
 /** Unified dot product test for all types: float, integer, and complex. Works with f32_t, f64_t,
  *  f16_t, bf16_t, e4m3_t, e5m2_t, i8_t, u8_t, f32c_t, f64c_t. */
@@ -34,8 +51,7 @@ error_stats_t test_dot(typename scalar_type_::dot_kernel_t kernel) {
         stats.expect_status(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect_status(
-            nk::dot<scalar_t, reference_t>(a.values_data(), b.values_data(), n, &reference, no_tiers_k));
+        dot_reference<scalar_t, reference_t>(a.values_data(), b.values_data(), n, &reference);
 
         stats.accumulate(result, reference);
     }
@@ -64,8 +80,8 @@ error_stats_t test_vdot(typename scalar_type_::vdot_kernel_t kernel) {
                                    &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect_status(nk::vdot<scalar_t, reference_t>(
-            a.values_data(), b.values_data(), test_run.settings.dense_dimensions, &reference, no_tiers_k));
+        vdot_reference<scalar_t, reference_t>(a.values_data(), b.values_data(), test_run.settings.dense_dimensions,
+                                              &reference);
 
         stats.accumulate(result, reference);
     }
@@ -97,7 +113,6 @@ void run_dot_cases() {
     run_kernel_case("nk_dot_bf16c_serial", test_dot<bf16c_t>, nk_cap_serial_k, nk_dot_bf16c_serial);
     run_kernel_case("nk_vdot_bf16c_serial", test_vdot<bf16c_t>, nk_cap_serial_k, nk_vdot_bf16c_serial);
 
-#if !NUMKONG_HEADER_ONLY
     run_kernel_case("nk_dot_f64_best", test_dot<f64_t>, nk_cap_serial_k, cpu_best<nk_dot_f64_best>);
     run_kernel_case("nk_dot_f32_best", test_dot<f32_t>, nk_cap_serial_k, cpu_best<nk_dot_f32_best>);
     run_kernel_case("nk_dot_bf16_best", test_dot<bf16_t>, nk_cap_serial_k, cpu_best<nk_dot_bf16_best>);
@@ -120,7 +135,6 @@ void run_dot_cases() {
     run_kernel_case("nk_vdot_f16c_best", test_vdot<f16c_t>, nk_cap_serial_k, cpu_best<nk_vdot_f16c_best>);
     run_kernel_case("nk_dot_bf16c_best", test_dot<bf16c_t>, nk_cap_serial_k, cpu_best<nk_dot_bf16c_best>);
     run_kernel_case("nk_vdot_bf16c_best", test_vdot<bf16c_t>, nk_cap_serial_k, cpu_best<nk_vdot_bf16c_best>);
-#endif
 
 #if NUMKONG_TARGET_NEON
     run_kernel_case("nk_dot_f64_neon", test_dot<f64_t>, nk_cap_neon_k, nk_dot_f64_neon);

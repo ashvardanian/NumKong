@@ -1,6 +1,7 @@
 # Install rules, the CMake package files, and the Swift artifact.
 
-if (NUMKONG_INSTALL)
+# Without `NUMKONG_BUILD_LIBRARIES`, the install carries the header targets alone.
+if (NUMKONG_INSTALL AND NUMKONG_BUILD_LIBRARIES)
     install(
         TARGETS ${numkong_libraries_}
         EXPORT numkongTargets
@@ -91,9 +92,14 @@ endif ()
 if (NUMKONG_INSTALL)
     include(CMakePackageConfigHelpers)
 
-    install(DIRECTORY c/numkong include/numkong cpp/numkong DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(DIRECTORY c/numkong include/numkong DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
     install(DIRECTORY src/ DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/${PROJECT_NAME}/src)
-    install(TARGETS numkong_abi numkong_cpp numkong_header EXPORT numkongTargets)
+    install(TARGETS numkong_abi numkong_types numkong_header EXPORT numkongTargets)
+    # The SDK links the archive, so it installs only beside the libraries, under a root of its own.
+    if (NUMKONG_BUILD_LIBRARIES)
+        install(DIRECTORY cpp/numkong DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/numkong-cpp)
+        install(TARGETS numkong_cpp EXPORT numkongTargets)
+    endif ()
     install(EXPORT numkongTargets FILE numkongTargets.cmake NAMESPACE numkong::
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/numkong
     )
@@ -128,6 +134,13 @@ if (NUMKONG_INSTALL)
             set(numkong_pc_includedir_ "${CMAKE_INSTALL_INCLUDEDIR}")
         else ()
             set(numkong_pc_includedir_ "\${prefix}/${CMAKE_INSTALL_INCLUDEDIR}")
+        endif ()
+        # The SDK root and the library join the header root only where the libraries install.
+        set(numkong_pc_cflags_ "-I\${includedir}")
+        set(numkong_pc_libs_ "")
+        if (NUMKONG_BUILD_LIBRARIES)
+            string(APPEND numkong_pc_cflags_ " -I\${includedir}/numkong-cpp")
+            set(numkong_pc_libs_ "-L\${libdir} -lnumkong_shared")
         endif ()
 
         configure_file(cmake/numkong.pc.in "${CMAKE_CURRENT_BINARY_DIR}/numkong.pc" @ONLY)

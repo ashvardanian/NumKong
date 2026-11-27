@@ -11,6 +11,32 @@
 
 namespace ashvardanian::numkong::test {
 
+/** aᵀ × C × b in @p result_type_, the oracle of the bilinear kernels. */
+template <typename in_type_, typename result_type_>
+void bilinear_reference(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_t d,
+                        result_type_ *r) noexcept {
+    result_type_ sum {};
+    for (std::size_t i = 0; i < d; i++)
+        for (std::size_t j = 0; j < d; j++)
+            sum = sum + result_type_(a[i]) * result_type_(c[i * d + j]) * result_type_(b[j]);
+    *r = sum;
+}
+
+/** √((a−b)ᵀ × C × (a−b)) in @p result_type_, the oracle of the Mahalanobis kernels. */
+template <typename in_type_, typename result_type_>
+void mahalanobis_reference(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_t d,
+                           result_type_ *r) noexcept {
+    result_type_ sum {};
+    for (std::size_t i = 0; i < d; i++) {
+        result_type_ di = result_type_(a[i]) - result_type_(b[i]);
+        for (std::size_t j = 0; j < d; j++) {
+            result_type_ dj = result_type_(a[j]) - result_type_(b[j]);
+            sum = sum + di * result_type_(c[i * d + j]) * dj;
+        }
+    }
+    *r = square_root_reference(sum);
+}
+
 /**
  *  @brief Makes a square matrix positive semi-definite via symmetrization and diagonal dominance.
  *
@@ -20,17 +46,17 @@ namespace ashvardanian::numkong::test {
  */
 template <typename scalar_type_>
 void make_psd(scalar_type_ *data, nk_size_t n) {
-    auto at = [=](nk_size_t row, nk_size_t column) { return static_cast<double>(data[row * n + column]); };
+    auto at = [=](nk_size_t row, nk_size_t column) { return to_double(data[row * n + column]); };
     // Symmetrize — m[i][j] = m[j][i] = average of original pair
     for (nk_size_t i = 0; i < n; ++i)
         for (nk_size_t j = i + 1; j < n; ++j)
-            data[i * n + j] = data[j * n + i] = scalar_type_((at(i, j) + at(j, i)) / 2);
+            data[i * n + j] = data[j * n + i] = narrow<scalar_type_>((at(i, j) + at(j, i)) / 2);
     // Strict diagonal dominance — set m[i][i] > sum_{j!=i} |m[i][j]|
     for (nk_size_t i = 0; i < n; ++i) {
         double row_sum = 0;
         for (nk_size_t j = 0; j < n; ++j)
             if (i != j) row_sum += std::fabs(at(i, j));
-        data[i * n + i] = scalar_type_(row_sum + 1);
+        data[i * n + i] = narrow<scalar_type_>(row_sum + 1);
     }
 }
 
@@ -58,9 +84,8 @@ error_stats_t test_bilinear(typename scalar_type_::curved_kernel_t kernel) {
                                    test_run.settings.curved_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect_status(nk::bilinear<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
-                                                                test_run.settings.curved_dimensions, &reference,
-                                                                no_tiers_k));
+        bilinear_reference<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
+                                                  test_run.settings.curved_dimensions, &reference);
 
         stats.accumulate(result, reference);
     }
@@ -94,9 +119,8 @@ error_stats_t test_mahalanobis(typename scalar_type_::curved_kernel_t kernel) {
                                    test_run.settings.curved_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect_status(nk::mahalanobis<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
-                                                                   test_run.settings.curved_dimensions, &reference,
-                                                                   no_tiers_k));
+        mahalanobis_reference<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
+                                                     test_run.settings.curved_dimensions, &reference);
 
         stats.accumulate(result, reference);
     }
@@ -119,14 +143,12 @@ void run_curved_cases() {
     run_kernel_case("nk_bilinear_bf16c_serial", test_bilinear<bf16c_t>, serial, nk_bilinear_bf16c_serial);
     run_kernel_case("nk_mahalanobis_bf16_serial", test_mahalanobis<bf16_t>, serial, nk_mahalanobis_bf16_serial);
 
-#if !NUMKONG_HEADER_ONLY
     run_kernel_case("nk_bilinear_f32_best", test_bilinear<f32_t>, serial, cpu_best<nk_bilinear_f32_best>);
     run_kernel_case("nk_bilinear_f64_best", test_bilinear<f64_t>, serial, cpu_best<nk_bilinear_f64_best>);
     run_kernel_case("nk_bilinear_f32c_best", test_bilinear<f32c_t>, serial, cpu_best<nk_bilinear_f32c_best>);
     run_kernel_case("nk_bilinear_f64c_best", test_bilinear<f64c_t>, serial, cpu_best<nk_bilinear_f64c_best>);
     run_kernel_case("nk_mahalanobis_f32_best", test_mahalanobis<f32_t>, serial, cpu_best<nk_mahalanobis_f32_best>);
     run_kernel_case("nk_mahalanobis_f64_best", test_mahalanobis<f64_t>, serial, cpu_best<nk_mahalanobis_f64_best>);
-#endif
 
 #if NUMKONG_TARGET_NEON
     run_kernel_case("nk_bilinear_f64_neon", test_bilinear<f64_t>, nk_cap_neon_k, nk_bilinear_f64_neon);

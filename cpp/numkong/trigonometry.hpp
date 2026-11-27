@@ -4,6 +4,10 @@
  *  @date February 5, 2026
  *  @brief C++ bindings for trigonometric kernels.
  */
+#if defined(NUMKONG_HEADER_ONLY) && NUMKONG_HEADER_ONLY
+#error "The NumKong C++ SDK links the library; link numkong::cpp, not numkong::header"
+#endif
+
 #ifndef NUMKONG_TRIGONOMETRY_HPP
 #define NUMKONG_TRIGONOMETRY_HPP
 
@@ -12,7 +16,9 @@
 
 #include "numkong/trigonometry.h"
 
+#include "numkong/tensor.hpp"
 #include "numkong/types.hpp"
+#include "numkong/devices.hpp" // `default_capabilities`
 
 namespace ashvardanian::numkong {
 
@@ -21,27 +27,21 @@ namespace ashvardanian::numkong {
  *  @param[in] in Input array
  *  @param[in] n Number of elements
  *  @param[out] out Output array
- *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] capabilities Capabilities to pick from
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Element type (f32_t, f64_t, f16_t)
- *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
  */
-template <a_numeric_dtype in_type_, a_numeric_dtype precision_type_ = in_type_>
+template <a_numeric_dtype in_type_>
 status_t sin(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = default_capabilities(),
              nk_stream_t stream = nullptr) noexcept {
-    constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
-
-    if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return static_cast<status_t>(nk_trig_sin_f64_best(&in->raw_, n, &out->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(nk_trig_sin_f32_best(&in->raw_, n, &out->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(nk_trig_sin_f16_best(&in->raw_, n, &out->raw_, capabilities, stream));
-    }
-    for (std::size_t i = 0; i < n; i++) out[i] = in_type_(precision_type_(in[i]).sin());
-    return status_t::success_k;
+    if constexpr (std::is_same_v<in_type_, f64_t>)
+        return static_cast<status_t>(nk_trig_sin_f64_best(&in->raw_, n, &out->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, f32_t>)
+        return static_cast<status_t>(nk_trig_sin_f32_best(&in->raw_, n, &out->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, f16_t>)
+        return static_cast<status_t>(nk_trig_sin_f16_best(&in->raw_, n, &out->raw_, capabilities, stream));
+    else static_assert(sizeof(in_type_) == 0, "nk_trig_sin has no kernel for this dtype");
 }
 
 /**
@@ -49,27 +49,21 @@ status_t sin(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t c
  *  @param[in] in Input array
  *  @param[in] n Number of elements
  *  @param[out] out Output array
- *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] capabilities Capabilities to pick from
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Element type (f32_t, f64_t, f16_t)
- *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
  */
-template <a_numeric_dtype in_type_, a_numeric_dtype precision_type_ = in_type_>
+template <a_numeric_dtype in_type_>
 status_t cos(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = default_capabilities(),
              nk_stream_t stream = nullptr) noexcept {
-    constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
-
-    if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return static_cast<status_t>(nk_trig_cos_f64_best(&in->raw_, n, &out->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(nk_trig_cos_f32_best(&in->raw_, n, &out->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(nk_trig_cos_f16_best(&in->raw_, n, &out->raw_, capabilities, stream));
-    }
-    for (std::size_t i = 0; i < n; i++) out[i] = in_type_(precision_type_(in[i]).cos());
-    return status_t::success_k;
+    if constexpr (std::is_same_v<in_type_, f64_t>)
+        return static_cast<status_t>(nk_trig_cos_f64_best(&in->raw_, n, &out->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, f32_t>)
+        return static_cast<status_t>(nk_trig_cos_f32_best(&in->raw_, n, &out->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, f16_t>)
+        return static_cast<status_t>(nk_trig_cos_f16_best(&in->raw_, n, &out->raw_, capabilities, stream));
+    else static_assert(sizeof(in_type_) == 0, "nk_trig_cos has no kernel for this dtype");
 }
 
 /**
@@ -77,34 +71,22 @@ status_t cos(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t c
  *  @param[in] in Input array
  *  @param[in] n Number of elements
  *  @param[out] out Output array
- *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] capabilities Capabilities to pick from
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Element type (f32_t, f64_t, f16_t)
- *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
  */
-template <a_numeric_dtype in_type_, a_numeric_dtype precision_type_ = in_type_>
+template <a_numeric_dtype in_type_>
 status_t atan(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = default_capabilities(),
               nk_stream_t stream = nullptr) noexcept {
-    constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
-
-    if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return static_cast<status_t>(nk_trig_atan_f64_best(&in->raw_, n, &out->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(nk_trig_atan_f32_best(&in->raw_, n, &out->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(nk_trig_atan_f16_best(&in->raw_, n, &out->raw_, capabilities, stream));
-    }
-    for (std::size_t i = 0; i < n; i++) out[i] = in_type_(precision_type_(in[i]).atan());
-    return status_t::success_k;
+    if constexpr (std::is_same_v<in_type_, f64_t>)
+        return static_cast<status_t>(nk_trig_atan_f64_best(&in->raw_, n, &out->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, f32_t>)
+        return static_cast<status_t>(nk_trig_atan_f32_best(&in->raw_, n, &out->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, f16_t>)
+        return static_cast<status_t>(nk_trig_atan_f16_best(&in->raw_, n, &out->raw_, capabilities, stream));
+    else static_assert(sizeof(in_type_) == 0, "nk_trig_atan has no kernel for this dtype");
 }
-
-} // namespace ashvardanian::numkong
-
-#include "numkong/tensor.hpp"
-
-namespace ashvardanian::numkong {
 
 #pragma region Vector Trigonometric
 
@@ -151,10 +133,12 @@ status_t atan(input_type_ const &input, output_type_ &&output, nk_capability_t c
 
 /** Elementwise sin into pre-allocated output. */
 template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
-status_t sin(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
+status_t sin(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output,
+             nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
-        input, output, [](tensor_view<value_type_, max_rank_> in, tensor_span<value_type_, max_rank_> out) {
-            return numkong::sin<value_type_>(in.data(), in.extent(0), out.data());
+        input, output,
+        [capabilities, stream](tensor_view<value_type_, max_rank_> in, tensor_span<value_type_, max_rank_> out) {
+            return numkong::sin<value_type_>(in.data(), in.extent(0), out.data(), capabilities, stream);
         });
 }
 
@@ -162,23 +146,27 @@ status_t sin(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_,
 template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, max_rank_>> sin(tensor_view<value_type_, max_rank_> input,
-                                                              allocator_type_ alloc = {}) noexcept {
+                                                              allocator_type_ alloc = {},
+                                                              nk_capability_t capabilities = default_capabilities(),
+                                                              nk_stream_t stream = nullptr) noexcept {
     using out_tensor_t = tensor<value_type_, allocator_type_, max_rank_>;
     if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};
     auto &input_shape = input.shape();
     auto result = out_tensor_t::uninitialized(input_shape.extents, input_shape.rank, alloc);
     if (!result) return result;
-    if (status_t status = sin<value_type_, max_rank_>(input, result.value.span()); failed(status))
+    if (status_t status = sin<value_type_, max_rank_>(input, result.value.span(), capabilities, stream); failed(status))
         return {out_tensor_t(alloc), status};
     return result;
 }
 
 /** Elementwise cos into pre-allocated output. */
 template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
-status_t cos(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
+status_t cos(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output,
+             nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
-        input, output, [](tensor_view<value_type_, max_rank_> in, tensor_span<value_type_, max_rank_> out) {
-            return numkong::cos<value_type_>(in.data(), in.extent(0), out.data());
+        input, output,
+        [capabilities, stream](tensor_view<value_type_, max_rank_> in, tensor_span<value_type_, max_rank_> out) {
+            return numkong::cos<value_type_>(in.data(), in.extent(0), out.data(), capabilities, stream);
         });
 }
 
@@ -186,23 +174,27 @@ status_t cos(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_,
 template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, max_rank_>> cos(tensor_view<value_type_, max_rank_> input,
-                                                              allocator_type_ alloc = {}) noexcept {
+                                                              allocator_type_ alloc = {},
+                                                              nk_capability_t capabilities = default_capabilities(),
+                                                              nk_stream_t stream = nullptr) noexcept {
     using out_tensor_t = tensor<value_type_, allocator_type_, max_rank_>;
     if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};
     auto &input_shape = input.shape();
     auto result = out_tensor_t::uninitialized(input_shape.extents, input_shape.rank, alloc);
     if (!result) return result;
-    if (status_t status = cos<value_type_, max_rank_>(input, result.value.span()); failed(status))
+    if (status_t status = cos<value_type_, max_rank_>(input, result.value.span(), capabilities, stream); failed(status))
         return {out_tensor_t(alloc), status};
     return result;
 }
 
 /** Elementwise atan into pre-allocated output. */
 template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
-status_t atan(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
+status_t atan(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output,
+              nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
-        input, output, [](tensor_view<value_type_, max_rank_> in, tensor_span<value_type_, max_rank_> out) {
-            return numkong::atan<value_type_>(in.data(), in.extent(0), out.data());
+        input, output,
+        [capabilities, stream](tensor_view<value_type_, max_rank_> in, tensor_span<value_type_, max_rank_> out) {
+            return numkong::atan<value_type_>(in.data(), in.extent(0), out.data(), capabilities, stream);
         });
 }
 
@@ -210,13 +202,16 @@ status_t atan(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_
 template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, max_rank_>> atan(tensor_view<value_type_, max_rank_> input,
-                                                               allocator_type_ alloc = {}) noexcept {
+                                                               allocator_type_ alloc = {},
+                                                               nk_capability_t capabilities = default_capabilities(),
+                                                               nk_stream_t stream = nullptr) noexcept {
     using out_tensor_t = tensor<value_type_, allocator_type_, max_rank_>;
     if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};
     auto &input_shape = input.shape();
     auto result = out_tensor_t::uninitialized(input_shape.extents, input_shape.rank, alloc);
     if (!result) return result;
-    if (status_t status = atan<value_type_, max_rank_>(input, result.value.span()); failed(status))
+    if (status_t status = atan<value_type_, max_rank_>(input, result.value.span(), capabilities, stream);
+        failed(status))
         return {out_tensor_t(alloc), status};
     return result;
 }

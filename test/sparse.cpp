@@ -8,8 +8,40 @@
 
 #include "harness.hpp"
 #include "numkong/sparse.hpp"
+#include "numkong/random.hpp" // `nk::fill_sorted_unique`
 
 namespace ashvardanian::numkong::test {
+
+/** The indices two sorted runs share, written to @p result when it is not null, and their count. */
+template <typename index_type_>
+void sparse_intersect_reference(index_type_ const *a, index_type_ const *b, std::size_t a_length, std::size_t b_length,
+                                index_type_ *result, std::size_t *count) noexcept {
+    std::size_t matches = 0, i = 0, j = 0;
+    while (i < a_length && j < b_length) {
+        if (a[i] < b[j]) i++;
+        else if (b[j] < a[i]) j++;
+        else {
+            if (result) result[matches] = a[i];
+            matches++, i++, j++;
+        }
+    }
+    *count = matches;
+}
+
+/** Σ of weight products over the indices two sorted runs share, in @p result_type_. */
+template <typename index_type_, typename weight_type_, typename result_type_>
+void sparse_dot_reference(index_type_ const *a, index_type_ const *b, weight_type_ const *a_weights,
+                          weight_type_ const *b_weights, std::size_t a_length, std::size_t b_length,
+                          result_type_ *product) noexcept {
+    result_type_ sum {};
+    std::size_t i = 0, j = 0;
+    while (i < a_length && j < b_length) {
+        if (a[i] < b[j]) i++;
+        else if (b[j] < a[i]) j++;
+        else sum = fma_reference<weight_type_, result_type_>(a_weights[i], b_weights[j], sum), i++, j++;
+    }
+    *product = sum;
+}
 
 /** Test set intersection, a unified template for u16/u32 index types. */
 template <typename index_type_>
@@ -37,8 +69,8 @@ error_stats_t test_intersect(typename index_type_::sparse_intersect_kernel_t ker
                                    matched.raw_values_data(), &stored_count, nullptr));
 
         std::size_t ref;
-        stats.expect_status(nk::sparse_intersect<index_t>(a.values_data(), b.values_data(), a_length, b_length,
-                                                          expected.values_data(), &ref, no_tiers_k));
+        sparse_intersect_reference<index_t>(a.values_data(), b.values_data(), a_length, b_length,
+                                            expected.values_data(), &ref);
         stats.accumulate(count, ref);
         stats.accumulate(stored_count, ref);
         for (nk_size_t k = 0; k < ref; ++k) stats.accumulate(matched[k], expected[k]);
@@ -76,9 +108,8 @@ error_stats_t test_sparse_dot(typename weight_type_::sparse_dot_kernel_t kernel)
                                    b_weights.raw_values_data(), dim, dim, &result.raw_, nullptr));
 
         reference_t ref;
-        stats.expect_status(nk::sparse_dot<index_t, weight_t, reference_t>(
-            a_idx.values_data(), b_idx.values_data(), a_weights.values_data(), b_weights.values_data(), dim, dim, &ref,
-            no_tiers_k));
+        sparse_dot_reference<index_t, weight_t, reference_t>(
+            a_idx.values_data(), b_idx.values_data(), a_weights.values_data(), b_weights.values_data(), dim, dim, &ref);
         stats.accumulate(result, ref);
     }
     return stats;
@@ -93,7 +124,6 @@ void run_sparse_cases() {
     run_kernel_case("nk_sparse_dot_u32f32_serial", test_sparse_dot<f32_t>, serial, nk_sparse_dot_u32f32_serial);
     run_kernel_case("nk_sparse_dot_u16bf16_serial", test_sparse_dot<bf16_t>, serial, nk_sparse_dot_u16bf16_serial);
 
-#if !NUMKONG_HEADER_ONLY
     run_kernel_case("nk_sparse_intersect_u16_best", test_intersect<u16_t>, serial,
                     cpu_best<nk_sparse_intersect_u16_best>);
     run_kernel_case("nk_sparse_intersect_u32_best", test_intersect<u32_t>, serial,
@@ -103,7 +133,6 @@ void run_sparse_cases() {
     run_kernel_case("nk_sparse_dot_u32f32_best", test_sparse_dot<f32_t>, serial, cpu_best<nk_sparse_dot_u32f32_best>);
     run_kernel_case("nk_sparse_dot_u16bf16_best", test_sparse_dot<bf16_t>, serial,
                     cpu_best<nk_sparse_dot_u16bf16_best>);
-#endif
 
 #if NUMKONG_TARGET_NEON
     run_kernel_case("nk_sparse_intersect_u16_neon", test_intersect<u16_t>, nk_cap_neon_k, nk_sparse_intersect_u16_neon);

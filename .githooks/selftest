@@ -17,24 +17,69 @@ hooks_directory=$(cd "$(dirname "$0")" && pwd)
 # With `--siblings`, runs no fixture: compares every region of `pre-commit` and `selftest` against the same region
 # in each sibling project checked out beside this one, as `../NumKong-v8/.githooks/`, and prints `identical` or how
 # many lines differ. Project Settings and this project's own Rules and Fixtures regions are skipped, a region a
-# sibling lacks prints `absent`, and any difference exits nonzero.
-if [ "${1:-}" = --siblings ]; then
+# sibling lacks prints `absent`, and any difference exits nonzero. It also compares the `Shared Core` region of
+# `cpp/<prefix>/types.hpp`, the `Calls` and `Receivers` regions of `golang/types.go`, every region named from
+# `Shared VRAM` in the GPU runtime and the vendor device headers, with each project's prefix and name read as one,
+# and the vendored DLPack and Arrow C interface headers and the shared arena model byte for byte. With `--sync`,
+# writes each shared hook region over the sibling's instead.
+if [ "${1:-}" = --siblings ] || [ "${1:-}" = --sync ]; then
+    mode=$1
     project_name=$(sed -n 's/^project_name="\(.*\)"$/\1/p' "$hooks_directory/pre-commit")
     sibling_pattern=$(sed -n "s/^sibling_projects='\(.*\)'$/\1/p" "$hooks_directory/pre-commit")
     region_text() { # region_text <name> <file>
         awk -v name="$1" '$0 == "# region " name { inside = 1 } inside { print } $0 == "# endregion " name { exit }' "$2"
     }
+    # Projects that must all carry every compared source region and vendored header: between two of them, an absent
+    # region is a difference, and so is a vendored header one of them holds and the other lacks. Emptying it tolerates
+    # every absence while a new shared region spreads.
+    strict_region_projects='usearch|uform|ustore'
+    # Prints one `path|opener|closer` line per compared source region: the fixed ones, then every region whose name
+    # starts with `Shared VRAM` in either project's copy of each GPU file, or `Shared VRAM` itself while neither has
+    # one, and last the vendored headers and the shared model, whose opener is empty.
+    source_regions() { # source_regions <own-root> <own-lowercase-name> <sibling-root> <sibling-lowercase-name>
+        local source_path region_names
+        printf '%s\n' "cpp/@name@/types.hpp|#pragma region Shared Core|#pragma endregion Shared Core" \
+            "golang/types.go|// region: Calls|// endregion: Calls" "golang/types.go|// region: Receivers|// endregion: Receivers"
+        for source_path in include/@name@/utilities/vram_device.hpp include/@name@/utilities/vram_{nvidia,amd,apple}_device.hpp src/lib.hpp; do
+            region_names=$(cat "$1/${source_path//@name@/$2}" "$3/${source_path//@name@/$4}" 2> /dev/null |
+                sed -n 's/^#pragma region \(Shared VRAM.*\)$/\1/p' | sort -u)
+            printf '%s\n' "${region_names:-Shared VRAM}" |
+                awk -v path="$source_path" '{ print path "|#pragma region " $0 "|#pragma endregion " $0 }'
+        done
+        printf '%s\n' "c/@name@/arrow_abi.h||" "python/dlpack.h||" "verification/arena_lifetime.pml||"
+    }
+    # Succeeds when the file holds the opener line, or exists at all when the opener is empty, as a vendored file.
+    carries_region() { # carries_region <opener> <file>
+        if [ -z "$1" ]; then [ -f "$2" ]; else grep -qxF "$1" "$2" 2> /dev/null; fi
+    }
+    # Prints a source region, or a whole vendored file when the opener is empty, with the project's lowercase,
+    # uppercase and checkout names replaced by placeholders. A vendored file names no project, so it compares
+    # byte for byte.
+    source_region_text() { # source_region_text <opener> <closer> <file> <project-name>
+        local lower
+        lower=$(printf '%s' "$4" | tr '[:upper:]' '[:lower:]')
+        { if [ -z "$1" ]; then cat "$3"; else awk -v opener="$1" -v closer="$2" \
+            '$0 == opener { inside = 1 } inside { print } $0 == closer { exit }' "$3"; fi; } |
+            sed -e "s/$4/@Name@/g" -e "s/$lower/@name@/g" -e "s/$(printf '%s' "$lower" | tr '[:lower:]' '[:upper:]')/@NAME@/g"
+    }
     differing_count=0
-    for hook_name in pre-commit selftest; do
-        while IFS= read -r region_name; do
-            case "$region_name" in
-            "Project Settings" | "$project_name Rules" | "$project_name Fixtures") continue ;;
-            esac
-            for sibling_hooks in "$hooks_directory"/../../*-v*/.githooks; do
-                sibling_checkout=$(basename "$(dirname "$sibling_hooks")")
-                printf '%s\n' "${sibling_checkout%-v*}" | tr '[:upper:]' '[:lower:]' | grep -qxE "$sibling_pattern" || continue
+    for sibling_hooks in "$hooks_directory"/../../*-v*/.githooks; do
+        sibling_checkout=$(basename "$(dirname "$sibling_hooks")")
+        sibling_name=${sibling_checkout%-v*}
+        printf '%s\n' "$sibling_name" | tr '[:upper:]' '[:lower:]' | grep -qxE "$sibling_pattern" || continue
+        for hook_name in pre-commit selftest; do
+            while IFS= read -r region_name; do
+                case "$region_name" in
+                "Project Settings" | "$project_name Rules" | "$project_name Fixtures") continue ;;
+                esac
                 if ! grep -qxF "# region $region_name" "$sibling_hooks/$hook_name" 2> /dev/null; then
                     verdict=absent
+                elif [ "$mode" = --sync ]; then
+                    region=$(region_text "$region_name" "$hooks_directory/$hook_name") awk -v name="$region_name" '
+                        $0 == "# region " name { print ENVIRON["region"]; skipping = 1 }
+                        !skipping { print } $0 == "# endregion " name { skipping = 0 }' "$sibling_hooks/$hook_name" > "$sibling_hooks/$hook_name.synced" &&
+                        cat "$sibling_hooks/$hook_name.synced" > "$sibling_hooks/$hook_name" && rm "$sibling_hooks/$hook_name.synced"
+                    verdict=synced
                 else
                     differing_lines=$(diff <(region_text "$region_name" "$hooks_directory/$hook_name") \
                         <(region_text "$region_name" "$sibling_hooks/$hook_name") | grep -c '^[<>]')
@@ -42,8 +87,30 @@ if [ "${1:-}" = --siblings ]; then
                     [ "$differing_lines" -eq 0 ] || { verdict="$differing_lines lines differ"; differing_count=$((differing_count + 1)); }
                 fi
                 printf '%s: %s against %s: %s\n' "$hook_name" "$region_name" "$sibling_checkout" "$verdict"
-            done
-        done < <(sed -n 's/^# region //p' "$hooks_directory/$hook_name")
+            done < <(sed -n 's/^# region //p' "$hooks_directory/$hook_name")
+        done
+        [ "$mode" = --siblings ] || continue
+        project_lower=$(printf '%s' "$project_name" | tr '[:upper:]' '[:lower:]')
+        sibling_lower=$(printf '%s' "$sibling_name" | tr '[:upper:]' '[:lower:]')
+        while IFS='|' read -r source_path opener closer; do
+            own_path=$hooks_directory/../${source_path//@name@/$project_lower}
+            sibling_path=$sibling_hooks/../${source_path//@name@/$sibling_lower}
+            region_label=${opener#* region* }
+            if ! carries_region "$opener" "$own_path" || ! carries_region "$opener" "$sibling_path"; then
+                verdict=absent
+                if printf '%s\n' "$project_lower" "$sibling_lower" | grep -cxE "${strict_region_projects:-^$}" | grep -qx 2 &&
+                    { [ -n "$opener" ] || [ -f "$own_path" ] || [ -f "$sibling_path" ]; }; then
+                    verdict="absent, though both must carry it"
+                    differing_count=$((differing_count + 1))
+                fi
+            else
+                differing_lines=$(diff <(source_region_text "$opener" "$closer" "$own_path" "$project_name") \
+                    <(source_region_text "$opener" "$closer" "$sibling_path" "$sibling_name") | grep -c '^[<>]')
+                verdict=identical
+                [ "$differing_lines" -eq 0 ] || { verdict="$differing_lines lines differ"; differing_count=$((differing_count + 1)); }
+            fi
+            printf '%s: %s against %s: %s\n' "${source_path//@name@/$project_lower}" "${region_label:-whole file}" "$sibling_checkout" "$verdict"
+        done < <(source_regions "$hooks_directory/.." "$project_lower" "$sibling_hooks/.." "$sibling_lower")
     done
     printf '%d region comparisons differ\n' "$differing_count"
     [ "$differing_count" -eq 0 ]
@@ -65,6 +132,9 @@ macro_prefix=$(sed -n 's/^macro_prefix="\(.*\)"$/\1/p' "$hooks_directory/pre-com
 identity_header=$(sed -n 's/^identity_headers="\([^ "]*\).*/\1/p' "$hooks_directory/pre-commit")
 gpu_vendor_switches=$(sed -n "s/^gpu_vendor_switches='\(.*\)'$/\1/p" "$hooks_directory/pre-commit")
 python_scaffolding_path=$(sed -n 's/^python_test_scaffolding_paths="\([^ "]*\).*/\1/p' "$hooks_directory/pre-commit")
+types_header_path=$(sed -n 's/^types_header_paths="\([^ "]*\).*/\1/p' "$hooks_directory/pre-commit" | sed 's/\*/probe/')
+types_c_include=$(sed -n 's/^types_header_paths="\(.*\)"$/\1/p' "$hooks_directory/pre-commit" | tr ' ' '\n' |
+    sed -n 's|^include/\([^*]*\.h\)$|#include "\1"|p' | head -n 1)
 
 # region Fixture Helpers
 
@@ -356,7 +426,7 @@ assert_accepts "include groups in order, a blank line apart" include/$project_di
 
 #include <fmt/core.h>
 
-#include <$first_sibling_directory/index.hpp>
+#include <$first_sibling_directory/types.hpp>
 
 #include "$project_directory/probe_internal.h"
 FIXTURE
@@ -366,7 +436,7 @@ assert_rejects "own header in angle brackets" "is an own header" include/$projec
 FIXTURE
 
 assert_rejects "sibling header in quotes" "is a sibling header" include/$project_directory/probe.h <<FIXTURE
-#include "$first_sibling_directory/index.hpp"
+#include "$first_sibling_directory/types.hpp"
 FIXTURE
 
 assert_rejects "quoted header that is not in the repository" "is not in this repository" include/$project_directory/probe.h <<'FIXTURE'
@@ -2531,6 +2601,25 @@ assert_accepts "TeX between dollar signs and escapes in code spans" README.md <<
 Rows count $4 \cdot h \cdot n_{kv}$ operations, and `printf("\n")`, `"\x41"` or `probe_{operation}_{type}` stay code.
 FIXTURE
 
+assert_rejects "two code spans side by side in Markdown" "puts two code spans side by side" README.md <<'FIXTURE'
+Scores land in a `[queries, candidates]` `TensorSpan` of the caller.
+FIXTURE
+
+assert_rejects "two code spans side by side in a Rust doc comment" "puts two code spans side by side" rust/probe.rs <<'FIXTURE'
+/// Returns the `f32` `Vec` of scores.
+pub fn probe() -> Vec<f32> {
+    Vec::new()
+}
+FIXTURE
+
+assert_accepts "code spans apart in prose, and side by side in a fence" README.md <<'FIXTURE'
+Scores land in a tensor span of `[queries, candidates]` shape, as `TensorSpan`, `f32` or `f64`.
+
+```sh
+echo `probe` `probe`
+```
+FIXTURE
+
 assert_accepts "arrows inside HTML code spans holding a less-than" README.md <<'FIXTURE'
 * The binding reads <code>x <- y</code> and <code>a < b->c</code> as code.
 FIXTURE
@@ -2692,8 +2781,8 @@ int probe(void);
 FIXTURE
 
 assert_accepts "include listing the sibling symbols it uses" include/$project_directory/probe.hpp <<FIXTURE
-#include <$first_sibling_directory/$first_sibling_directory.hpp> // \`split\`, \`string_view\`
-inline auto probe(string_view text) noexcept { return split(text); }
+#include <$first_sibling_directory/types.hpp> // \`string_view\`
+inline auto probe(string_view text) noexcept { return text.size(); }
 FIXTURE
 
 assert_rejects "bool parameter selecting behaviour" "bool parameter" include/$project_directory/probe.h <<'FIXTURE'
@@ -3623,6 +3712,30 @@ def test_probe() raises:
     _skipped("needs a GPU")
 FIXTURE
 
+assert_rejects "test including a serial header" "includes a serial header" test/probe.cpp <<FIXTURE
+#include <$first_sibling_directory/probe/serial.h>
+FIXTURE
+
+assert_rejects "test comparing against a serial kernel" "names a serial kernel" test/probe.cpp <<'FIXTURE'
+int probe_reference(int value) { return sz_probe_serial(value); }
+FIXTURE
+
+assert_rejects "benchmark packing through a serial helper" "names a serial kernel" bench/probe.cpp <<'FIXTURE'
+int probe_pack(int value) { return nk_probe_pack_f32_serial_(value); }
+FIXTURE
+
+assert_rejects "test naming a naive oracle" "_oracle, _naive or _golden helper" test/probe.cpp <<'FIXTURE'
+int probe_naive(int value) { return value; }
+FIXTURE
+
+assert_accepts "registration putting the serial kernel under test, beside a reference" test/probe.cpp <<'FIXTURE'
+int probe_reference(int value) { return value; }
+void probe_register(section_t &check) {
+    check("probe_f32_serial", test_probe<f32_t>, nk_probe_size_f32_serial,
+          nk_probe_f32_serial);
+}
+FIXTURE
+
 # endregion Shared Harness Fixtures
 
 # region Shared Gate Fixtures
@@ -3839,9 +3952,103 @@ FIXTURE
 run_precommit
 expect_acceptance "engine header including its own layer"
 
-assert_accepts "engine header including a sibling's SDK header" include/$project_directory/probe.hpp <<FIXTURE
-#include <$first_sibling_directory/tensor.hpp>
+assert_accepts "engine header including a sibling's ::types header" include/$project_directory/probe.hpp <<FIXTURE
+#include <$first_sibling_directory/types.hpp>
 FIXTURE
+
+assert_rejects "engine header including a sibling's SDK umbrella" "past a sibling's ::types headers" include/$project_directory/probe.hpp <<FIXTURE
+#include <$first_sibling_directory/$first_sibling_directory.hpp>
+FIXTURE
+
+if [ -n "$types_header_path" ]; then
+    assert_rejects "::types header including a kernel" "is a ::types header calling an exported function" "$types_header_path" <<FIXTURE
+#include "$project_directory/probe/serial.h"
+FIXTURE
+
+    stage_fixture_with_header "$types_header_path" <<FIXTURE
+#include "$project_directory/probe.h"
+$types_c_include
+
+/** Widens the C scalar inline, never through nk_probe_best(value), which a cpp/ verb wraps. */
+inline double probe(nk_f32_t value) noexcept { return nk_probe_widen_(value); }
+FIXTURE
+    stage_sibling_with_header c/$project_directory/probe.h <<FIXTURE
+typedef float nk_f32_t;
+${macro_prefix}_API double nk_probe_best(nk_f32_t value);
+static inline double nk_probe_widen_(nk_f32_t value) { return value; }
+FIXTURE
+    run_precommit
+    expect_acceptance "::types header on the C ABI, its inline helpers and the inline C headers"
+
+    stage_fixture_with_header "$types_header_path" <<FIXTURE
+#include "$project_directory/probe.h"
+
+/** Widens the C scalar through the library. */
+inline double probe(nk_f32_t value) noexcept { return nk_probe_best(value); }
+FIXTURE
+    stage_sibling_with_header c/$project_directory/probe.h <<FIXTURE
+typedef float nk_f32_t;
+${macro_prefix}_API double nk_probe_best(nk_f32_t value);
+FIXTURE
+    run_precommit
+    expect_rejection "::types header calling an exported function" "is a ::types header calling an exported function"
+fi
+
+assert_rejects "SDK verb calling a serial kernel" "is a cpp/ SDK header naming a serial kernel" cpp/$project_directory/probe.hpp <<'FIXTURE'
+inline int probe(int value) noexcept { return probe_serial(value); }
+FIXTURE
+
+stage_fixture_with_header cpp/$project_directory/probe.hpp <<FIXTURE
+#include "$project_directory/probe.h"
+
+#if ${macro_prefix}_HEADER_ONLY
+#error "The SDK links the library; link the cpp target, not the header target"
+#endif
+
+/** Dispatches through the library, never through nk_probe_serial(value). */
+inline int probe(int value) noexcept { return nk_probe_best(value); }
+
+/** Names the capability floor, a constant rather than a serial kernel. */
+inline unsigned probe_floor() noexcept { return sz_cap_serial_k; }
+FIXTURE
+stage_sibling_with_header c/$project_directory/probe.h <<'FIXTURE'
+int nk_probe_best(int value);
+FIXTURE
+run_precommit
+expect_acceptance "SDK verb calling the best export behind the header-only refusal"
+
+assert_rejects "binding calling a serial kernel" "names a serial kernel in a binding" python/probe.c <<'FIXTURE'
+static int probe(int value) { return nk_probe_serial(value); }
+FIXTURE
+
+assert_accepts "binding calling the best export, and a comment naming the serial one" python/probe.py <<'FIXTURE'
+import probe_native
+
+
+def probe(value: int) -> int:
+    """Calls the dispatched kernel."""
+    # Never nk_probe_serial, which only the library's tests reach.
+    return probe_native.nk_probe_best(value)
+FIXTURE
+
+stage_fixture_with_header cpp/$project_directory/probe.hpp <<'FIXTURE'
+inline int probe_verb() noexcept { return 0; }
+FIXTURE
+git -C "$fixture_directory" commit --quiet -m "Chore: Seed the fixture"
+stage_sibling_with_header include/$project_directory/probe.hpp <<'FIXTURE'
+inline int probe() noexcept { return 0; }
+FIXTURE
+run_precommit
+expect_rejection "one header path under include/ and cpp/" "shares its path below the root with another"
+
+stage_fixture_with_header include/$project_directory/probe.hpp <<'FIXTURE'
+inline int probe() noexcept { return 0; }
+FIXTURE
+stage_sibling_with_header c/$project_directory/probe.h <<'FIXTURE'
+int probe_abi(void);
+FIXTURE
+run_precommit
+expect_acceptance "a C header and a container sharing a stem"
 
 # endregion Shared Gate Fixtures
 
@@ -3868,31 +4075,6 @@ fixture_guards() { # fixture_guards <relative-path> <<< content
     include/numkong/*/*.h | include/numkong/*/*.cuh) grep -qE '^#if NUMKONG_(ARCH|TARGET)_' || capability_guards "$1" ;;
     esac
 }
-
-assert_rejects "test including a serial header" "includes a serial header" test/probe.cpp <<'FIXTURE'
-#include "numkong/probe/serial.h"
-FIXTURE
-
-assert_rejects "test comparing against a serial kernel" "names a serial kernel" test/probe.cpp <<'FIXTURE'
-namespace ashvardanian::numkong::test {
-int probe_reference(int value) { return nk_probe_f32_serial(value); }
-} // namespace ashvardanian::numkong::test
-FIXTURE
-
-assert_rejects "benchmark packing through a serial helper" "names a serial kernel" bench/probe.cpp <<'FIXTURE'
-namespace ashvardanian::numkong::bench {
-int probe_pack(int value) { return nk_probe_pack_f32_serial_(value); }
-} // namespace ashvardanian::numkong::bench
-FIXTURE
-
-assert_accepts "registration putting the serial kernel under test" test/probe.cpp <<'FIXTURE'
-namespace ashvardanian::numkong::test {
-void probe_register(section_t &check) {
-    check("probe_f32_serial", test_probe<f32_t>, nk_probe_size_f32_serial,
-          nk_probe_f32_serial);
-}
-} // namespace ashvardanian::numkong::test
-FIXTURE
 
 assert_rejects "kernel calling a kernel" "calls a public kernel" include/numkong/probe/haswell.h <<'FIXTURE'
 NUMKONG_API int nk_probe_haswell(int value) { return nk_probe_serial(value); }

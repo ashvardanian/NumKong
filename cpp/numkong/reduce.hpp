@@ -4,18 +4,27 @@
  *  @date February 5, 2026
  *  @brief Reduction kernels: reduce_moments (sum, sum-of-squares), reduce_minmax (min/max/indices).
  */
+#if defined(NUMKONG_HEADER_ONLY) && NUMKONG_HEADER_ONLY
+#error "The NumKong C++ SDK links the library; link numkong::cpp, not numkong::header"
+#endif
+
 #ifndef NUMKONG_REDUCE_HPP
 #define NUMKONG_REDUCE_HPP
 
-#include <cstddef>     // `std::byte`, `std::size_t`
-#include <cstdint>     // `std::uint32_t`
+#include <cstddef> // `std::byte`, `std::size_t`
+#include <cstdint> // `std::uint32_t`
+
+#include <concepts>    // `std::totally_ordered`
 #include <memory>      // `std::allocator_traits`
 #include <type_traits> // `std::is_same_v`
 
 #include "numkong/reduce.h"
 
+#include "numkong/tensor.hpp"
 #include "numkong/types.hpp"
 #include "numkong/vector.hpp"
+#include "numkong/devices.hpp" // `default_capabilities`
+#include "numkong/scalar.hpp"  // `saturating_add_`
 
 namespace ashvardanian::numkong {
 
@@ -26,110 +35,76 @@ namespace ashvardanian::numkong {
  *  @param[in] stride Stride between elements in bytes, <tt>sizeof(in_type_)</tt> for contiguous.
  *  @param[out] sum Output sum.
  *  @param[out] sumsq Output sum of squares.
- *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template.
+ *  @param[in] capabilities Capabilities to pick from.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *
  *  @tparam in_type_ Input vector element type.
- *  @tparam sum_type_ Accumulator, defaults to @c in_type_::reduce_moments_sum_t, often widened.
- *  @tparam sumsq_type_ Sum-of-squares accumulator type, defaults to @c sum_type_.
  */
-template <a_numeric_dtype in_type_, a_numeric_dtype sum_type_ = typename in_type_::reduce_moments_sum_t,
-          a_numeric_dtype sumsq_type_ = typename in_type_::reduce_moments_sumsq_t>
-status_t reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride, sum_type_ *sum, sumsq_type_ *sumsq,
+template <a_numeric_dtype in_type_>
+status_t reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride,
+                        typename in_type_::reduce_moments_sum_t *sum, typename in_type_::reduce_moments_sumsq_t *sumsq,
                         nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
-    constexpr bool dispatch = std::is_same_v<sum_type_, typename in_type_::reduce_moments_sum_t> &&
-                              std::is_same_v<sumsq_type_, typename in_type_::reduce_moments_sumsq_t>;
-
-    if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return static_cast<status_t>(
-                nk_reduce_moments_f64_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(
-                nk_reduce_moments_f32_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(
-                nk_reduce_moments_f16_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return static_cast<status_t>(nk_reduce_moments_bf16_best(&data->raw_, count, stride, &sum->raw_,
-                                                                     &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
-            return static_cast<status_t>(nk_reduce_moments_e4m3_best(&data->raw_, count, stride, &sum->raw_,
-                                                                     &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
-            return static_cast<status_t>(nk_reduce_moments_e5m2_best(&data->raw_, count, stride, &sum->raw_,
-                                                                     &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
-            return static_cast<status_t>(nk_reduce_moments_e2m3_best(&data->raw_, count, stride, &sum->raw_,
-                                                                     &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && dispatch)
-            return static_cast<status_t>(nk_reduce_moments_e2m1_best(&data->raw_, count, stride, &sum->raw_,
-                                                                     &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
-            return static_cast<status_t>(nk_reduce_moments_e3m2_best(&data->raw_, count, stride, &sum->raw_,
-                                                                     &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
-            return static_cast<status_t>(
-                nk_reduce_moments_i4_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
-            return static_cast<status_t>(
-                nk_reduce_moments_u4_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, u1x8_t> && dispatch)
-            return static_cast<status_t>(
-                nk_reduce_moments_u1_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
-            return static_cast<status_t>(
-                nk_reduce_moments_i8_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
-            return static_cast<status_t>(
-                nk_reduce_moments_u8_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, i16_t> && dispatch)
-            return static_cast<status_t>(
-                nk_reduce_moments_i16_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, u16_t> && dispatch)
-            return static_cast<status_t>(
-                nk_reduce_moments_u16_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, i32_t> && dispatch)
-            return static_cast<status_t>(
-                nk_reduce_moments_i32_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, u32_t> && dispatch)
-            return static_cast<status_t>(
-                nk_reduce_moments_u32_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, i64_t> && dispatch)
-            return static_cast<status_t>(
-                nk_reduce_moments_i64_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, u64_t> && dispatch)
-            return static_cast<status_t>(
-                nk_reduce_moments_u64_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
-    }
-    // Sub-byte views yield raw FP4 codes, so pairs decode through their nibble accessors
-    if constexpr (std::is_same_v<in_type_, e2m1x2_t>) {
-        sum_type_ running_sum {};
-        sumsq_type_ running_sumsq {};
-        char const *bytes = reinterpret_cast<char const *>(data);
-        for (std::size_t i = 0; i < count; ++i) {
-            e2m1x2_t const pair = *reinterpret_cast<e2m1x2_t const *>(bytes + (i / 2) * stride);
-            float const value = (i & 1) ? pair.second() : pair.first();
-            running_sum = saturating_add(running_sum, sum_type_(value));
-            running_sumsq = saturating_add(running_sumsq, sumsq_type_(value * value));
-        }
-        *sum = running_sum;
-        *sumsq = running_sumsq;
-    }
-    // Scalar fallback
-    else {
-        sum_type_ running_sum {};
-        sumsq_type_ running_sumsq {};
-        vector_view<in_type_> values(reinterpret_cast<char const *>(data), count, stride);
-        for (std::size_t i = 0; i < count; ++i) {
-            auto val = values[i];
-            running_sum = saturating_add(running_sum, val);
-            running_sumsq = saturating_fma(val, val, running_sumsq);
-        }
-        *sum = running_sum;
-        *sumsq = running_sumsq;
-    }
-    return status_t::success_k;
+    if constexpr (std::is_same_v<in_type_, f64_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_f64_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, f32_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_f32_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, f16_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_f16_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, bf16_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_bf16_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e4m3_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_e4m3_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e5m2_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_e5m2_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e2m3_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_e2m3_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e2m1x2_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_e2m1_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, e3m2_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_e3m2_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, i4x2_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_i4_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, u4x2_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_u4_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, u1x8_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_u1_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, i8_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_i8_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, u8_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_u8_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, i16_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_i16_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, u16_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_u16_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, i32_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_i32_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, u32_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_u32_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, i64_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_i64_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, u64_t>)
+        return static_cast<status_t>(
+            nk_reduce_moments_u64_best(&data->raw_, count, stride, &sum->raw_, &sumsq->raw_, capabilities, stream));
+    else static_assert(sizeof(in_type_) == 0, "nk_reduce_moments has no kernel for this dtype");
 }
 
 /**
@@ -141,111 +116,82 @@ status_t reduce_moments(in_type_ const *data, std::size_t count, std::size_t str
  *  @param[out] min_index Output index of minimum value, @c NUMKONG_SIZE_MAX if every value is NaN
  *  @param[out] max_value Output maximum value
  *  @param[out] max_index Output index of maximum value, @c NUMKONG_SIZE_MAX if every value is NaN
- *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] capabilities Capabilities to pick from
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Input vector element type
- *  @tparam minmax_type_ Result type for min/max values, defaults to
- *      @c in_type_::reduce_minmax_value_t
  */
-template <a_numeric_dtype in_type_, a_numeric_dtype minmax_type_ = typename in_type_::reduce_minmax_value_t>
-status_t reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stride, minmax_type_ *min_value,
-                       std::size_t *min_index, minmax_type_ *max_value, std::size_t *max_index,
+template <a_numeric_dtype in_type_>
+status_t reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stride,
+                       typename in_type_::reduce_minmax_value_t *min_value, std::size_t *min_index,
+                       typename in_type_::reduce_minmax_value_t *max_value, std::size_t *max_index,
                        nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
-    constexpr bool dispatch = std::is_same_v<minmax_type_, typename in_type_::reduce_minmax_value_t>;
     static_assert(sizeof(std::size_t) == sizeof(nk_size_t), "std::size_t and nk_size_t must have the same width");
     nk_size_t min_offset = NUMKONG_SIZE_MAX, max_offset = NUMKONG_SIZE_MAX;
-    nk_status_t status = nk_success_k;
-    bool dispatched = false;
-
-    // For types where minmax_type_ matches the C function output type directly,
-    // dispatch to the C kernel and pass raw pointers through.
-    if (capabilities) {
-        dispatched = true;
-        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            status = nk_reduce_minmax_f64_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                               &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            status = nk_reduce_minmax_f32_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                               &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
-            status = nk_reduce_minmax_i8_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                              &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
-            status = nk_reduce_minmax_u8_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                              &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, i16_t> && dispatch)
-            status = nk_reduce_minmax_i16_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                               &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, u16_t> && dispatch)
-            status = nk_reduce_minmax_u16_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                               &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, i32_t> && dispatch)
-            status = nk_reduce_minmax_i32_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                               &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, u32_t> && dispatch)
-            status = nk_reduce_minmax_u32_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                               &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, i64_t> && dispatch)
-            status = nk_reduce_minmax_i64_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                               &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, u64_t> && dispatch)
-            status = nk_reduce_minmax_u64_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                               &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
-            status = nk_reduce_minmax_e2m3_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                                &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
-            status = nk_reduce_minmax_e3m2_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                                &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            status = nk_reduce_minmax_f16_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                               &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            status = nk_reduce_minmax_bf16_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                                &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
-            status = nk_reduce_minmax_e4m3_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                                &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
-            status = nk_reduce_minmax_e5m2_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                                &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
-            status = nk_reduce_minmax_i4_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                              &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
-            status = nk_reduce_minmax_u4_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                              &max_value->raw_, &max_offset, capabilities, stream);
-        else if constexpr (std::is_same_v<in_type_, u1x8_t> && dispatch)
-            status = nk_reduce_minmax_u1_best(&data->raw_, count, stride, &min_value->raw_, &min_offset,
-                                              &max_value->raw_, &max_offset, capabilities, stream);
-        else dispatched = false;
-    }
-    // Scalar fallback, where the first value that isn't NaN takes both sides
-    if (!dispatched) {
-        minmax_type_ best_min = finite_max<minmax_type_>(), best_max = finite_min<minmax_type_>();
-        if constexpr (an_infinity_capable_dtype<minmax_type_>)
-            best_min = minmax_type_::positive_infinity(), best_max = minmax_type_::negative_infinity();
-        vector_view<in_type_> values(reinterpret_cast<char const *>(data), count, stride);
-        for (nk_size_t i = 0; i < count; ++i) {
-            minmax_type_ v = minmax_type_(values[i]);
-            if (is_nan(v)) continue;
-            if (min_offset == NUMKONG_SIZE_MAX || v < best_min) best_min = v, min_offset = i;
-            if (max_offset == NUMKONG_SIZE_MAX || v > best_max) best_max = v, max_offset = i;
-        }
-        *min_value = best_min, *max_value = best_max;
-    }
+    nk_status_t status;
+    if constexpr (std::is_same_v<in_type_, f64_t>)
+        status = nk_reduce_minmax_f64_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                           &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, f32_t>)
+        status = nk_reduce_minmax_f32_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                           &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, i8_t>)
+        status = nk_reduce_minmax_i8_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                          &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, u8_t>)
+        status = nk_reduce_minmax_u8_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                          &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, i16_t>)
+        status = nk_reduce_minmax_i16_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                           &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, u16_t>)
+        status = nk_reduce_minmax_u16_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                           &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, i32_t>)
+        status = nk_reduce_minmax_i32_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                           &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, u32_t>)
+        status = nk_reduce_minmax_u32_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                           &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, i64_t>)
+        status = nk_reduce_minmax_i64_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                           &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, u64_t>)
+        status = nk_reduce_minmax_u64_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                           &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, e2m3_t>)
+        status = nk_reduce_minmax_e2m3_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                            &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, e3m2_t>)
+        status = nk_reduce_minmax_e3m2_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                            &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, f16_t>)
+        status = nk_reduce_minmax_f16_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                           &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, bf16_t>)
+        status = nk_reduce_minmax_bf16_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                            &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, e4m3_t>)
+        status = nk_reduce_minmax_e4m3_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                            &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, e5m2_t>)
+        status = nk_reduce_minmax_e5m2_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                            &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, i4x2_t>)
+        status = nk_reduce_minmax_i4_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                          &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, u4x2_t>)
+        status = nk_reduce_minmax_u4_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                          &max_offset, capabilities, stream);
+    else if constexpr (std::is_same_v<in_type_, u1x8_t>)
+        status = nk_reduce_minmax_u1_best(&data->raw_, count, stride, &min_value->raw_, &min_offset, &max_value->raw_,
+                                          &max_offset, capabilities, stream);
+    else static_assert(sizeof(in_type_) == 0, "nk_reduce_minmax has no kernel for this dtype");
     if (status != nk_success_k) return static_cast<status_t>(status);
     if (min_index) *min_index = static_cast<std::size_t>(min_offset);
     if (max_index) *max_index = static_cast<std::size_t>(max_offset);
     return status_t::success_k;
 }
-
-} // namespace ashvardanian::numkong
-
-#include "numkong/tensor.hpp"
-
-namespace ashvardanian::numkong {
 
 #pragma region Tensor Reduction Helpers
 
@@ -320,125 +266,55 @@ normalized_rank1_lane_<value_type_, max_rank_> normalize_rank1_lane_from_tail_(
 template <a_numeric_dtype value_type_, std::size_t max_rank_>
 status_t reduce_rank1_moments_(tensor_view<value_type_, max_rank_> input,
                                typename value_type_::reduce_moments_sum_t &sum,
-                               typename value_type_::reduce_moments_sumsq_t &sumsq) noexcept {
-    using sum_t = typename value_type_::reduce_moments_sum_t;
-    using sumsq_t = typename value_type_::reduce_moments_sumsq_t;
+                               typename value_type_::reduce_moments_sumsq_t &sumsq, nk_capability_t capabilities,
+                               nk_stream_t stream) noexcept {
     if (input.rank() != 1 || input.byte_data() == nullptr) return status_t::unexpected_dimensions_k;
-    if (!tensor_layout_supported_(input)) return status_t::misaligned_k;
-    if (can_reduce_rank1_with_kernel_(input)) {
-        auto lane = normalize_rank1_lane_(input);
-        return numkong::reduce_moments<value_type_>(lane.data, lane.count, lane.stride, &sum, &sumsq);
-    }
-    auto values = input.as_vector();
-    sum = sum_t {};
-    sumsq = sumsq_t {};
-    for (std::size_t i = 0; i < values.size(); ++i) {
-        auto value = values[i];
-        sum = saturating_add(sum, value);
-        sumsq = saturating_fma(value, value, sumsq);
-    }
-    return status_t::success_k;
+    if (!tensor_layout_supported_(input) || !can_reduce_rank1_with_kernel_(input)) return status_t::misaligned_k;
+    normalized_rank1_lane_<value_type_, max_rank_> lane = normalize_rank1_lane_(input);
+    return numkong::reduce_moments<value_type_>(lane.data, lane.count, lane.stride, &sum, &sumsq, capabilities, stream);
 }
 
 template <a_numeric_dtype value_type_, std::size_t max_rank_>
 status_t reduce_rank1_minmax_(tensor_view<value_type_, max_rank_> input,
-                              minmax_result<typename value_type_::reduce_minmax_value_t> &result) noexcept {
-    using minmax_t = typename value_type_::reduce_minmax_value_t;
+                              minmax_result<typename value_type_::reduce_minmax_value_t> &result,
+                              nk_capability_t capabilities, nk_stream_t stream) noexcept {
     if (input.rank() != 1 || input.byte_data() == nullptr) return status_t::unexpected_dimensions_k;
-    if (!tensor_layout_supported_(input)) return status_t::misaligned_k;
-    if (can_reduce_rank1_with_kernel_(input)) {
-        auto lane = normalize_rank1_lane_(input);
-        if (status_t status = numkong::reduce_minmax<value_type_>(lane.data, lane.count, lane.stride, &result.min_value,
-                                                                  &result.min_index, &result.max_value,
-                                                                  &result.max_index);
-            failed(status))
-            return status;
-        if (lane.reversed) {
-            result.min_index = lane.count - 1 - result.min_index;
-            result.max_index = lane.count - 1 - result.max_index;
-        }
-        return status_t::success_k;
+    if (!tensor_layout_supported_(input) || !can_reduce_rank1_with_kernel_(input)) return status_t::misaligned_k;
+    normalized_rank1_lane_<value_type_, max_rank_> lane = normalize_rank1_lane_(input);
+    if (status_t status = numkong::reduce_minmax<value_type_>(lane.data, lane.count, lane.stride, &result.min_value,
+                                                              &result.min_index, &result.max_value, &result.max_index,
+                                                              capabilities, stream);
+        failed(status))
+        return status;
+    if (lane.reversed) {
+        result.min_index = lane.count - 1 - result.min_index;
+        result.max_index = lane.count - 1 - result.max_index;
     }
-    auto values = input.as_vector();
-    return numkong::reduce_minmax<value_type_, minmax_t>(
-        values.data(), values.size(), static_cast<std::size_t>(values.stride_bytes()), &result.min_value,
-        &result.min_index, &result.max_value, &result.max_index, 0);
-}
-
-template <a_numeric_dtype value_type_, std::size_t max_rank_>
-status_t accumulate_moments_tensor_(
-    tensor_view<value_type_, max_rank_> input, tensor_span<typename value_type_::reduce_moments_sum_t, max_rank_> sums,
-    tensor_span<typename value_type_::reduce_moments_sumsq_t, max_rank_> sumsqs) noexcept {
-    using sum_t = typename value_type_::reduce_moments_sum_t;
-    using sumsq_t = typename value_type_::reduce_moments_sumsq_t;
-    if (!tensor_layout_supported_(input)) return status_t::misaligned_k;
-    if (!shapes_match_out_(input, sums) || !shapes_match_out_(input, sumsqs)) return status_t::unexpected_dimensions_k;
-    if (input.rank() == 1) {
-        auto src = input.as_vector();
-        auto dst_sum = sums.as_vector();
-        auto dst_sumsq = sumsqs.as_vector();
-        for (std::size_t i = 0; i < src.size(); ++i) {
-            auto value = src[i];
-            dst_sum[i] = saturating_add(dst_sum[i], sum_t(value));
-            dst_sumsq[i] = saturating_fma(value, value, sumsq_t(dst_sumsq[i]));
-        }
-        return status_t::success_k;
-    }
-    for (std::size_t i = 0; i < input.extent(0); ++i)
-        if (status_t status = accumulate_moments_tensor_(input.slice_leading(i), sums.slice_leading(i),
-                                                         sumsqs.slice_leading(i));
-            failed(status))
-            return status;
-    return status_t::success_k;
-}
-
-template <a_numeric_dtype value_type_, std::size_t max_rank_>
-status_t update_minmax_tensor_(tensor_view<value_type_, max_rank_> input,
-                               tensor_span<typename value_type_::reduce_minmax_value_t, max_rank_> mins,
-                               tensor_span<typename value_type_::reduce_minmax_value_t, max_rank_> maxs) noexcept {
-    using minmax_t = typename value_type_::reduce_minmax_value_t;
-    if (!tensor_layout_supported_(input)) return status_t::misaligned_k;
-    if (!shapes_match_out_(input, mins) || !shapes_match_out_(input, maxs)) return status_t::unexpected_dimensions_k;
-    if (input.rank() == 1) {
-        auto src = input.as_vector();
-        auto dst_min = mins.as_vector();
-        auto dst_max = maxs.as_vector();
-        for (std::size_t i = 0; i < src.size(); ++i) {
-            minmax_t value = minmax_t(src[i]);
-            if (value < dst_min[i]) dst_min[i] = value;
-            if (value > dst_max[i]) dst_max[i] = value;
-        }
-        return status_t::success_k;
-    }
-    for (std::size_t i = 0; i < input.extent(0); ++i)
-        if (status_t status = update_minmax_tensor_(input.slice_leading(i), mins.slice_leading(i),
-                                                    maxs.slice_leading(i));
-            failed(status))
-            return status;
     return status_t::success_k;
 }
 
 template <a_numeric_dtype value_type_, std::size_t max_rank_>
 status_t reduce_moments_axis_(tensor_view<value_type_, max_rank_> input, std::size_t axis,
                               typename value_type_::reduce_moments_sum_t *sums,
-                              typename value_type_::reduce_moments_sumsq_t *sumsqs) noexcept {
-    return for_each_axis_lane_(input, axis,
-                               [&](tensor_view<value_type_, max_rank_> lane, std::size_t output_index) noexcept {
-                                   typename value_type_::reduce_moments_sum_t sum {};
-                                   typename value_type_::reduce_moments_sumsq_t sumsq {};
-                                   if (status_t status = reduce_rank1_moments_(lane, sum, sumsq); failed(status))
-                                       return status;
-                                   if (sums) sums[output_index] = sum;
-                                   if (sumsqs) sumsqs[output_index] = sumsq;
-                                   return status_t::success_k;
-                               });
+                              typename value_type_::reduce_moments_sumsq_t *sumsqs, nk_capability_t capabilities,
+                              nk_stream_t stream) noexcept {
+    return for_each_axis_lane_(
+        input, axis, [&](tensor_view<value_type_, max_rank_> lane, std::size_t output_index) noexcept {
+            typename value_type_::reduce_moments_sum_t sum {};
+            typename value_type_::reduce_moments_sumsq_t sumsq {};
+            if (status_t status = reduce_rank1_moments_(lane, sum, sumsq, capabilities, stream); failed(status))
+                return status;
+            if (sums) sums[output_index] = sum;
+            if (sumsqs) sumsqs[output_index] = sumsq;
+            return status_t::success_k;
+        });
 }
 
 template <a_numeric_dtype value_type_, std::size_t max_rank_>
 status_t reduce_moments_axis_packed_(tensor_view<value_type_, max_rank_> input, std::size_t axis,
                                      tensor_span<typename value_type_::reduce_moments_sum_t, max_rank_> sums,
                                      tensor_span<typename value_type_::reduce_moments_sumsq_t, max_rank_> sumsqs,
-                                     keep_dims_t keep_dims) noexcept {
+                                     keep_dims_t keep_dims, nk_capability_t capabilities, nk_stream_t stream) noexcept {
     using sum_t = typename value_type_::reduce_moments_sum_t;
     using sumsq_t = typename value_type_::reduce_moments_sumsq_t;
     if (!tensor_layout_supported_(input)) return status_t::misaligned_k;
@@ -449,21 +325,19 @@ status_t reduce_moments_axis_packed_(tensor_view<value_type_, max_rank_> input, 
         if (input.rank() == 1) {
             sum_t sum {};
             sumsq_t sumsq {};
-            if (status_t status = reduce_rank1_moments_(input, sum, sumsq); failed(status)) return status;
+            if (status_t status = reduce_rank1_moments_(input, sum, sumsq, capabilities, stream); failed(status))
+                return status;
             sum_target.scalar_ref() = sum;
             sumsq_target.scalar_ref() = sumsq;
             return status_t::success_k;
         }
-        for (std::size_t i = 0; i < input.extent(0); ++i)
-            if (status_t status = accumulate_moments_tensor_(input.slice_leading(i), sum_target, sumsq_target);
-                failed(status))
-                return status;
-        return status_t::success_k;
+        // Each lane steps through one sub-byte value per row, which no kernel can stride over
+        return status_t::misaligned_k;
     }
     if (input.rank() == 1) return status_t::unexpected_dimensions_k;
     for (std::size_t i = 0; i < input.extent(0); ++i)
         if (status_t status = reduce_moments_axis_packed_(input.slice_leading(i), axis - 1, sums.slice_leading(i),
-                                                          sumsqs.slice_leading(i), keep_dims);
+                                                          sumsqs.slice_leading(i), keep_dims, capabilities, stream);
             failed(status))
             return status;
     return status_t::success_k;
@@ -472,25 +346,26 @@ status_t reduce_moments_axis_packed_(tensor_view<value_type_, max_rank_> input, 
 template <a_numeric_dtype value_type_, std::size_t max_rank_>
 status_t reduce_minmax_axis_(tensor_view<value_type_, max_rank_> input, std::size_t axis,
                              typename value_type_::reduce_minmax_value_t *mins, std::size_t *argmins,
-                             typename value_type_::reduce_minmax_value_t *maxs, std::size_t *argmaxs) noexcept {
-    return for_each_axis_lane_(input, axis,
-                               [&](tensor_view<value_type_, max_rank_> lane, std::size_t output_index) noexcept {
-                                   minmax_result<typename value_type_::reduce_minmax_value_t> result {};
-                                   if (status_t status = reduce_rank1_minmax_(lane, result); failed(status))
-                                       return status;
-                                   if (mins) mins[output_index] = result.min_value;
-                                   if (argmins) argmins[output_index] = result.min_index;
-                                   if (maxs) maxs[output_index] = result.max_value;
-                                   if (argmaxs) argmaxs[output_index] = result.max_index;
-                                   return status_t::success_k;
-                               });
+                             typename value_type_::reduce_minmax_value_t *maxs, std::size_t *argmaxs,
+                             nk_capability_t capabilities, nk_stream_t stream) noexcept {
+    return for_each_axis_lane_(
+        input, axis, [&](tensor_view<value_type_, max_rank_> lane, std::size_t output_index) noexcept {
+            minmax_result<typename value_type_::reduce_minmax_value_t> result {};
+            if (status_t status = reduce_rank1_minmax_(lane, result, capabilities, stream); failed(status))
+                return status;
+            if (mins) mins[output_index] = result.min_value;
+            if (argmins) argmins[output_index] = result.min_index;
+            if (maxs) maxs[output_index] = result.max_value;
+            if (argmaxs) argmaxs[output_index] = result.max_index;
+            return status_t::success_k;
+        });
 }
 
 template <a_numeric_dtype value_type_, std::size_t max_rank_>
 status_t reduce_minmax_axis_packed_(tensor_view<value_type_, max_rank_> input, std::size_t axis,
                                     tensor_span<typename value_type_::reduce_minmax_value_t, max_rank_> mins,
                                     tensor_span<typename value_type_::reduce_minmax_value_t, max_rank_> maxs,
-                                    keep_dims_t keep_dims) noexcept {
+                                    keep_dims_t keep_dims, nk_capability_t capabilities, nk_stream_t stream) noexcept {
     using minmax_t = typename value_type_::reduce_minmax_value_t;
     if (!tensor_layout_supported_(input)) return status_t::misaligned_k;
     if (axis >= input.rank()) return status_t::unexpected_dimensions_k;
@@ -499,20 +374,18 @@ status_t reduce_minmax_axis_packed_(tensor_view<value_type_, max_rank_> input, s
         auto max_target = keep_dims ? maxs.slice_leading(0) : maxs;
         if (input.rank() == 1) {
             minmax_result<minmax_t> result {};
-            if (status_t status = reduce_rank1_minmax_(input, result); failed(status)) return status;
+            if (status_t status = reduce_rank1_minmax_(input, result, capabilities, stream); failed(status))
+                return status;
             min_target.scalar_ref() = result.min_value;
             max_target.scalar_ref() = result.max_value;
             return status_t::success_k;
         }
-        for (std::size_t i = 0; i < input.extent(0); ++i)
-            if (status_t status = update_minmax_tensor_(input.slice_leading(i), min_target, max_target); failed(status))
-                return status;
-        return status_t::success_k;
+        return status_t::misaligned_k;
     }
     if (input.rank() == 1) return status_t::unexpected_dimensions_k;
     for (std::size_t i = 0; i < input.extent(0); ++i)
         if (status_t status = reduce_minmax_axis_packed_(input.slice_leading(i), axis - 1, mins.slice_leading(i),
-                                                         maxs.slice_leading(i), keep_dims);
+                                                         maxs.slice_leading(i), keep_dims, capabilities, stream);
             failed(status))
             return status;
     return status_t::success_k;
@@ -522,250 +395,450 @@ status_t reduce_minmax_axis_packed_(tensor_view<value_type_, max_rank_> input, s
 
 #pragma region Scalar Reductions
 
-/** Compute Σxᵢ and Σxᵢ² in a single pass. Returns zeroed result for empty tensors. */
-template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
-moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_::reduce_moments_sumsq_t> moments(
-    tensor_view<value_type_, max_rank_> input) noexcept {
-    using sum_t = typename value_type_::reduce_moments_sum_t;
-    using sumsq_t = typename value_type_::reduce_moments_sumsq_t;
-    moments_result<sum_t, sumsq_t> result {};
-    if (input.empty() || input.numel() == 0) return result;
-    // A 0-D view is a single contiguous scalar: no axes to collapse and no innermost stride to read
-    // (the rank>=1 path below would index `stride_bytes(rank() - 1)` == `stride_bytes(SIZE_MAX)`).
-    if (input.rank() == 0) {
-        if (failed(
-                numkong::reduce_moments<value_type_>(input.data(), 1, sizeof(value_type_), &result.sum, &result.sumsq)))
-            return {};
-        return result;
-    }
-    if (!tensor_layout_supported_(input)) return result;
-    auto tail = uniform_stride_tail_(input);
-    if (tail.tail_dims == input.rank()) {
-        auto lane = normalize_rank1_lane_from_tail_<value_type_, max_rank_>(input, tail);
-        if (failed(
-                numkong::reduce_moments<value_type_>(lane.data, lane.count, lane.stride, &result.sum, &result.sumsq)))
-            return {};
-        return result;
-    }
-    if (tail.tail_dims >= 2) return moments<value_type_, max_rank_>(collapse_uniform_tail_(input, tail));
-    // Sub-byte rank-1 fallback: uniform_stride_tail_ returns {0,0,0} for packed types.
-    if (input.rank() == 1) {
-        if (failed(reduce_rank1_moments_(input, result.sum, result.sumsq))) return {};
-        return result;
-    }
-    for (std::size_t i = 0; i < input.extent(0); ++i) {
-        auto slice_result = moments<value_type_, max_rank_>(input.slice_leading(static_cast<std::ptrdiff_t>(i)));
-        result.sum = saturating_add(result.sum, slice_result.sum);
-        result.sumsq = saturating_add(result.sumsq, slice_result.sumsq);
-    }
-    return result;
+/** Whether @p a sorts before @p b: the order kernel for a narrow float, the type's own comparison
+ *  otherwise. */
+template <typename value_type_>
+bool sorts_before_(value_type_ a, value_type_ b, nk_capability_t) noexcept {
+    return a < b;
 }
 
-/** Find min and max values with their flat indices. */
+/** @copydoc sorts_before_ */
+template <typename value_type_>
+    requires(!std::totally_ordered<value_type_>)
+bool sorts_before_(value_type_ a, value_type_ b, nk_capability_t capabilities) noexcept {
+    return order_(a, b, capabilities) < 0;
+}
+
+/** @p a + @p b clamped to the range of @p sum_type_: the saturating-add kernel for an integer sum,
+ *  the clamp of a floating one otherwise. */
+template <typename sum_type_>
+sum_type_ saturating_sum_(sum_type_ a, sum_type_ b, nk_capability_t capabilities) noexcept {
+    if constexpr (is_integral_dtype<sum_type_>()) return saturating_add_(a, b, capabilities);
+    else return a.saturating_add(b);
+}
+
+/** Σxᵢ and Σxᵢ² in a single pass; zeros for an empty @p input, @c misaligned_k for an unsupported
+ *  layout or a sub-byte lane whose step is not a whole byte. */
 template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
-minmax_result<typename value_type_::reduce_minmax_value_t> minmax(tensor_view<value_type_, max_rank_> input) noexcept {
-    using minmax_t = typename value_type_::reduce_minmax_value_t;
-    minmax_result<minmax_t> result {};
-    if (input.empty() || input.numel() == 0) return {{}, NUMKONG_SIZE_MAX, {}, NUMKONG_SIZE_MAX};
-    // A 0-D view is a single contiguous scalar (index 0); the rank>=1 path would read
-    // `stride_bytes(rank() - 1)` == `stride_bytes(SIZE_MAX)`.
+expected<moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_::reduce_moments_sumsq_t>>
+moments(tensor_view<value_type_, max_rank_> input, nk_capability_t capabilities, nk_stream_t stream) noexcept {
+    using result_t =
+        moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_::reduce_moments_sumsq_t>;
+    result_t result {};
+    if (input.empty() || input.numel() == 0) return {result, status_t::success_k};
+    // A 0-D view is a single contiguous scalar: no axes to collapse and no innermost stride to read
     if (input.rank() == 0) {
-        if (failed(numkong::reduce_minmax<value_type_>(input.data(), 1, sizeof(value_type_), &result.min_value,
-                                                       &result.min_index, &result.max_value, &result.max_index)))
-            return {{}, NUMKONG_SIZE_MAX, {}, NUMKONG_SIZE_MAX};
-        return result;
+        status_t status = numkong::reduce_moments<value_type_>(input.data(), 1, sizeof(value_type_), &result.sum,
+                                                               &result.sumsq, capabilities, stream);
+        return {result, status};
     }
-    if (!tensor_layout_supported_(input)) return result;
-    auto tail = uniform_stride_tail_(input);
+    if (!tensor_layout_supported_(input)) return {result, status_t::misaligned_k};
+    uniform_stride_tail_result_t_ const tail = uniform_stride_tail_(input);
     if (tail.tail_dims == input.rank()) {
-        auto lane = normalize_rank1_lane_from_tail_<value_type_, max_rank_>(input, tail);
-        if (failed(numkong::reduce_minmax<value_type_>(lane.data, lane.count, lane.stride, &result.min_value,
-                                                       &result.min_index, &result.max_value, &result.max_index)))
-            return {{}, NUMKONG_SIZE_MAX, {}, NUMKONG_SIZE_MAX};
+        normalized_rank1_lane_<value_type_, max_rank_> lane = normalize_rank1_lane_from_tail_<value_type_, max_rank_>(
+            input, tail);
+        status_t status = numkong::reduce_moments<value_type_>(lane.data, lane.count, lane.stride, &result.sum,
+                                                               &result.sumsq, capabilities, stream);
+        return {result, status};
+    }
+    if (tail.tail_dims >= 2)
+        return moments<value_type_, max_rank_>(collapse_uniform_tail_(input, tail), capabilities, stream);
+    // Sub-byte rank-1 lanes: uniform_stride_tail_ returns {0,0,0} for packed types
+    if (input.rank() == 1) {
+        status_t status = reduce_rank1_moments_(input, result.sum, result.sumsq, capabilities, stream);
+        return {result, status};
+    }
+    for (std::size_t i = 0; i < input.extent(0); ++i) {
+        auto [slice_result, slice_status] = moments<value_type_, max_rank_>(
+            input.slice_leading(static_cast<std::ptrdiff_t>(i)), capabilities, stream);
+        if (failed(slice_status)) return {result, slice_status};
+        result.sum = saturating_sum_(result.sum, slice_result.sum, capabilities);
+        result.sumsq = saturating_sum_(result.sumsq, slice_result.sumsq, capabilities);
+    }
+    return {result, status_t::success_k};
+}
+
+/** @c moments with the default capabilities on the CPU. */
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
+expected<moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_::reduce_moments_sumsq_t>>
+moments(tensor_view<value_type_, max_rank_> input) noexcept {
+    return moments<value_type_, max_rank_>(input, default_capabilities(), nullptr);
+}
+
+/** Min and max values with their flat indices, @c NUMKONG_SIZE_MAX for an empty or all-NaN
+ *  @p input; fails like the scalar @c moments. */
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
+expected<minmax_result<typename value_type_::reduce_minmax_value_t>> minmax(tensor_view<value_type_, max_rank_> input,
+                                                                            nk_capability_t capabilities,
+                                                                            nk_stream_t stream) noexcept {
+    using result_t = minmax_result<typename value_type_::reduce_minmax_value_t>;
+    result_t result {{}, NUMKONG_SIZE_MAX, {}, NUMKONG_SIZE_MAX};
+    if (input.empty() || input.numel() == 0) return {result, status_t::success_k};
+    // A 0-D view is a single contiguous scalar (index 0) with no innermost stride to read
+    if (input.rank() == 0) {
+        status_t status = numkong::reduce_minmax<value_type_>(input.data(), 1, sizeof(value_type_), &result.min_value,
+                                                              &result.min_index, &result.max_value, &result.max_index,
+                                                              capabilities, stream);
+        return {result, status};
+    }
+    if (!tensor_layout_supported_(input)) return {result, status_t::misaligned_k};
+    uniform_stride_tail_result_t_ const tail = uniform_stride_tail_(input);
+    if (tail.tail_dims == input.rank()) {
+        normalized_rank1_lane_<value_type_, max_rank_> lane = normalize_rank1_lane_from_tail_<value_type_, max_rank_>(
+            input, tail);
+        if (status_t status = numkong::reduce_minmax<value_type_>(lane.data, lane.count, lane.stride, &result.min_value,
+                                                                  &result.min_index, &result.max_value,
+                                                                  &result.max_index, capabilities, stream);
+            failed(status))
+            return {result, status};
         if (lane.reversed) {
             result.min_index = tail.element_count - 1 - result.min_index;
             result.max_index = tail.element_count - 1 - result.max_index;
         }
-        return result;
+        return {result, status_t::success_k};
     }
-    if (tail.tail_dims >= 2) return minmax<value_type_, max_rank_>(collapse_uniform_tail_(input, tail));
-    // Sub-byte rank-1 fallback.
+    if (tail.tail_dims >= 2)
+        return minmax<value_type_, max_rank_>(collapse_uniform_tail_(input, tail), capabilities, stream);
     if (input.rank() == 1) {
-        if (failed(reduce_rank1_minmax_(input, result))) return {{}, NUMKONG_SIZE_MAX, {}, NUMKONG_SIZE_MAX};
-        return result;
+        status_t status = reduce_rank1_minmax_(input, result, capabilities, stream);
+        return {result, status};
     }
     // Slices merge like the halves of a split kernel: an all-NaN slice has no index and never wins
-    result = minmax<value_type_, max_rank_>(input.slice_leading(0));
+    auto [first_result, first_status] = minmax<value_type_, max_rank_>(input.slice_leading(0), capabilities, stream);
+    if (failed(first_status)) return {first_result, first_status};
+    result = first_result;
     std::size_t base = 0;
     for (std::size_t i = 1; i < input.extent(0); ++i) {
-        auto slice = input.slice_leading(static_cast<std::ptrdiff_t>(i));
+        tensor_view<value_type_, max_rank_> slice = input.slice_leading(static_cast<std::ptrdiff_t>(i));
         base += slice.numel();
-        auto slice_result = minmax<value_type_, max_rank_>(slice);
+        auto [slice_result, slice_status] = minmax<value_type_, max_rank_>(slice, capabilities, stream);
+        if (failed(slice_status)) return {result, slice_status};
         if (slice_result.min_index == NUMKONG_SIZE_MAX) continue;
-        if (result.min_index == NUMKONG_SIZE_MAX || slice_result.min_value < result.min_value)
+        if (result.min_index == NUMKONG_SIZE_MAX ||
+            sorts_before_(slice_result.min_value, result.min_value, capabilities))
             result.min_value = slice_result.min_value, result.min_index = base + slice_result.min_index;
-        if (result.max_index == NUMKONG_SIZE_MAX || slice_result.max_value > result.max_value)
+        if (result.max_index == NUMKONG_SIZE_MAX ||
+            sorts_before_(result.max_value, slice_result.max_value, capabilities))
             result.max_value = slice_result.max_value, result.max_index = base + slice_result.max_index;
     }
-    return result;
+    return {result, status_t::success_k};
 }
 
-/** Σ of all elements. */
+/** @c minmax with the default capabilities on the CPU. */
 template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
-typename value_type_::reduce_moments_sum_t sum(tensor_view<value_type_, max_rank_> input) noexcept {
-    return moments(input).sum;
+expected<minmax_result<typename value_type_::reduce_minmax_value_t>> minmax(
+    tensor_view<value_type_, max_rank_> input) noexcept {
+    return minmax<value_type_, max_rank_>(input, default_capabilities(), nullptr);
 }
 
-/** Find the minimum element value. */
+/** Σ of all elements; fails like the scalar @c moments. */
 template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
-typename value_type_::reduce_minmax_value_t(min)(tensor_view<value_type_, max_rank_> input) noexcept {
-    return minmax(input).min_value;
+expected<typename value_type_::reduce_moments_sum_t> sum(tensor_view<value_type_, max_rank_> input,
+                                                         nk_capability_t capabilities, nk_stream_t stream) noexcept {
+    auto [result, status] = moments<value_type_, max_rank_>(input, capabilities, stream);
+    return {result.sum, status};
 }
 
-/** Find the maximum element value. */
+/** @c sum with the default capabilities on the CPU. */
 template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
-typename value_type_::reduce_minmax_value_t(max)(tensor_view<value_type_, max_rank_> input) noexcept {
-    return minmax(input).max_value;
+expected<typename value_type_::reduce_moments_sum_t> sum(tensor_view<value_type_, max_rank_> input) noexcept {
+    return sum<value_type_, max_rank_>(input, default_capabilities(), nullptr);
 }
 
-/** Index of the minimum element, flat. */
+/** The minimum element value; fails like the scalar @c moments. */
 template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
-std::size_t argmin(tensor_view<value_type_, max_rank_> input) noexcept {
-    return minmax(input).min_index;
+expected<typename value_type_::reduce_minmax_value_t>(min)(tensor_view<value_type_, max_rank_> input,
+                                                           nk_capability_t capabilities, nk_stream_t stream) noexcept {
+    auto [result, status] = minmax<value_type_, max_rank_>(input, capabilities, stream);
+    return {result.min_value, status};
 }
 
-/** Index of the maximum element, flat. */
+/** @c min with the default capabilities on the CPU. */
 template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
-std::size_t argmax(tensor_view<value_type_, max_rank_> input) noexcept {
-    return minmax(input).max_index;
+expected<typename value_type_::reduce_minmax_value_t>(min)(tensor_view<value_type_, max_rank_> input) noexcept {
+    return numkong::min<value_type_, max_rank_>(input, default_capabilities(), nullptr);
+}
+
+/** The maximum element value; fails like the scalar @c moments. */
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
+expected<typename value_type_::reduce_minmax_value_t>(max)(tensor_view<value_type_, max_rank_> input,
+                                                           nk_capability_t capabilities, nk_stream_t stream) noexcept {
+    auto [result, status] = minmax<value_type_, max_rank_>(input, capabilities, stream);
+    return {result.max_value, status};
+}
+
+/** @c max with the default capabilities on the CPU. */
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
+expected<typename value_type_::reduce_minmax_value_t>(max)(tensor_view<value_type_, max_rank_> input) noexcept {
+    return numkong::max<value_type_, max_rank_>(input, default_capabilities(), nullptr);
+}
+
+/** Flat index of the minimum element; fails like the scalar @c moments. */
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
+expected<std::size_t> argmin(tensor_view<value_type_, max_rank_> input, nk_capability_t capabilities,
+                             nk_stream_t stream) noexcept {
+    auto [result, status] = minmax<value_type_, max_rank_>(input, capabilities, stream);
+    return {result.min_index, status};
+}
+
+/** @c argmin with the default capabilities on the CPU. */
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
+expected<std::size_t> argmin(tensor_view<value_type_, max_rank_> input) noexcept {
+    return argmin<value_type_, max_rank_>(input, default_capabilities(), nullptr);
+}
+
+/** Flat index of the maximum element; fails like the scalar @c moments. */
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
+expected<std::size_t> argmax(tensor_view<value_type_, max_rank_> input, nk_capability_t capabilities,
+                             nk_stream_t stream) noexcept {
+    auto [result, status] = minmax<value_type_, max_rank_>(input, capabilities, stream);
+    return {result.max_index, status};
+}
+
+/** @c argmax with the default capabilities on the CPU. */
+template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8>
+expected<std::size_t> argmax(tensor_view<value_type_, max_rank_> input) noexcept {
+    return argmax<value_type_, max_rank_>(input, default_capabilities(), nullptr);
 }
 
 /** Σxᵢ and Σxᵢ² over one run of @p in_type_; @c unexpected_dimensions_k for a strided run or one
  *  ending mid-value. */
-template <a_numeric_dtype in_type_, a_numeric_dtype sum_type_ = typename in_type_::reduce_moments_sum_t,
-          a_numeric_dtype sumsq_type_ = typename in_type_::reduce_moments_sumsq_t, a_vector_of<in_type_> input_type_>
-expected<moments_result<sum_type_, sumsq_type_>> reduce_moments(input_type_ const &input,
-                                                                nk_capability_t capabilities = default_capabilities(),
-                                                                nk_stream_t stream = nullptr) noexcept {
-    auto values = contiguous_values_<in_type_ const>(input);
-    std::size_t const dimensions = values.value.size() * dimensions_per_value<in_type_>();
-    if (!values) return {{}, values.status};
-    moments_result<sum_type_, sumsq_type_> result {};
-    status_t status = reduce_moments<in_type_, sum_type_, sumsq_type_>(
-        values.value.data(), dimensions, sizeof(in_type_), &result.sum, &result.sumsq, capabilities, stream);
+template <a_numeric_dtype in_type_, a_vector_of<in_type_> input_type_>
+expected<moments_result<typename in_type_::reduce_moments_sum_t, typename in_type_::reduce_moments_sumsq_t>>
+reduce_moments(input_type_ const &input, nk_capability_t capabilities = default_capabilities(),
+               nk_stream_t stream = nullptr) noexcept {
+    auto [values, values_status] = contiguous_values_<in_type_ const>(input);
+    std::size_t const dimensions = values.size() * dimensions_per_value<in_type_>();
+    moments_result<typename in_type_::reduce_moments_sum_t, typename in_type_::reduce_moments_sumsq_t> result {};
+    if (failed(values_status)) return {result, values_status};
+    status_t status = reduce_moments<in_type_>(values.data(), dimensions, sizeof(in_type_), &result.sum, &result.sumsq,
+                                               capabilities, stream);
     return {result, status};
 }
 
 /** Minimum and maximum, with their indices, over one run of @p in_type_; @c unexpected_dimensions_k
  *  for a strided run or one ending mid-value, and @c NUMKONG_SIZE_MAX indices when every value is
  *  NaN, which no minimum or maximum can index. */
-template <a_numeric_dtype in_type_, a_numeric_dtype minmax_type_ = typename in_type_::reduce_minmax_value_t,
-          a_vector_of<in_type_> input_type_>
-expected<minmax_result<minmax_type_>> reduce_minmax(input_type_ const &input,
-                                                    nk_capability_t capabilities = default_capabilities(),
-                                                    nk_stream_t stream = nullptr) noexcept {
-    auto values = contiguous_values_<in_type_ const>(input);
-    std::size_t const dimensions = values.value.size() * dimensions_per_value<in_type_>();
-    if (!values) return {{}, values.status};
-    minmax_result<minmax_type_> result {};
-    status_t status = reduce_minmax<in_type_, minmax_type_>(values.value.data(), dimensions, sizeof(in_type_),
-                                                            &result.min_value, &result.min_index, &result.max_value,
-                                                            &result.max_index, capabilities, stream);
+template <a_numeric_dtype in_type_, a_vector_of<in_type_> input_type_>
+expected<minmax_result<typename in_type_::reduce_minmax_value_t>> reduce_minmax(
+    input_type_ const &input, nk_capability_t capabilities = default_capabilities(),
+    nk_stream_t stream = nullptr) noexcept {
+    auto [values, values_status] = contiguous_values_<in_type_ const>(input);
+    std::size_t const dimensions = values.size() * dimensions_per_value<in_type_>();
+    minmax_result<typename in_type_::reduce_minmax_value_t> result {};
+    if (failed(values_status)) return {result, values_status};
+    status_t status = reduce_minmax<in_type_>(values.data(), dimensions, sizeof(in_type_), &result.min_value,
+                                              &result.min_index, &result.max_value, &result.max_index, capabilities,
+                                              stream);
     return {result, status};
 }
 
-/** Compute Σxᵢ and Σxᵢ² over a vector view, strided ones included. */
+/** Σxᵢ and Σxᵢ² over a vector view, strided ones included; zeros for an empty @p input. */
 template <a_numeric_dtype value_type_>
-moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_::reduce_moments_sumsq_t> moments(
-    vector_view<value_type_> input) noexcept {
-    using sum_t = typename value_type_::reduce_moments_sum_t;
-    using sumsq_t = typename value_type_::reduce_moments_sumsq_t;
-    moments_result<sum_t, sumsq_t> result {};
-    if (input.size() == 0) return result;
-    if (failed(reduce_moments<value_type_>(input.data(), input.size(), static_cast<std::size_t>(input.stride_bytes()),
-                                           &result.sum, &result.sumsq)))
-        return {};
-    return result;
+expected<moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_::reduce_moments_sumsq_t>>
+moments(vector_view<value_type_> input, nk_capability_t capabilities, nk_stream_t stream) noexcept {
+    moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_::reduce_moments_sumsq_t> result {};
+    if (input.size() == 0) return {result, status_t::success_k};
+    status_t status = reduce_moments<value_type_>(input.data(), input.size(),
+                                                  static_cast<std::size_t>(input.stride_bytes()), &result.sum,
+                                                  &result.sumsq, capabilities, stream);
+    return {result, status};
 }
 
-/** Find min and max values with their indices over a vector view, strided ones included. */
+/** @c moments with the default capabilities on the CPU. */
 template <a_numeric_dtype value_type_>
-minmax_result<typename value_type_::reduce_minmax_value_t> minmax(vector_view<value_type_> input) noexcept {
-    using minmax_t = typename value_type_::reduce_minmax_value_t;
-    minmax_result<minmax_t> result {};
-    if (failed(reduce_minmax<value_type_>(input.data(), input.size(), static_cast<std::size_t>(input.stride_bytes()),
-                                          &result.min_value, &result.min_index, &result.max_value, &result.max_index)))
-        return {{}, NUMKONG_SIZE_MAX, {}, NUMKONG_SIZE_MAX};
-    return result;
+expected<moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_::reduce_moments_sumsq_t>>
+moments(vector_view<value_type_> input) noexcept {
+    return moments<value_type_>(input, default_capabilities(), nullptr);
+}
+
+/** Min and max values with their indices over a vector view, strided ones included. */
+template <a_numeric_dtype value_type_>
+expected<minmax_result<typename value_type_::reduce_minmax_value_t>> minmax(vector_view<value_type_> input,
+                                                                            nk_capability_t capabilities,
+                                                                            nk_stream_t stream) noexcept {
+    minmax_result<typename value_type_::reduce_minmax_value_t> result {{}, NUMKONG_SIZE_MAX, {}, NUMKONG_SIZE_MAX};
+    status_t status = reduce_minmax<value_type_>(
+        input.data(), input.size(), static_cast<std::size_t>(input.stride_bytes()), &result.min_value,
+        &result.min_index, &result.max_value, &result.max_index, capabilities, stream);
+    return {result, status};
+}
+
+/** @c minmax with the default capabilities on the CPU. */
+template <a_numeric_dtype value_type_>
+expected<minmax_result<typename value_type_::reduce_minmax_value_t>> minmax(vector_view<value_type_> input) noexcept {
+    return minmax<value_type_>(input, default_capabilities(), nullptr);
 }
 
 /** Σ of all elements in a vector view. */
 template <a_numeric_dtype value_type_>
-typename value_type_::reduce_moments_sum_t sum(vector_view<value_type_> input) noexcept {
-    return moments(input).sum;
+expected<typename value_type_::reduce_moments_sum_t> sum(vector_view<value_type_> input, nk_capability_t capabilities,
+                                                         nk_stream_t stream) noexcept {
+    auto [result, status] = moments<value_type_>(input, capabilities, stream);
+    return {result.sum, status};
 }
 
-/** Find the minimum element value in a vector view. */
+/** @c sum with the default capabilities on the CPU. */
 template <a_numeric_dtype value_type_>
-typename value_type_::reduce_minmax_value_t(min)(vector_view<value_type_> input) noexcept {
-    return minmax(input).min_value;
+expected<typename value_type_::reduce_moments_sum_t> sum(vector_view<value_type_> input) noexcept {
+    return sum<value_type_>(input, default_capabilities(), nullptr);
 }
 
-/** Find the maximum element value in a vector view. */
+/** The minimum element value in a vector view. */
 template <a_numeric_dtype value_type_>
-typename value_type_::reduce_minmax_value_t(max)(vector_view<value_type_> input) noexcept {
-    return minmax(input).max_value;
+expected<typename value_type_::reduce_minmax_value_t>(min)(vector_view<value_type_> input, nk_capability_t capabilities,
+                                                           nk_stream_t stream) noexcept {
+    auto [result, status] = minmax<value_type_>(input, capabilities, stream);
+    return {result.min_value, status};
 }
 
-/** Index of the minimum element in a vector view. */
+/** @c min with the default capabilities on the CPU. */
 template <a_numeric_dtype value_type_>
-std::size_t argmin(vector_view<value_type_> input) noexcept {
-    return minmax(input).min_index;
+expected<typename value_type_::reduce_minmax_value_t>(min)(vector_view<value_type_> input) noexcept {
+    return numkong::min<value_type_>(input, default_capabilities(), nullptr);
 }
 
-/** Index of the maximum element in a vector view. */
+/** The maximum element value in a vector view. */
 template <a_numeric_dtype value_type_>
-std::size_t argmax(vector_view<value_type_> input) noexcept {
-    return minmax(input).max_index;
+expected<typename value_type_::reduce_minmax_value_t>(max)(vector_view<value_type_> input, nk_capability_t capabilities,
+                                                           nk_stream_t stream) noexcept {
+    auto [result, status] = minmax<value_type_>(input, capabilities, stream);
+    return {result.max_value, status};
 }
 
-/** Population count of a packed bit tensor. Wraps @c nk_reduce_moments_u1_best via @c sum;
- *  returns 0 for empty inputs. */
-template <std::size_t max_rank_ = 8>
-u64_t popcount(tensor_view<u1x8_t, max_rank_> input) noexcept {
-    return sum<u1x8_t, max_rank_>(input);
+/** @c max with the default capabilities on the CPU. */
+template <a_numeric_dtype value_type_>
+expected<typename value_type_::reduce_minmax_value_t>(max)(vector_view<value_type_> input) noexcept {
+    return numkong::max<value_type_>(input, default_capabilities(), nullptr);
 }
 
-/** True if any bit of the packed bit tensor is set. Suffixed @c _set to avoid colliding with the
- *  @c all_t and @c all slice marker in <tt>vector.hpp</tt>. */
-template <std::size_t max_rank_ = 8>
-bool any_set(tensor_view<u1x8_t, max_rank_> input) noexcept {
-    return popcount<max_rank_>(input).raw_ != 0;
+/** Flat index of the minimum element in a vector view. */
+template <a_numeric_dtype value_type_>
+expected<std::size_t> argmin(vector_view<value_type_> input, nk_capability_t capabilities,
+                             nk_stream_t stream) noexcept {
+    auto [result, status] = minmax<value_type_>(input, capabilities, stream);
+    return {result.min_index, status};
 }
 
-/** True if no bit of the packed bit tensor is set. */
-template <std::size_t max_rank_ = 8>
-bool none_set(tensor_view<u1x8_t, max_rank_> input) noexcept {
-    return !any_set<max_rank_>(input);
+/** @c argmin with the default capabilities on the CPU. */
+template <a_numeric_dtype value_type_>
+expected<std::size_t> argmin(vector_view<value_type_> input) noexcept {
+    return argmin<value_type_>(input, default_capabilities(), nullptr);
 }
 
-/** True if every bit of the packed bit tensor is set. */
+/** Flat index of the maximum element in a vector view. */
+template <a_numeric_dtype value_type_>
+expected<std::size_t> argmax(vector_view<value_type_> input, nk_capability_t capabilities,
+                             nk_stream_t stream) noexcept {
+    auto [result, status] = minmax<value_type_>(input, capabilities, stream);
+    return {result.max_index, status};
+}
+
+/** @c argmax with the default capabilities on the CPU. */
+template <a_numeric_dtype value_type_>
+expected<std::size_t> argmax(vector_view<value_type_> input) noexcept {
+    return argmax<value_type_>(input, default_capabilities(), nullptr);
+}
+
+/** Population count of a packed bit tensor, through @c nk_reduce_moments_u1_best; 0 for an
+ *  empty @p input. */
 template <std::size_t max_rank_ = 8>
-bool all_set(tensor_view<u1x8_t, max_rank_> input) noexcept {
-    return popcount<max_rank_>(input).raw_ == input.numel();
+expected<u64_t> popcount(tensor_view<u1x8_t, max_rank_> input, nk_capability_t capabilities,
+                         nk_stream_t stream) noexcept {
+    return sum<u1x8_t, max_rank_>(input, capabilities, stream);
+}
+
+/** @c popcount with the default capabilities on the CPU. */
+template <std::size_t max_rank_ = 8>
+expected<u64_t> popcount(tensor_view<u1x8_t, max_rank_> input) noexcept {
+    return popcount<max_rank_>(input, default_capabilities(), nullptr);
+}
+
+/** Whether any bit of the packed bit tensor is set, suffixed @c _set to avoid the @c all slice
+ *  marker of <tt>vector.hpp</tt>. */
+template <std::size_t max_rank_ = 8>
+expected<bool> any_set(tensor_view<u1x8_t, max_rank_> input, nk_capability_t capabilities,
+                       nk_stream_t stream) noexcept {
+    auto [count, status] = popcount<max_rank_>(input, capabilities, stream);
+    return {count.raw_ != 0, status};
+}
+
+/** @c any_set with the default capabilities on the CPU. */
+template <std::size_t max_rank_ = 8>
+expected<bool> any_set(tensor_view<u1x8_t, max_rank_> input) noexcept {
+    return any_set<max_rank_>(input, default_capabilities(), nullptr);
+}
+
+/** Whether no bit of the packed bit tensor is set. */
+template <std::size_t max_rank_ = 8>
+expected<bool> none_set(tensor_view<u1x8_t, max_rank_> input, nk_capability_t capabilities,
+                        nk_stream_t stream) noexcept {
+    auto [count, status] = popcount<max_rank_>(input, capabilities, stream);
+    return {count.raw_ == 0, status};
+}
+
+/** @c none_set with the default capabilities on the CPU. */
+template <std::size_t max_rank_ = 8>
+expected<bool> none_set(tensor_view<u1x8_t, max_rank_> input) noexcept {
+    return none_set<max_rank_>(input, default_capabilities(), nullptr);
+}
+
+/** Whether every bit of the packed bit tensor is set. */
+template <std::size_t max_rank_ = 8>
+expected<bool> all_set(tensor_view<u1x8_t, max_rank_> input, nk_capability_t capabilities,
+                       nk_stream_t stream) noexcept {
+    auto [count, status] = popcount<max_rank_>(input, capabilities, stream);
+    return {count.raw_ == input.numel(), status};
+}
+
+/** @c all_set with the default capabilities on the CPU. */
+template <std::size_t max_rank_ = 8>
+expected<bool> all_set(tensor_view<u1x8_t, max_rank_> input) noexcept {
+    return all_set<max_rank_>(input, default_capabilities(), nullptr);
 }
 
 /** Population count over a 1D bit-vector view. */
-inline u64_t popcount(vector_view<u1x8_t> input) noexcept { return sum<u1x8_t>(input); }
+inline expected<u64_t> popcount(vector_view<u1x8_t> input, nk_capability_t capabilities, nk_stream_t stream) noexcept {
+    return sum<u1x8_t>(input, capabilities, stream);
+}
 
-/** True if any bit of the 1D bit-vector view is set. */
-inline bool any_set(vector_view<u1x8_t> input) noexcept { return popcount(input).raw_ != 0; }
+/** @c popcount with the default capabilities on the CPU. */
+inline expected<u64_t> popcount(vector_view<u1x8_t> input) noexcept {
+    return popcount(input, default_capabilities(), nullptr);
+}
 
-/** True if no bit of the 1D bit-vector view is set. */
-inline bool none_set(vector_view<u1x8_t> input) noexcept { return !any_set(input); }
+/** Whether any bit of the 1D bit-vector view is set. */
+inline expected<bool> any_set(vector_view<u1x8_t> input, nk_capability_t capabilities, nk_stream_t stream) noexcept {
+    auto [count, status] = popcount(input, capabilities, stream);
+    return {count.raw_ != 0, status};
+}
 
-/** True if every bit of the 1D bit-vector view is set. */
-inline bool all_set(vector_view<u1x8_t> input) noexcept { return popcount(input).raw_ == input.size(); }
+/** @c any_set with the default capabilities on the CPU. */
+inline expected<bool> any_set(vector_view<u1x8_t> input) noexcept {
+    return any_set(input, default_capabilities(), nullptr);
+}
+
+/** Whether no bit of the 1D bit-vector view is set. */
+inline expected<bool> none_set(vector_view<u1x8_t> input, nk_capability_t capabilities, nk_stream_t stream) noexcept {
+    auto [count, status] = popcount(input, capabilities, stream);
+    return {count.raw_ == 0, status};
+}
+
+/** @c none_set with the default capabilities on the CPU. */
+inline expected<bool> none_set(vector_view<u1x8_t> input) noexcept {
+    return none_set(input, default_capabilities(), nullptr);
+}
+
+/** Whether every bit of the 1D bit-vector view is set. */
+inline expected<bool> all_set(vector_view<u1x8_t> input, nk_capability_t capabilities, nk_stream_t stream) noexcept {
+    auto [count, status] = popcount(input, capabilities, stream);
+    return {count.raw_ == input.size(), status};
+}
+
+/** @c all_set with the default capabilities on the CPU. */
+inline expected<bool> all_set(vector_view<u1x8_t> input) noexcept {
+    return all_set(input, default_capabilities(), nullptr);
+}
 
 #pragma endregion Scalar Reductions
 
@@ -777,7 +850,8 @@ template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_moments_sum_t>>
 expected<tensor<typename value_type_::reduce_moments_sum_t, allocator_type_, max_rank_>> sum(
     tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k,
-    allocator_type_ alloc = {}) noexcept {
+    allocator_type_ alloc = {}, nk_capability_t capabilities = default_capabilities(),
+    nk_stream_t stream = nullptr) noexcept {
     using sum_t = typename value_type_::reduce_moments_sum_t;
     using sum_tensor_t = tensor<sum_t, allocator_type_, max_rank_>;
 
@@ -795,9 +869,10 @@ expected<tensor<typename value_type_::reduce_moments_sum_t, allocator_type_, max
         using sumsq_tensor_t = tensor<sumsq_t, sumsq_alloc_t, max_rank_>;
         auto scratch = sumsq_tensor_t::zeros(out_shape.extents, out_shape.rank, sumsq_alloc_t(alloc));
         if (!scratch) return {sum_tensor_t(alloc), scratch.status};
-        status = reduce_moments_axis_packed_(input, axis, sums.value.span(), scratch.value.span(), keep_dims);
+        status = reduce_moments_axis_packed_(input, axis, sums.value.span(), scratch.value.span(), keep_dims,
+                                             capabilities, stream);
     }
-    else status = reduce_moments_axis_(input, axis, sums.value.data(), nullptr);
+    else status = reduce_moments_axis_(input, axis, sums.value.data(), nullptr, capabilities, stream);
     if (failed(status)) return {sum_tensor_t(alloc), status};
     return sums;
 }
@@ -811,7 +886,8 @@ expected<moments_result<tensor<typename value_type_::reduce_moments_sum_t, alloc
                                    typename value_type_::reduce_moments_sumsq_t>,
                                max_rank_>>>
 moments(tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k,
-        allocator_type_ alloc = {}) noexcept {
+        allocator_type_ alloc = {}, nk_capability_t capabilities = default_capabilities(),
+        nk_stream_t stream = nullptr) noexcept {
     using sum_t = typename value_type_::reduce_moments_sum_t;
     using sumsq_t = typename value_type_::reduce_moments_sumsq_t;
     using sum_tensor_t = tensor<sum_t, allocator_type_, max_rank_>;
@@ -836,8 +912,9 @@ moments(tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t
 
     status_t status;
     if constexpr (dimensions_per_value<value_type_>() > 1)
-        status = reduce_moments_axis_packed_(input, axis, sums.value.span(), sumsqs.value.span(), keep_dims);
-    else status = reduce_moments_axis_(input, axis, sums.value.data(), sumsqs.value.data());
+        status = reduce_moments_axis_packed_(input, axis, sums.value.span(), sumsqs.value.span(), keep_dims,
+                                             capabilities, stream);
+    else status = reduce_moments_axis_(input, axis, sums.value.data(), sumsqs.value.data(), capabilities, stream);
     if (failed(status)) return empty_result(status);
 
     return {result_t {std::move(sums.value), std::move(sumsqs.value)}, status_t::success_k};
@@ -848,7 +925,8 @@ template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_minmax_value_t>>
 expected<minmax_result<tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_>>> minmax(
     tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k,
-    allocator_type_ alloc = {}) noexcept {
+    allocator_type_ alloc = {}, nk_capability_t capabilities = default_capabilities(),
+    nk_stream_t stream = nullptr) noexcept {
     using minmax_t = typename value_type_::reduce_minmax_value_t;
     using out_tensor_t = tensor<minmax_t, allocator_type_, max_rank_>;
     using result_t = minmax_result<out_tensor_t>;
@@ -868,8 +946,11 @@ expected<minmax_result<tensor<typename value_type_::reduce_minmax_value_t, alloc
 
     status_t status;
     if constexpr (dimensions_per_value<value_type_>() > 1)
-        status = reduce_minmax_axis_packed_(input, axis, mins.value.span(), maxs.value.span(), keep_dims);
-    else status = reduce_minmax_axis_(input, axis, mins.value.data(), nullptr, maxs.value.data(), nullptr);
+        status = reduce_minmax_axis_packed_(input, axis, mins.value.span(), maxs.value.span(), keep_dims, capabilities,
+                                            stream);
+    else
+        status = reduce_minmax_axis_(input, axis, mins.value.data(), nullptr, maxs.value.data(), nullptr, capabilities,
+                                     stream);
     if (failed(status)) return empty_result(status);
     return {result_t {std::move(mins.value), 0, std::move(maxs.value), 0}, status_t::success_k};
 }
@@ -881,7 +962,9 @@ template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
 expected<tensor<std::size_t, allocator_type_, max_rank_>> argmin(tensor_view<value_type_, max_rank_> input,
                                                                  std::size_t axis,
                                                                  keep_dims_t keep_dims = collapse_dims_k,
-                                                                 allocator_type_ alloc = {}) noexcept {
+                                                                 allocator_type_ alloc = {},
+                                                                 nk_capability_t capabilities = default_capabilities(),
+                                                                 nk_stream_t stream = nullptr) noexcept {
     using out_tensor_t = tensor<std::size_t, allocator_type_, max_rank_>;
     if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};
     if (axis >= input.rank()) return {out_tensor_t(alloc), status_t::unexpected_dimensions_k};
@@ -891,7 +974,8 @@ expected<tensor<std::size_t, allocator_type_, max_rank_>> argmin(tensor_view<val
     auto out_shape = reduced_shape_<std::size_t>(input.shape(), axis, keep_dims);
     auto indices = out_tensor_t::zeros(out_shape.extents, out_shape.rank, alloc);
     if (!indices) return indices;
-    if (status_t status = reduce_minmax_axis_(input, axis, nullptr, indices.value.data(), nullptr, nullptr);
+    if (status_t status = reduce_minmax_axis_(input, axis, nullptr, indices.value.data(), nullptr, nullptr,
+                                              capabilities, stream);
         failed(status))
         return {out_tensor_t(alloc), status};
     return indices;
@@ -903,7 +987,9 @@ template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
 expected<tensor<std::size_t, allocator_type_, max_rank_>> argmax(tensor_view<value_type_, max_rank_> input,
                                                                  std::size_t axis,
                                                                  keep_dims_t keep_dims = collapse_dims_k,
-                                                                 allocator_type_ alloc = {}) noexcept {
+                                                                 allocator_type_ alloc = {},
+                                                                 nk_capability_t capabilities = default_capabilities(),
+                                                                 nk_stream_t stream = nullptr) noexcept {
     using out_tensor_t = tensor<std::size_t, allocator_type_, max_rank_>;
     if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};
     if (axis >= input.rank()) return {out_tensor_t(alloc), status_t::unexpected_dimensions_k};
@@ -913,7 +999,8 @@ expected<tensor<std::size_t, allocator_type_, max_rank_>> argmax(tensor_view<val
     auto out_shape = reduced_shape_<std::size_t>(input.shape(), axis, keep_dims);
     auto indices = out_tensor_t::zeros(out_shape.extents, out_shape.rank, alloc);
     if (!indices) return indices;
-    if (status_t status = reduce_minmax_axis_(input, axis, nullptr, nullptr, nullptr, indices.value.data());
+    if (status_t status = reduce_minmax_axis_(input, axis, nullptr, nullptr, nullptr, indices.value.data(),
+                                              capabilities, stream);
         failed(status))
         return {out_tensor_t(alloc), status};
     return indices;
@@ -924,8 +1011,9 @@ template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_minmax_value_t>>
 expected<tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_>>(min)(
     tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k,
-    allocator_type_ alloc = {}) noexcept {
-    auto result = minmax<value_type_, max_rank_, allocator_type_>(input, axis, keep_dims, alloc);
+    allocator_type_ alloc = {}, nk_capability_t capabilities = default_capabilities(),
+    nk_stream_t stream = nullptr) noexcept {
+    auto result = minmax<value_type_, max_rank_, allocator_type_>(input, axis, keep_dims, alloc, capabilities, stream);
     return {std::move(result.value.min_value), result.status};
 }
 
@@ -934,8 +1022,9 @@ template <a_numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_minmax_value_t>>
 expected<tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_>>(max)(
     tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k,
-    allocator_type_ alloc = {}) noexcept {
-    auto result = minmax<value_type_, max_rank_, allocator_type_>(input, axis, keep_dims, alloc);
+    allocator_type_ alloc = {}, nk_capability_t capabilities = default_capabilities(),
+    nk_stream_t stream = nullptr) noexcept {
+    auto result = minmax<value_type_, max_rank_, allocator_type_>(input, axis, keep_dims, alloc, capabilities, stream);
     return {std::move(result.value.max_value), result.status};
 }
 

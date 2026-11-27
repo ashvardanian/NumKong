@@ -59,7 +59,6 @@
 #include <complex>         // `std::complex`
 #include <functional>      // `std::invoke`
 #include <limits>          // `std::numeric_limits`
-#include <memory>          // `std::shared_ptr`, `std::make_shared`
 #include <new>             // `std::bad_alloc`
 #include <optional>        // `std::optional`
 #include <random>          // `std::random_device`
@@ -108,20 +107,12 @@
 #undef NUMKONG_NATIVE_BF16
 #define NUMKONG_NATIVE_BF16 0
 
-#include "numkong/memory.h"
-#include "numkong/capabilities.h" // `nk_capabilities_detected_cpu`
+#include "numkong/numkong.h" // the C ABI and its dispatch points
 #include "numkong/types.hpp"
 #include "numkong/tensor.hpp"
-#include "numkong/dots.hpp"
-#include "numkong/maxsim.hpp"
 #include "numkong/matrix.hpp"
-#include "numkong/reduce.hpp"
-#include "numkong/each.hpp"
-#include "numkong/trigonometry.hpp"
-#include "numkong/spatials.hpp"
-#include "numkong/random.hpp" // `nk::fill_uniform`
 #include "numkong/vector.hpp" // `nk::vector`
-#include "numkong/memory.hpp" // `nk::allocator`, `nk::stream_t`
+#include "numkong/memory.hpp" // `nk::allocator`
 
 #if NUMKONG_OS_WINDOWS_
 #include <csignal> // `std::signal`, `std::raise`
@@ -178,6 +169,368 @@ using nk::mxfp8e4m3_t;
 using nk::mxfp8e5m2_t;
 using nk::mxint8_t;
 using nk::nvfp4_t;
+
+#pragma region Scalar References
+
+/** Whether @p scalar_type_ is a narrow float whose type holds storage only, so its value is read
+ *  through the dispatched scalar conversion exports, like @c nk_f16_to_f32_best. */
+template <typename scalar_type_>
+constexpr bool is_narrow_float() noexcept {
+    return std::is_same_v<scalar_type_, f16_t> || std::is_same_v<scalar_type_, bf16_t> ||
+           std::is_same_v<scalar_type_, e4m3_t> || std::is_same_v<scalar_type_, e5m2_t> ||
+           std::is_same_v<scalar_type_, e2m3_t> || std::is_same_v<scalar_type_, e3m2_t> ||
+           std::is_same_v<scalar_type_, ue8m0_t> || std::is_same_v<scalar_type_, ue4m3_t>;
+}
+
+/** The CPU's enabled mask, the default the dispatch points pick from in every suite. */
+inline nk_capability_t enabled_capabilities() noexcept {
+    static nk_capability_t const capabilities = [] {
+        nk_capability_t enabled = 0;
+        nk_unused_(nk_capabilities_enabled_cpu(&enabled));
+        return enabled;
+    }();
+    return capabilities;
+}
+
+/** The value of one narrow float as a @c float, through its dispatched conversion export. */
+template <typename scalar_type_>
+float narrow_to_f32(scalar_type_ value) noexcept {
+    nk_capability_t const capabilities = enabled_capabilities();
+    float result;
+    if constexpr (std::is_same_v<scalar_type_, f16_t>) nk_f16_to_f32_best(&value.raw_, &result, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, bf16_t>) nk_bf16_to_f32_best(&value.raw_, &result, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e4m3_t>) nk_e4m3_to_f32_best(&value.raw_, &result, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e5m2_t>) nk_e5m2_to_f32_best(&value.raw_, &result, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e2m3_t>) nk_e2m3_to_f32_best(&value.raw_, &result, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e3m2_t>) nk_e3m2_to_f32_best(&value.raw_, &result, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, ue8m0_t>) nk_ue8m0_to_f32_best(&value.raw_, &result, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, ue4m3_t>) nk_ue4m3_to_f32_best(&value.raw_, &result, capabilities);
+    else static_assert(sizeof(scalar_type_) == 0, "not a narrow float");
+    return result;
+}
+
+/** One @c float rounded into a narrow float, through its dispatched conversion export. */
+template <typename scalar_type_>
+scalar_type_ f32_to_narrow(float value) noexcept {
+    nk_capability_t const capabilities = enabled_capabilities();
+    scalar_type_ result;
+    if constexpr (std::is_same_v<scalar_type_, f16_t>) nk_f32_to_f16_best(&value, &result.raw_, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, bf16_t>) nk_f32_to_bf16_best(&value, &result.raw_, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e4m3_t>) nk_f32_to_e4m3_best(&value, &result.raw_, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e5m2_t>) nk_f32_to_e5m2_best(&value, &result.raw_, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e2m3_t>) nk_f32_to_e2m3_best(&value, &result.raw_, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, e3m2_t>) nk_f32_to_e3m2_best(&value, &result.raw_, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, ue8m0_t>) nk_f32_to_ue8m0_best(&value, &result.raw_, capabilities);
+    else if constexpr (std::is_same_v<scalar_type_, ue4m3_t>) nk_f32_to_ue4m3_best(&value, &result.raw_, capabilities);
+    else static_assert(sizeof(scalar_type_) == 0, "not a narrow float");
+    return result;
+}
+
+template <typename value_type_>
+struct tracked;
+
+/** Whether @p type_ is a @c tracked reference, which widens through the value it tracks. */
+template <typename type_>
+constexpr bool is_tracked = false;
+template <typename value_type_>
+constexpr bool is_tracked<tracked<value_type_>> = true;
+
+/** @p value in @p target_type_: a narrow float through @c float, a half-precision complex part by
+ *  part, an integer wrapper through its raw value, and anything else as cast. */
+template <typename target_type_, typename scalar_type_>
+target_type_ widen(scalar_type_ value) noexcept {
+    if constexpr (std::is_same_v<target_type_, scalar_type_>) return value;
+    else if constexpr (is_tracked<target_type_>)
+        return target_type_(widen<typename target_type_::reference_t>(value));
+    else if constexpr (is_narrow_float<scalar_type_>()) return target_type_(narrow_to_f32(value));
+    else if constexpr (std::is_same_v<scalar_type_, f16c_t> || std::is_same_v<scalar_type_, bf16c_t>) {
+        using component_t = typename target_type_::component_t;
+        return target_type_(widen<component_t>(value.real()), widen<component_t>(value.imag()));
+    }
+    else if constexpr (!std::is_constructible_v<target_type_, scalar_type_>) return target_type_(value.raw_);
+    else return static_cast<target_type_>(value);
+}
+
+/** @p value rounded into @p scalar_type_, the way a kernel's result is: a narrow float through
+ *  @c float and its conversion export, anything else as cast. */
+template <typename scalar_type_, typename value_type_>
+scalar_type_ narrow(value_type_ value) noexcept;
+
+/** Whether @p a sorts before @p b by value: narrow floats as the floats they widen to, the rest by
+ *  their own comparison, which keeps 64-bit integers exact. */
+template <typename scalar_type_>
+bool sorts_before_reference(scalar_type_ a, scalar_type_ b) noexcept {
+    if constexpr (is_narrow_float<scalar_type_>()) return narrow_to_f32(a) < narrow_to_f32(b);
+    else return a < b;
+}
+
+/** The value of any real scalar as a @c double, for printing and tolerances. */
+template <typename scalar_type_>
+double to_double(scalar_type_ scalar) noexcept {
+    if constexpr (std::is_arithmetic_v<scalar_type_>) return static_cast<double>(scalar);
+    else if constexpr (is_narrow_float<scalar_type_>()) return narrow_to_f32(scalar);
+    else if constexpr (is_tracked<scalar_type_>) return to_double(scalar.value);
+    else if constexpr (!std::is_constructible_v<double, scalar_type_>) return static_cast<double>(scalar.raw_);
+    else return static_cast<double>(scalar);
+}
+
+/** @p value rounded into @p scalar_type_, the way a kernel's result is: a narrow float through
+ *  @c float and its conversion export, an integer to nearest even and saturated, through @c f118_t,
+ *  and anything else as cast. */
+template <typename scalar_type_, typename value_type_>
+scalar_type_ narrow(value_type_ value) noexcept {
+    if constexpr (std::is_same_v<scalar_type_, value_type_>) return value;
+    else if constexpr (is_narrow_float<scalar_type_>())
+        return f32_to_narrow<scalar_type_>(static_cast<float>(to_double(value)));
+    else if constexpr (std::is_same_v<scalar_type_, f16c_t> || std::is_same_v<scalar_type_, bf16c_t>) {
+        using component_t = typename scalar_type_::component_t;
+        return scalar_type_(narrow<component_t>(value.real()), narrow<component_t>(value.imag()));
+    }
+    else if constexpr (is_narrow_float<value_type_>()) return narrow<scalar_type_>(narrow_to_f32(value));
+    else if constexpr (std::is_same_v<value_type_, f118_t> || std::is_same_v<value_type_, f118c_t>)
+        return value.template to<scalar_type_>();
+    else if constexpr (nk::is_integral_dtype<scalar_type_>() && !nk::is_integral_dtype<value_type_>())
+        return f118_t(to_double(value)).template to<scalar_type_>();
+    else return static_cast<scalar_type_>(value);
+}
+
+/** FMA helper template for baseline dot-product implementations. */
+template <typename in_type_, typename accumulator_type_>
+    requires(dimensions_per_value<in_type_>() == 1)
+inline accumulator_type_ fma_reference(in_type_ a, in_type_ b, accumulator_type_ accumulator) noexcept {
+    return accumulator + widen<accumulator_type_>(a) * widen<accumulator_type_>(b);
+}
+
+/** FMA helper template for baseline conjugate complex dot-product implementations. */
+template <typename in_type_, typename accumulator_type_>
+    requires(dimensions_per_value<in_type_>() == 1)
+inline accumulator_type_ fcma_reference(in_type_ a, in_type_ b, accumulator_type_ accumulator) noexcept {
+    return accumulator + widen<accumulator_type_>(a.conj()) * widen<accumulator_type_>(b);
+}
+
+/** Fused addition of squared differences for baseline L2 implementations. */
+template <typename in_type_, typename accumulator_type_>
+    requires(dimensions_per_value<in_type_>() == 1)
+inline accumulator_type_ fdsa_reference(in_type_ a, in_type_ b, accumulator_type_ accumulator) noexcept {
+    accumulator_type_ const d = widen<accumulator_type_>(a) - widen<accumulator_type_>(b);
+    return accumulator + d * d;
+}
+
+/** @p a + @p b clamped to an integer wrapper's range, in its own type without a wider one. */
+template <typename integer_type_>
+integer_type_ saturating_add_integers(integer_type_ a, integer_type_ b) noexcept {
+    using raw_t = typename integer_type_::raw_t;
+    using limits_t = std::numeric_limits<raw_t>;
+    raw_t const x = a.raw_, y = b.raw_;
+    if (y > 0 && x > (limits_t::max)() - y) return integer_type_::finite_max();
+    if constexpr (limits_t::is_signed)
+        if (y < 0 && x < (limits_t::min)() - y) return integer_type_::finite_min();
+    return integer_type_::from_raw(static_cast<raw_t>(x + y));
+}
+
+/** @p a × @p b clamped to an integer wrapper's range, through 64-bit magnitudes. */
+template <typename integer_type_>
+integer_type_ saturating_mul_integers(integer_type_ a, integer_type_ b) noexcept {
+    using raw_t = typename integer_type_::raw_t;
+    using limits_t = std::numeric_limits<raw_t>;
+    raw_t const x = a.raw_, y = b.raw_;
+    auto const magnitude = [](raw_t value) noexcept {
+        return value < 0 ? 0 - static_cast<std::uint64_t>(value) : static_cast<std::uint64_t>(value);
+    };
+    bool const negative = limits_t::is_signed && ((x < 0) != (y < 0));
+    std::uint64_t const x_magnitude = magnitude(x), y_magnitude = magnitude(y);
+    std::uint64_t const bound = static_cast<std::uint64_t>((limits_t::max)()) + (negative ? 1 : 0);
+    if (x_magnitude != 0 && y_magnitude > bound / x_magnitude)
+        return negative ? integer_type_::finite_min() : integer_type_::finite_max();
+    std::uint64_t const product = x_magnitude * y_magnitude;
+    return integer_type_::from_raw(static_cast<raw_t>(negative ? 0 - product : product));
+}
+
+/** Free-standing saturating addition for baseline implementations. */
+template <typename accumulator_type_, typename in_type_>
+    requires(std::is_same<accumulator_type_, in_type_>::value || dimensions_per_value<in_type_>() == 1)
+accumulator_type_ saturating_add_reference(accumulator_type_ a, in_type_ b) noexcept {
+    if constexpr (nk::is_integral_dtype<accumulator_type_>())
+        return saturating_add_integers(a, widen<accumulator_type_>(b));
+    else if constexpr (is_narrow_float<accumulator_type_>()) {
+        double const sum = to_double(a) + to_double(b);
+        double const limit = to_double(accumulator_type_::finite_max());
+        return narrow<accumulator_type_>(sum > limit ? limit : sum < -limit ? -limit : sum);
+    }
+    else return a.saturating_add(widen<accumulator_type_>(b));
+}
+
+/** Free-standing saturating multiplication for baseline implementations. */
+template <typename accumulator_type_, typename in_type_>
+    requires(std::is_same<accumulator_type_, in_type_>::value || dimensions_per_value<in_type_>() == 1)
+accumulator_type_ saturating_mul_reference(accumulator_type_ a, in_type_ b) noexcept {
+    if constexpr (nk::is_integral_dtype<accumulator_type_>())
+        return saturating_mul_integers(a, widen<accumulator_type_>(b));
+    else return a.saturating_mul(widen<accumulator_type_>(b));
+}
+
+/** Operands of the free-standing FMA: scalars into any accumulator, packed values into their own
+ *  type. */
+template <typename in_type_, typename accumulator_type_>
+concept an_fma_operand_pair = dimensions_per_value<in_type_>() == 1 || std::is_same_v<accumulator_type_, in_type_>;
+
+/** Signed scalars into an unsigned integer accumulator, which a negative operand cannot be cast
+ *  into. */
+template <typename in_type_, typename accumulator_type_>
+concept a_signed_into_unsigned_fma_operand_pair =
+    an_fma_operand_pair<in_type_, accumulator_type_> && dimensions_per_value<in_type_>() == 1 &&
+    is_signed_dtype<in_type_>() && is_integral_dtype<accumulator_type_>() && !is_signed_dtype<accumulator_type_>();
+
+/** Free-standing saturating FMA, a*b + c, for baseline implementations. */
+template <typename in_type_, typename accumulator_type_>
+    requires an_fma_operand_pair<in_type_, accumulator_type_>
+accumulator_type_ saturating_fma_reference(in_type_ a, in_type_ b, accumulator_type_ accumulator) noexcept {
+    return saturating_add_reference(accumulator,
+                                    saturating_mul_reference(widen<accumulator_type_>(a), widen<accumulator_type_>(b)));
+}
+
+/** Saturating FMA of signed operands into an unsigned integer accumulator, multiplied in @c i64_t
+ *  first. */
+template <typename in_type_, typename accumulator_type_>
+    requires a_signed_into_unsigned_fma_operand_pair<in_type_, accumulator_type_>
+accumulator_type_ saturating_fma_reference(in_type_ a, in_type_ b, accumulator_type_ accumulator) noexcept {
+    std::int64_t const product = saturating_mul_integers(widen<i64_t>(a), widen<i64_t>(b));
+    if (product >= 0)
+        return saturating_add_integers(accumulator, accumulator_type_(static_cast<std::uint64_t>(product)));
+    return accumulator.saturating_sub(accumulator_type_(0 - static_cast<std::uint64_t>(product)));
+}
+
+/** FMA specialization for i4x2_t, signed 4-bit packed pairs. */
+template <typename accumulator_type_>
+constexpr accumulator_type_ fma_reference(i4x2_t a, i4x2_t b, accumulator_type_ accumulator) noexcept {
+    return accumulator +
+           accumulator_type_(nk_i32_t(a.first()) * nk_i32_t(b.first()) + nk_i32_t(a.second()) * nk_i32_t(b.second()));
+}
+
+/** FMA specialization for u4x2_t, unsigned 4-bit packed pairs. */
+template <typename accumulator_type_>
+constexpr accumulator_type_ fma_reference(u4x2_t a, u4x2_t b, accumulator_type_ accumulator) noexcept {
+    return accumulator +
+           accumulator_type_(nk_u32_t(a.first()) * nk_u32_t(b.first()) + nk_u32_t(a.second()) * nk_u32_t(b.second()));
+}
+
+/** FMA specialization for e2m1x2_t, FP4 packed pairs; both nibble products are exact in f32. */
+template <typename accumulator_type_>
+constexpr accumulator_type_ fma_reference(e2m1x2_t a, e2m1x2_t b, accumulator_type_ accumulator) noexcept {
+    return accumulator + accumulator_type_(a.first() * b.first() + a.second() * b.second());
+}
+
+/** FMA specialization for u1x8_t, 8 packed bits. Counts matching set bits, popcount of AND. */
+template <typename accumulator_type_>
+constexpr accumulator_type_ fma_reference(u1x8_t a, u1x8_t b, accumulator_type_ accumulator) noexcept {
+    return accumulator + accumulator_type_(std::popcount(static_cast<unsigned>(a.raw() & b.raw())));
+}
+
+/** Squared difference specialization for i4x2_t, signed 4-bit packed pairs. */
+template <typename accumulator_type_>
+constexpr accumulator_type_ fdsa_reference(i4x2_t a, i4x2_t b, accumulator_type_ accumulator) noexcept {
+    nk_i32_t first_difference = nk_i32_t(a.first()) - nk_i32_t(b.first());
+    nk_i32_t second_difference = nk_i32_t(a.second()) - nk_i32_t(b.second());
+    return accumulator + accumulator_type_(first_difference * first_difference + second_difference * second_difference);
+}
+
+/** Squared difference specialization for u4x2_t, unsigned 4-bit packed pairs. */
+template <typename accumulator_type_>
+constexpr accumulator_type_ fdsa_reference(u4x2_t a, u4x2_t b, accumulator_type_ accumulator) noexcept {
+    nk_i32_t first_difference = nk_i32_t(a.first()) - nk_i32_t(b.first());
+    nk_i32_t second_difference = nk_i32_t(a.second()) - nk_i32_t(b.second());
+    return accumulator + accumulator_type_(first_difference * first_difference + second_difference * second_difference);
+}
+
+/** Saturating addition specialization for i4x2_t, signed 4-bit packed pairs. */
+template <typename accumulator_type_>
+accumulator_type_ saturating_add_reference(accumulator_type_ a, i4x2_t b) noexcept {
+    return saturating_add_reference(saturating_add_reference(a, b.first()), b.second());
+}
+
+/** Saturating addition specialization for u4x2_t, unsigned 4-bit packed pairs. */
+template <typename accumulator_type_>
+accumulator_type_ saturating_add_reference(accumulator_type_ a, u4x2_t b) noexcept {
+    return saturating_add_reference(saturating_add_reference(a, b.first()), b.second());
+}
+
+/** Saturating FMA specialization for i4x2_t, signed 4-bit packed pairs. */
+template <typename accumulator_type_>
+    requires(!is_integral_dtype<accumulator_type_>())
+constexpr accumulator_type_ saturating_fma_reference(i4x2_t a, i4x2_t b, accumulator_type_ accumulator) noexcept {
+    return fma_reference(a, b, accumulator);
+}
+
+/** Saturating FMA specialization for u4x2_t, unsigned 4-bit packed pairs. */
+template <typename accumulator_type_>
+    requires(!is_integral_dtype<accumulator_type_>())
+constexpr accumulator_type_ saturating_fma_reference(u4x2_t a, u4x2_t b, accumulator_type_ accumulator) noexcept {
+    return fma_reference(a, b, accumulator);
+}
+
+/** Count element-level differences. For scalar types, returns 1 if different, 0 if equal. */
+template <typename scalar_type_>
+constexpr unsigned count_differences(scalar_type_ a, scalar_type_ b) noexcept {
+    return (a != b) ? 1 : 0;
+}
+
+/** Count bit-level differences for u1x8_t, 8 packed bits. Returns popcount of XOR. */
+constexpr unsigned count_differences(u1x8_t a, u1x8_t b) noexcept { return a.hamming(b); }
+
+/** Count element-level intersection. For scalar types, returns 1 if equal, 0 if different. */
+template <typename scalar_type_>
+constexpr unsigned count_intersection(scalar_type_ a, scalar_type_ b) noexcept {
+    return (a == b) ? 1 : 0;
+}
+
+/** Count element-level union. For scalar types, always returns 1, one element per pair. */
+template <typename scalar_type_>
+constexpr unsigned count_union(scalar_type_ a, scalar_type_ b) noexcept {
+    nk_unused_(a), nk_unused_(b);
+    return 1;
+}
+
+/** Count bit-level intersection for u1x8_t, 8 packed bits. Returns popcount of AND. */
+constexpr unsigned count_intersection(u1x8_t a, u1x8_t b) noexcept { return a.intersection(b); }
+
+/** Count bit-level union for u1x8_t, 8 packed bits. Returns popcount of OR. */
+constexpr unsigned count_union(u1x8_t a, u1x8_t b) noexcept { return a.union_size(b); }
+
+/** Decodes @p count dimensions of @p values into @p decoded, bits and nibbles included. */
+template <typename scalar_type_>
+void decode_values(scalar_type_ const *values, std::size_t count, double *decoded) noexcept {
+    constexpr std::size_t per_value = nk::dimensions_per_value<scalar_type_>();
+    for (std::size_t i = 0; i != count; ++i) {
+        if constexpr (per_value == 1) decoded[i] = to_double(values[i]);
+        else {
+            scalar_type_ value = values[i / per_value];
+            if constexpr (std::is_same_v<scalar_type_, e2m1x2_t>)
+                decoded[i] = e2m1x2_t::nibble_to_f32(value[static_cast<unsigned>(i % per_value)].get());
+            else decoded[i] = static_cast<double>(value[static_cast<unsigned>(i % per_value)].get());
+        }
+    }
+}
+
+/** Encodes @p count dimensions of @p decoded into @p values, rounding as @c narrow does; a bit or
+ *  an integer nibble takes its nearest integer, and an E2M1 nibble its nearest code. */
+template <typename scalar_type_>
+void encode_values(double const *decoded, std::size_t count, scalar_type_ *values) noexcept {
+    constexpr std::size_t per_value = nk::dimensions_per_value<scalar_type_>();
+    for (std::size_t i = 0; i != count; ++i) {
+        if constexpr (per_value == 1) values[i] = narrow<scalar_type_>(decoded[i]);
+        else if constexpr (std::is_same_v<scalar_type_, e2m1x2_t>) {
+            std::uint8_t nearest = 0;
+            for (std::uint8_t code = 1; code != 16; ++code)
+                if (std::fabs(e2m1x2_t::nibble_to_f32(code) - decoded[i]) <
+                    std::fabs(e2m1x2_t::nibble_to_f32(nearest) - decoded[i]))
+                    nearest = code;
+            values[i / per_value][static_cast<unsigned>(i % per_value)] = nearest;
+        }
+        else values[i / per_value][static_cast<unsigned>(i % per_value)] = static_cast<int>(std::nearbyint(decoded[i]));
+    }
+}
+
+#pragma endregion Scalar References
 
 using steady_clock_t = std::chrono::steady_clock;
 
@@ -284,46 +637,6 @@ inline constexpr comparison_family_spec_t comparison_family_spec(comparison_fami
         return {comparison_failure_mode_t::bound_threshold_k, {"max_abs", "max_rel", "max_bound", "max_ulp", "exact"}};
     }
     return {comparison_failure_mode_t::ulp_threshold_k, {"max_abs", "max_rel", "mean_ulp", "max_ulp", "exact"}};
-}
-
-/** A requested GPU, before checking whether its runtime and ordinal are available. */
-struct device_selection_t {
-    nk::device_kind_t backend;
-    std::size_t ordinal;
-};
-
-inline std::string_view device_name(nk::device_kind_t kind) noexcept {
-    switch (kind) {
-    case nk::device_kind_t::cpu_k: return "cpu";
-    case nk::device_kind_t::cuda_k: return "cuda";
-    case nk::device_kind_t::rocm_k: return "rocm";
-    case nk::device_kind_t::metal_k: return "metal";
-    }
-    return "unrecognized";
-}
-
-inline std::optional<std::vector<device_selection_t>> parse_devices(std::string_view text) {
-    std::vector<device_selection_t> devices;
-    do {
-        std::size_t const comma = text.find(',');
-        std::string_view const entry = text.substr(0, comma);
-        std::size_t const colon = entry.find(':');
-        if (colon == std::string_view::npos) return std::nullopt;
-        std::string_view const vendor = entry.substr(0, colon);
-        nk::device_kind_t backend;
-        if (vendor == "cuda") backend = nk::device_kind_t::cuda_k;
-        else if (vendor == "rocm") backend = nk::device_kind_t::rocm_k;
-        else if (vendor == "metal") backend = nk::device_kind_t::metal_k;
-        else return std::nullopt;
-        std::string_view const number = entry.substr(colon + 1);
-        std::size_t ordinal = 0;
-        auto const [end, error] = std::from_chars(number.data(), number.data() + number.size(), ordinal);
-        if (error != std::errc {} || end != number.data() + number.size()) return std::nullopt;
-        devices.push_back({backend, ordinal});
-        if (comma == std::string_view::npos) return devices;
-        text.remove_prefix(comma + 1);
-    } while (!text.empty());
-    return std::nullopt;
 }
 
 /** The facts this binary and this machine report: the library version, and the capabilities
@@ -576,9 +889,6 @@ struct test_settings_t : common_settings_t {
     bool trap_on_failure = false;
     bool refuse_skips = false;
 
-    /** GPUs to run on, or every one found when unset. */
-    std::optional<std::vector<device_selection_t>> devices;
-
     /** How long each case's randomized trials run, before @c NUMKONG_SCALE multiplies it. */
     std::chrono::milliseconds time_limit = std::chrono::seconds(1);
 
@@ -628,8 +938,8 @@ struct test_settings_t : common_settings_t {
     /** Max geospatial angular separation. */
     float max_coord_angle_degrees = 180.0f;
 
-    /** The device the device cases run on, the CPU before them. */
-    nk::device_t device = nk::device_t::cpu();
+    /** The vendor's ordinal of the GPU the device cases run on. */
+    std::size_t device_ordinal = 0;
 
     /** What the cases in progress may run: this CPU's capabilities, then each device's ones. */
     nk_capability_t capabilities = 0;
@@ -695,7 +1005,7 @@ bool spin_until(predicate_type_ &&predicate) noexcept {
 
 /** @p baseline iterations under the @c SCALE setting, never fewer than one. */
 inline std::size_t scaled_iterations(std::size_t baseline) noexcept {
-    double const scaled = static_cast<double>(baseline) * test_run.settings.scale;
+    double const scaled = to_double(baseline) * test_run.settings.scale;
     return scaled < 1 ? 1 : static_cast<std::size_t>(std::llround(scaled));
 }
 
@@ -831,10 +1141,6 @@ inline test_settings_t read_test_settings(int argc, char **argv) noexcept {
         if (!dims) exit_unparsed(variable, text, "positive counts like 64,128");
         return dims->front();
     };
-    if (char const *text = setting_text(argc, argv, "NUMKONG_DEVICES", "--devices")) {
-        settings.devices = parse_devices(text);
-        if (!settings.devices) exit_unparsed("NUMKONG_DEVICES", text, "comma-separated devices such as cuda:0,rocm:1");
-    }
     settings.time_limit = read_duration_setting(argc, argv, "NUMKONG_TIME_LIMIT", "--time-limit", settings.time_limit);
     if (char const *text = setting_text(argc, argv, "NUMKONG_RANDOM_DISTRIBUTION", "--random-distribution")) {
         std::optional<distribution_t> const distribution = parse_distribution(text);
@@ -884,11 +1190,6 @@ inline test_settings_t read_test_settings(int argc, char **argv) noexcept {
 
 /** Prints NumKong's own settings as "- Name: value", in the grammar each parses from. */
 inline void print(test_settings_t const &settings) {
-    if (settings.devices) {
-        for (device_selection_t const &device : *settings.devices)
-            fmt::println("- Device: {}:{}", device_name(device.backend), device.ordinal);
-    }
-    else fmt::println("- Devices: auto");
     fmt::println("- Time limit: {}", settings.time_limit);
     fmt::println("- Random distribution: {}", settings.random_distribution);
     fmt::println("- Assert: {}", settings.on_failure == on_failure_t::exit_k);
@@ -1016,7 +1317,7 @@ bool expect_true(bool is_satisfied, located_format<std::type_identity_t<args_typ
 template <typename value_type_>
 auto printable_(value_type_ const &value) noexcept {
     if constexpr (fmt::is_formattable<value_type_>::value) return value;
-    else return static_cast<double>(value);
+    else return to_double(value);
 }
 
 /** Holds when @p actual equals @p wanted ; otherwise counts a failed check at the caller's line and
@@ -1045,7 +1346,7 @@ bool expect_equal(actual_type_ const &actual, wanted_type_ const &wanted,
  *  magnitudes. */
 template <typename actual_type_, typename wanted_type_>
 bool near_(actual_type_ const &actual, wanted_type_ const &wanted, double tolerance) noexcept {
-    double const actual_value = static_cast<double>(actual), wanted_value = static_cast<double>(wanted);
+    double const actual_value = to_double(actual), wanted_value = to_double(wanted);
     double const magnitude = std::fmax(1.0, std::fmax(std::fabs(actual_value), std::fabs(wanted_value)));
     return std::fabs(actual_value - wanted_value) <= tolerance * magnitude;
 }
@@ -1072,10 +1373,6 @@ bool expect_near(actual_type_ const &actual, wanted_type_ const &wanted, double 
     return false;
 }
 
-/** A mask of no capability, so the C++ wrappers run their templates: the references every
- *  capability is checked against. */
-inline constexpr nk_capability_t no_tiers_k = 0;
-
 /** Calls the dispatch point @p best_ over @p capabilities with the arguments of its capability
  *  kernels, whose last one, the stream or a pack size's output, follows the mask. */
 template <auto best_, typename... arguments_types_>
@@ -1090,7 +1387,7 @@ nk_status_t call_best(nk_capability_t capabilities, arguments_types_... argument
  *  this process enables: callable like them, and convertible to their function pointers. */
 template <auto best_>
 inline constexpr auto cpu_best =
-    [](auto... arguments) noexcept { return call_best<best_>(nk::default_capabilities(), arguments...); };
+    [](auto... arguments) noexcept { return call_best<best_>(enabled_capabilities(), arguments...); };
 
 /**
  *  @brief Compute the ULP, Units in Last Place, distance between two floating-point values.
@@ -1155,6 +1452,13 @@ std::uint64_t ulp_distance(scalar_type_ a, scalar_type_ b) noexcept {
     }
 }
 
+/** @copydoc ulp_distance, for narrow floats as the floats they widen to. */
+template <typename scalar_type_>
+    requires(is_narrow_float<scalar_type_>())
+std::uint64_t ulp_distance(scalar_type_ a, scalar_type_ b) noexcept {
+    return ulp_distance(narrow_to_f32(a), narrow_to_f32(b));
+}
+
 template <typename scalar_type_>
 std::uint64_t integer_distance(scalar_type_ a, scalar_type_ b) noexcept {
     auto ordered = [](scalar_type_ value) noexcept -> std::uint64_t {
@@ -1168,6 +1472,23 @@ std::uint64_t integer_distance(scalar_type_ a, scalar_type_ b) noexcept {
 
 #pragma region Tracked References
 
+/** The square root of @p value in a reference type: @c f118_t and complex ones by their own
+ *  arithmetic, @c f64_t and @c f32_t by @c std::sqrt, as a reference never runs a kernel. */
+template <typename value_type_>
+value_type_ square_root_reference(value_type_ value) noexcept {
+    if constexpr (std::is_same_v<value_type_, f64_t> || std::is_same_v<value_type_, f32_t>)
+        return value_type_(std::sqrt(value.raw_));
+    else return value.sqrt();
+}
+
+/** The reciprocal square root of @p value in a reference type, like @c square_root_reference. */
+template <typename value_type_>
+value_type_ reciprocal_square_root_reference(value_type_ value) noexcept {
+    if constexpr (std::is_same_v<value_type_, f64_t> || std::is_same_v<value_type_, f32_t>)
+        return value_type_(1 / std::sqrt(value.raw_));
+    else return value.rsqrt();
+}
+
 /**
  *  @brief A reference value that also carries the scale of any correct kernel's rounding error.
  *
@@ -1178,6 +1499,8 @@ std::uint64_t integer_distance(scalar_type_ a, scalar_type_ b) noexcept {
  */
 template <typename value_type_>
 struct tracked {
+    using reference_t = value_type_;
+
     value_type_ value {};
     double magnitude = 0;
 
@@ -1198,7 +1521,7 @@ struct tracked {
     /** An input, exact in the reference type and not rounded yet. */
     template <typename input_type_>
     explicit tracked(input_type_ input) noexcept
-        : value(static_cast<value_type_>(input)), magnitude(static_cast<double>(value.abs())) {}
+        : value(widen<value_type_>(input)), magnitude(to_double(value.abs())) {}
 
     friend tracked operator+(tracked const &a, tracked const &b) noexcept {
         return {a.value + b.value, a.magnitude + b.magnitude, nk::max_of(a.term_roundings, b.term_roundings),
@@ -1217,7 +1540,7 @@ struct tracked {
 
     /** Relative errors add in a quotient as in a product, and the division rounds once more. */
     friend tracked operator/(tracked const &a, tracked const &b) noexcept {
-        double const divisor = static_cast<double>(b.value.abs());
+        double const divisor = to_double(b.value.abs());
         return {a.value / b.value, a.magnitude * b.magnitude / (divisor * divisor),
                 a.term_roundings + b.term_roundings + 1, a.sum_roundings + b.sum_roundings};
     }
@@ -1229,16 +1552,16 @@ struct tracked {
 
     /** The radicand's error shrinks by the derivative 1 / (2√v), and the root rounds once more. */
     tracked sqrt() const noexcept {
-        value_type_ const root = value.sqrt();
-        double const root_magnitude = static_cast<double>(root);
+        value_type_ const root = square_root_reference(value);
+        double const root_magnitude = to_double(root);
         return {root, nk::max_of(magnitude / (2 * root_magnitude), root_magnitude), term_roundings + 1, sum_roundings};
     }
 
     /** The argument's error shrinks by the derivative 1 / v, and the logarithm rounds once more. */
     tracked log() const noexcept {
         value_type_ const logarithm = value.log();
-        double const argument = static_cast<double>(value.abs());
-        return {logarithm, nk::max_of(magnitude / argument, static_cast<double>(logarithm.abs())), term_roundings + 1,
+        double const argument = to_double(value.abs());
+        return {logarithm, nk::max_of(magnitude / argument, to_double(logarithm.abs())), term_roundings + 1,
                 sum_roundings};
     }
 };
@@ -1256,7 +1579,7 @@ double half_ulp(double value) noexcept {
     if constexpr (nk::is_integral_dtype<scalar_type_>()) return 0.5;
     else {
         using component_t = typename scalar_type_::component_t;
-        int const smallest_normal_exponent = std::ilogb(static_cast<double>(component_t::positive_min()));
+        int const smallest_normal_exponent = std::ilogb(to_double(component_t::positive_min()));
         int const exponent = nk::max_of(std::ilogb(value), smallest_normal_exponent);
         return std::ldexp(1.0, exponent - static_cast<int>(component_t::mantissa_bits()) - 1);
     }
@@ -1333,9 +1656,9 @@ struct error_stats_t {
      *  counted, as @c accumulate_scalar does. */
     template <typename actual_type_, typename expected_type_>
     void accumulate_bounded(actual_type_ actual, expected_type_ expected, nk_f64_t bound) noexcept {
-        nk_f64_t const result = static_cast<nk_f64_t>(actual), reference = static_cast<nk_f64_t>(expected);
+        nk_f64_t const result = to_double(actual), reference = to_double(expected);
         if (!std::isfinite(reference)) return accumulate_scalar(actual, reference);
-        nk_f64_t const limit = static_cast<nk_f64_t>(actual_type_::finite_max());
+        nk_f64_t const limit = to_double(actual_type_::finite_max());
         bool const saturated = std::fabs(reference) > limit && std::fabs(result) >= limit &&
                                std::signbit(result) == std::signbit(reference);
         nk_f64_t const error = saturated || result == reference ? 0 : std::fabs(result - reference);
@@ -1362,13 +1685,12 @@ struct error_stats_t {
                                 expected.sum_roundings * sum_error_bound) *
                                expected.magnitude;
         if constexpr (nk::is_integral_dtype<actual_type_>())
-            accumulate_scalar(actual, expected.value.template to<actual_type_>());
+            accumulate_scalar(actual, narrow<actual_type_>(expected.value));
         else if constexpr (nk::is_complex_dtype<actual_type_>())
             accumulate_bounded(actual.real(), expected.value.real(), bound),
                 accumulate_bounded(actual.imag(), expected.value.imag(), bound);
-        else if (std::isinf(static_cast<nk_f64_t>(actual)) &&
-                 expected.magnitude > static_cast<nk_f64_t>(actual_type_::finite_max()))
-            accumulate_scalar(actual, static_cast<nk_f64_t>(actual));
+        else if (std::isinf(to_double(actual)) && expected.magnitude > to_double(actual_type_::finite_max()))
+            accumulate_scalar(actual, to_double(actual));
         else accumulate_bounded(actual, expected.value, bound);
     }
 
@@ -1376,20 +1698,21 @@ struct error_stats_t {
     void accumulate_scalar(actual_type_ actual, expected_type_ expected) noexcept {
         actual_type_ expected_as_actual;
         if constexpr (std::is_same_v<expected_type_, f118_t> || std::is_same_v<expected_type_, f118c_t>)
-            expected_as_actual = expected.template to<actual_type_>();
+            expected_as_actual = narrow<actual_type_>(expected);
         else if constexpr (nk::is_integral_dtype<expected_type_>() && nk::is_integral_dtype<actual_type_>())
             expected_as_actual = actual_type_(expected);
-        else expected_as_actual = actual_type_(static_cast<double>(expected));
+        else expected_as_actual = narrow<actual_type_>(to_double(expected));
 
-        bool const use_integer_distance = family == comparison_family_t::exact_k &&
-                                          nk::is_integral_dtype<actual_type_>();
-        std::uint64_t ulps = use_integer_distance ? integer_distance(actual, expected_as_actual)
-                                                  : ulp_distance(actual, expected_as_actual);
+        std::uint64_t ulps;
+        if constexpr (nk::is_integral_dtype<actual_type_>())
+            ulps = family == comparison_family_t::exact_k ? integer_distance(actual, expected_as_actual)
+                                                          : ulp_distance(actual, expected_as_actual);
+        else ulps = ulp_distance(actual, expected_as_actual);
 
         // A NaN reference makes the distance meaningless; a NaN result against a number fails
         if constexpr (!nk::is_integral_dtype<actual_type_>())
             if (ulps == (std::numeric_limits<std::uint64_t>::max)()) {
-                if (!std::isnan(static_cast<double>(expected_as_actual))) expect_true(false, "NaN result for a number");
+                if (!std::isnan(to_double(expected_as_actual))) expect_true(false, "NaN result for a number");
                 return;
             }
 
@@ -1397,8 +1720,8 @@ struct error_stats_t {
         if constexpr (requires { actual_type_::dtype(); }) result_dtype = actual_type_::dtype();
 
         if constexpr (!nk::is_integral_dtype<actual_type_>() || std::is_integral_v<actual_type_>) {
-            nk_f64_t exp_f64 = static_cast<nk_f64_t>(expected_as_actual);
-            nk_f64_t act_f64 = static_cast<nk_f64_t>(actual);
+            nk_f64_t exp_f64 = to_double(expected_as_actual);
+            nk_f64_t act_f64 = to_double(actual);
 
             nk_f64_t absolute_error = std::fabs(exp_f64 - act_f64);
             nk_f64_t relative_error = exp_f64 != 0 ? absolute_error / std::fabs(exp_f64) : absolute_error;
@@ -1418,7 +1741,7 @@ struct error_stats_t {
 
     nk_f64_t mean_ulp() const noexcept {
         // On 32-bit WASM we need this ugly casting sequence to avoid adding more `f118_t` constructors
-        return count > 0 ? static_cast<double>(sum_ulp / f118_t(static_cast<double>(count))) : 0;
+        return count > 0 ? to_double(sum_ulp / f118_t(to_double(count))) : 0;
     }
     std::size_t mismatches() const noexcept { return count - exact_matches; }
 
@@ -1444,19 +1767,6 @@ struct error_stats_t {
         saw_floating_distance = saw_floating_distance || other.saw_floating_distance;
     }
 };
-
-#if NUMKONG_HEADER_ONLY
-
-/** The header-only stub of @p best_, called with the arguments of its capability kernels, which it
- *  never reads, reports the missing library over every mask. */
-template <auto best_, typename... arguments_types_>
-error_stats_t test_missing_library(arguments_types_... arguments) {
-    error_stats_t stats(comparison_family_t::exact_k);
-    stats.expect_true(call_best<best_>(nk_cap_any_k, arguments...) == nk_missing_library_k,
-                      "a header-only dispatch point ran a kernel");
-    return stats;
-}
-#endif // NUMKONG_HEADER_ONLY
 
 /** Whether @p stats break their family's bound, or a property they recorded failed. */
 inline bool should_fail(error_stats_t const &stats) noexcept {
@@ -1563,16 +1873,108 @@ nk::matrix_span<value_type_> resize_matrix(nk::matrix<value_type_> &matrix, std:
 /**
  *  @brief Fill buffer with random values, respecting the distribution setting.
  *
- *  Dispatches to the matching @c nk::fill_* library function based on
- *  @c NUMKONG_RANDOM_DISTRIBUTION.
- *  Infers sensible bounds from type's representable range.
+ *  Draws like the SDK's @c nk::fill_uniform, @c nk::fill_lognormal and @c nk::fill_cauchy with
+ *  their default bounds, per @c NUMKONG_RANDOM_DISTRIBUTION, rounding into narrow floats through
+ *  their conversion exports, so header-only suites draw the same inputs.
  */
 template <typename scalar_type_, typename allocator_type_, typename generator_type_>
 void fill_random(generator_type_ &generator, nk::vector<scalar_type_, allocator_type_> &vector) {
-    switch (test_run.settings.random_distribution) {
-    case distribution_t::uniform_k: nk::fill_uniform(generator, vector.values_data(), vector.size_values()); break;
-    case distribution_t::lognormal_k: nk::fill_lognormal(generator, vector.values_data(), vector.size_values()); break;
-    case distribution_t::cauchy_k: nk::fill_cauchy(generator, vector.values_data(), vector.size_values()); break;
+    scalar_type_ *values = vector.values_data();
+    std::size_t const count = vector.size_values();
+    distribution_t const distribution = test_run.settings.random_distribution;
+    auto const clamp = [](auto value, auto low, auto high) noexcept {
+        return value < low ? low : value > high ? high : value;
+    };
+    if constexpr (nk::dimensions_per_value<scalar_type_>() > 1) {
+        // Packed bits and nibbles take random bytes, or the clamped draws of their nibbles
+        if (distribution == distribution_t::uniform_k) {
+            std::uniform_int_distribution<std::uint32_t> bytes(0, 255);
+            for (std::size_t i = 0; i < count; ++i)
+                values[i] = scalar_type_::from_raw(static_cast<typename scalar_type_::raw_t>(bytes(generator)));
+        }
+        else {
+            std::lognormal_distribution<float> lognormal(0.0f, 0.5f);
+            std::cauchy_distribution<float> cauchy(0.0f, 1.0f);
+            for (std::size_t i = 0; i < count; ++i)
+                for (std::size_t j = 0; j < nk::dimensions_per_value<scalar_type_>(); ++j) {
+                    float const draw = distribution == distribution_t::lognormal_k ? lognormal(generator)
+                                                                                   : cauchy(generator);
+                    values[i][j] = static_cast<std::uint8_t>(clamp(draw, 0.0f, 255.0f));
+                }
+        }
+    }
+    else if constexpr (nk::is_integral_dtype<scalar_type_>()) {
+        using small_t = std::conditional_t<nk::is_signed_dtype<scalar_type_>(), std::int32_t, std::uint32_t>;
+        using large_t = std::conditional_t<nk::is_signed_dtype<scalar_type_>(), std::int64_t, std::uint64_t>;
+        using draw_t = std::conditional_t<sizeof(scalar_type_) <= 4, small_t, large_t>;
+        using float_t = std::conditional_t<sizeof(scalar_type_) <= 4, float, double>;
+        float_t const low = static_cast<float_t>(to_double(nk::finite_min<scalar_type_>())),
+                      high = static_cast<float_t>(to_double(nk::finite_max<scalar_type_>()));
+        if (distribution == distribution_t::uniform_k) {
+            std::uniform_int_distribution<draw_t> uniform(nk::finite_min<scalar_type_>(),
+                                                          nk::finite_max<scalar_type_>());
+            for (std::size_t i = 0; i < count; ++i) values[i] = static_cast<scalar_type_>(uniform(generator));
+        }
+        else if (distribution == distribution_t::lognormal_k) {
+            std::lognormal_distribution<float_t> lognormal(0, float_t(0.5));
+            std::bernoulli_distribution sign(0.5);
+            constexpr float_t signs[] = {1, -1};
+            for (std::size_t i = 0; i < count; ++i) {
+                float_t draw = lognormal(generator);
+                if constexpr (nk::is_signed_dtype<scalar_type_>()) draw *= signs[sign(generator)];
+                values[i] = static_cast<scalar_type_>(clamp(draw, low, high));
+            }
+        }
+        else {
+            std::cauchy_distribution<float_t> cauchy(0, 1);
+            for (std::size_t i = 0; i < count; ++i)
+                values[i] = static_cast<scalar_type_>(clamp(cauchy(generator), low, high));
+        }
+    }
+    else if constexpr (nk::is_complex_dtype<scalar_type_>()) {
+        using component_t = typename scalar_type_::component_t;
+        using float_t = std::conditional_t<sizeof(component_t) <= 4, float, double>;
+        float_t const high = static_cast<float_t>(to_double(nk::finite_max<component_t>())),
+                      low = static_cast<float_t>(to_double(nk::finite_min<component_t>()));
+        std::uniform_real_distribution<float_t> uniform(-10, 10);
+        std::lognormal_distribution<float_t> lognormal(0, float_t(0.5));
+        std::cauchy_distribution<float_t> cauchy(0, 1);
+        std::bernoulli_distribution sign(0.5);
+        constexpr float_t signs[] = {1, -1};
+        auto const draw = [&]() noexcept -> float_t {
+            if (distribution == distribution_t::uniform_k) return uniform(generator);
+            if (distribution == distribution_t::lognormal_k)
+                return clamp(lognormal(generator) * signs[sign(generator)], low, high);
+            return clamp(cauchy(generator), low, high);
+        };
+        for (std::size_t i = 0; i < count; ++i) {
+            float_t const real = draw(), imag = draw();
+            values[i] = scalar_type_(narrow<component_t>(real), narrow<component_t>(imag));
+        }
+    }
+    else {
+        using float_t = std::conditional_t<sizeof(scalar_type_) <= 4, float, double>;
+        float_t const high = static_cast<float_t>(to_double(nk::finite_max<scalar_type_>())),
+                      low = static_cast<float_t>(to_double(nk::finite_min<scalar_type_>()));
+        if (distribution == distribution_t::uniform_k) {
+            std::uniform_real_distribution<float_t> uniform(-10, 10);
+            for (std::size_t i = 0; i < count; ++i) values[i] = narrow<scalar_type_>(uniform(generator));
+        }
+        else if (distribution == distribution_t::lognormal_k) {
+            std::lognormal_distribution<float_t> lognormal(0, float_t(0.5));
+            std::bernoulli_distribution sign(0.5);
+            constexpr float_t signs[] = {1, -1};
+            for (std::size_t i = 0; i < count; ++i) {
+                float_t draw = lognormal(generator);
+                if constexpr (nk::is_signed_dtype<scalar_type_>()) draw *= signs[sign(generator)];
+                values[i] = narrow<scalar_type_>(clamp(draw, low, high));
+            }
+        }
+        else {
+            std::cauchy_distribution<float_t> cauchy(0, 1);
+            for (std::size_t i = 0; i < count; ++i)
+                values[i] = narrow<scalar_type_>(clamp(cauchy(generator), low, high));
+        }
     }
 }
 
@@ -1624,112 +2026,9 @@ struct host_backend_t {
     nk_status_t synchronize() noexcept { return std::exchange(failure, nk_success_k); }
 };
 
-/** Runs one vendor's kernels on an owned stream over unified memory. */
-template <auto synchronize_>
-struct device_backend {
-
-    /** The allocator every kernel operand comes from, readable by the host once the stream is
-     *  synchronized. */
-    template <typename value_type_>
-    using allocator = nk::allocator<value_type_>;
-
-    struct owner_t {
-        nk::stream_t queue;
-        nk::allocator<char> memory;
-        nk_capability_t capabilities = 0;
-        nk_status_t status;
-
-        explicit owner_t(nk::device_t device) noexcept {
-            auto const enabled = device.capabilities_enabled();
-            capabilities = enabled.value;
-            status = static_cast<nk_status_t>(enabled.status);
-            if (status != nk_success_k) return;
-            auto created = nk::stream_t::make(device);
-            status = static_cast<nk_status_t>(created.status);
-            if (status != nk_success_k) return;
-            queue = std::move(created.value);
-            auto allocated = nk::allocator<char>::make(capabilities, queue.get());
-            memory = allocated.value;
-            status = static_cast<nk_status_t>(allocated.status);
-        }
-    };
-
-    std::shared_ptr<owner_t> owner;
-    nk_stream_t const stream;
-
-    /** The first failed call's status since the last @c synchronize, which skips later calls. */
-    nk_status_t failure = nk_success_k;
-
-    explicit device_backend(nk::device_t device)
-        : owner(std::make_shared<owner_t>(device)), stream(owner->queue.get()) {}
-
-    nk_capability_t capabilities() const noexcept { return owner->capabilities; }
-
-    /** Row stride for rows of @p row_bytes: rounded up to the 16 bytes the A contract requires. */
-    static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept {
-        return nk_size_round_up_to_multiple_(row_bytes, 16);
-    }
-
-    /** Copies @p bytes once every queued call has finished with them. */
-    nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
-        if (owner->status != nk_success_k) return owner->status;
-        nk_status_t const status = synchronize_(stream);
-        if (status != nk_success_k) return status;
-        std::memcpy(destination, source, bytes);
-        return nk_success_k;
-    }
-
-    /** Zeroes @p bytes once every queued call has finished with them. */
-    nk_status_t zero(void *destination, std::size_t bytes) noexcept {
-        if (owner->status != nk_success_k) return owner->status;
-        nk_status_t const status = synchronize_(stream);
-        if (status != nk_success_k) return status;
-        std::memset(destination, 0, bytes);
-        return nk_success_k;
-    }
-
-    /** Launches @p kernel with @p arguments on the stream, unless a call failed. */
-    template <typename kernel_type_, typename... arguments_types_>
-    void call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        if (owner->status == nk_success_k && failure == nk_success_k) failure = kernel(arguments..., stream);
-    }
-
-    /** Calls @p kernel on operands it must refuse, reporting whether it returned
-     *  @c nk_misaligned_k unlaunched, and keeping no failure. */
-    template <typename kernel_type_, typename... arguments_types_>
-    bool refuses_misaligned(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        return kernel(arguments..., stream) == nk_misaligned_k;
-    }
-
-    /** Waits for submitted work, then returns and clears the first failure since the last call to
-     *  it, or else the stream's. */
-    nk_status_t synchronize() noexcept {
-        if (owner->status != nk_success_k) return owner->status;
-        nk_status_t const synchronized = synchronize_(stream);
-        nk_status_t const failed = std::exchange(failure, nk_success_k);
-        return failed != nk_success_k ? failed : synchronized;
-    }
-};
-
-template <typename value_type_, auto synchronize_>
-auto allocator_of(device_backend<synchronize_> const &backend) noexcept {
-    return nk::allocator<value_type_>(backend.owner->memory);
-}
-
-#if NUMKONG_ARCH_ROCM_
-using rocm_backend_t = device_backend<nk_stream_synchronize_rocm>;
-#endif // NUMKONG_ARCH_ROCM_
-#if NUMKONG_ARCH_CUDA_
-using cuda_backend_t = device_backend<nk_stream_synchronize_cuda>;
-#endif // NUMKONG_ARCH_CUDA_
-#if NUMKONG_ARCH_METAL_
-using metal_backend_t = device_backend<nk_stream_synchronize_metal>;
-#endif // NUMKONG_ARCH_METAL_
-
 template <typename backend_type_>
 backend_type_ make_backend() {
-    if constexpr (std::is_same_v<backend_type_, host_backend_t>) return {};
-    else return backend_type_(test_run.settings.device);
+    return {};
 }
 
 /** The allocator @p backend hands out @p value_type_ from: stateless, unless the backend's memory

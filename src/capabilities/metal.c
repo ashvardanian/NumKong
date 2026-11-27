@@ -49,3 +49,11 @@ NUMKONG_API nk_status_t nk_stream_init_metal(nk_size_t ordinal, nk_stream_t *str
 }
 
 NUMKONG_API nk_status_t nk_stream_free_metal(nk_stream_t stream) { return nk_stream_free_metal_(stream); }
+
+NUMKONG_API nk_status_t nk_capabilities_compiled_metal(nk_size_t ordinal, nk_capability_t *capabilities) {
+    *capabilities = 0;
+    if (ordinal >= nk_count_devices_metal_()) return nk_missing_gpu_k;
+    *capabilities = (nk_cap_metal_k * NUMKONG_TARGET_METAL) | (nk_cap_apple9_k * NUMKONG_TARGET_APPLE9) |
+                    (nk_cap_apple10_k * NUMKONG_TARGET_APPLE10);
+    return nk_success_k;
+}

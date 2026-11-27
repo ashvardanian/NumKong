@@ -11,6 +11,8 @@
 #endif
 
 #include "numkong/capabilities.h" // `nk_capabilities_detected_cpu`, `nk_configure_thread_cpu`
+#include "numkong/devices.hpp"    // `nk::device_t`, `nk::default_capabilities`
+#include "numkong/random.hpp"     // `nk::fill_uniform`
 
 #include "harness.hpp"
 
@@ -64,8 +66,6 @@ struct capability_kernel {
 static nk_capability_t runnable_capabilities() noexcept {
     return capabilities_detected_cpu() & capabilities_compiled_cpu();
 }
-
-#if !NUMKONG_HEADER_ONLY
 
 /** @c nk_dot_f32_best over each runnable capability alone runs that capability's kernel, and a GPU
  *  mask finds no kernel at all. */
@@ -297,8 +297,6 @@ static error_stats_t test_best_cast() {
     return stats;
 }
 
-#endif // !NUMKONG_HEADER_ONLY
-
 /** Checks square roots and reciprocals on each runnable backend and their dispatch points. */
 template <typename scalar_type_>
 static error_stats_t test_best_sqrt() {
@@ -346,20 +344,18 @@ static error_stats_t test_best_sqrt() {
     nk_capability_t const runnable = runnable_capabilities();
     for (auto const &[capability, sqrt, rsqrt] : capabilities) {
         if (!(capability & runnable)) continue;
-        auto const sqrt_dispatch = NUMKONG_HEADER_ONLY ? sqrt_serial : sqrt;
-        auto const rsqrt_dispatch = NUMKONG_HEADER_ONLY ? rsqrt_serial : rsqrt;
         for (scalar_type_ input : inputs) {
             scalar_type_ const expected = std::sqrt(input), root = sqrt(input);
             stats.expect_true(root == expected || std::abs(root / expected - 1) <= tolerance,
                               "square root differs from the reference");
-            stats.expect_true(sqrt_best(input, capability) == sqrt_dispatch(input),
+            stats.expect_true(sqrt_best(input, capability) == sqrt(input),
                               "square-root dispatch ran another capability's function");
             if (input == 0) continue;
             scalar_type_ const inverse_expected = 1 / expected, inverse_root = rsqrt(input);
             stats.expect_true(
                 inverse_root == inverse_expected || std::abs(inverse_root / inverse_expected - 1) <= tolerance,
                 "reciprocal square root differs from the reference");
-            stats.expect_true(rsqrt_best(input, capability) == rsqrt_dispatch(input),
+            stats.expect_true(rsqrt_best(input, capability) == rsqrt(input),
                               "reciprocal-square-root dispatch ran another capability's function");
         }
     }
@@ -368,8 +364,6 @@ static error_stats_t test_best_sqrt() {
                       "a GPU mask lost the serial reciprocal square root");
     return stats;
 }
-
-#if !NUMKONG_HEADER_ONLY
 
 /** For every kind and dtype, a mask of the runnable capabilities up to each one finds a kernel of
  *  that capability or a lower one, or reports none with null outputs. */
@@ -486,21 +480,6 @@ static error_stats_t test_find_kernel() {
     return stats;
 }
 
-#else
-
-/** The header-only finder is a stub, reporting the missing library with null outputs. */
-static error_stats_t test_find_kernel() {
-    error_stats_t stats(comparison_family_t::exact_k);
-    nk_kernel_punned_t kernel = nullptr;
-    nk_capability_t capability = nk_cap_any_k;
-    nk_status_t const status = nk_find_kernel_punned(nk_kernel_dot_k, nk_f32_k, nk_cap_any_k, &kernel, &capability);
-    stats.expect_true(status == nk_missing_library_k && !kernel && !capability,
-                      "the header-only finder found a kernel");
-    return stats;
-}
-
-#endif // !NUMKONG_HEADER_ONLY
-
 /** The CPU device answers as the C queries do, with one ordinal, and every kind refuses the ordinal
  *  past its last device. */
 static error_stats_t test_device_capabilities() {
@@ -512,7 +491,7 @@ static error_stats_t test_device_capabilities() {
     stats.expect_true(cpu.capabilities_compiled() == capabilities_compiled_cpu(), "the CPU compiled another mask");
     stats.expect_true(enabled && enabled.value == (detected.value & cpu.capabilities_compiled()),
                       "the CPU enabled more than it detected and compiled");
-    stats.expect_true(nk::default_capabilities() == (NUMKONG_HEADER_ONLY ? 0 : enabled.value),
+    stats.expect_true(nk::default_capabilities() == enabled.value,
                       "the wrappers' default mask is not the CPU's enabled one");
     stats.expect_true(nk::succeeded(cpu.configure_thread(enabled.value)), "the CPU refused its own mask");
     for (nk::device_kind_t kind :
@@ -549,31 +528,10 @@ static error_stats_t test_gpu_capabilities(nk::device_t device) {
 }
 
 static void run_dispatch_cases() {
-#if NUMKONG_HEADER_ONLY
-    run_kernel_case(
-        "test_missing_library<nk_dot_f32_best>",
-        [] { return test_missing_library<nk_dot_f32_best>(nullptr, nullptr, 0, nullptr, nullptr); }, nk_cap_serial_k);
-    run_kernel_case(
-        "test_missing_library<nk_dots_packed_bf16_best>",
-        [] {
-            return test_missing_library<nk_dots_packed_bf16_best>(nullptr, nullptr, nullptr, 0, 0, 0, 0, 0, nullptr, 0,
-                                                                  nullptr);
-        },
-        nk_cap_serial_k);
-    run_kernel_case(
-        "test_missing_library<nk_reduce_moments_f32_best>",
-        [] { return test_missing_library<nk_reduce_moments_f32_best>(nullptr, 0, 0, nullptr, nullptr, nullptr); },
-        nk_cap_serial_k);
-    run_kernel_case(
-        "test_missing_library<nk_cast_best>",
-        [] { return test_missing_library<nk_cast_best>(nullptr, nk_f32_k, nullptr, nk_f16_k, 0, nullptr); },
-        nk_cap_serial_k);
-#else  // !NUMKONG_HEADER_ONLY
     run_kernel_case("test_best_dot_f32", test_best_dot_f32, nk_cap_serial_k);
     run_kernel_case("test_best_dots_packed_bf16", test_best_dots_packed_bf16, nk_cap_serial_k);
     run_kernel_case("test_best_reduce_moments_f32", test_best_reduce_moments_f32, nk_cap_serial_k);
     run_kernel_case("test_best_cast", test_best_cast, nk_cap_serial_k);
-#endif // NUMKONG_HEADER_ONLY
     run_kernel_case("test_best_sqrt<nk_f32_t>", test_best_sqrt<nk_f32_t>, nk_cap_serial_k);
     run_kernel_case("test_best_sqrt<nk_f64_t>", test_best_sqrt<nk_f64_t>, nk_cap_serial_k);
     run_kernel_case("test_find_kernel", test_find_kernel, nk_cap_serial_k);
@@ -582,73 +540,106 @@ static void run_dispatch_cases() {
 
 #pragma endregion Dispatch Points
 
-/** The devices @c NUMKONG_DEVICES names, or the first of each kind found when it is unset. */
-static std::vector<nk::device_t> selected_devices() {
-    std::optional<std::vector<device_selection_t>> const &requested = test_run.settings.devices;
+/** A requested GPU, before checking whether its runtime and ordinal are available. */
+struct device_selection_t {
+    nk::device_kind_t backend;
+    std::size_t ordinal;
+};
+
+static std::string_view device_name(nk::device_kind_t kind) noexcept {
+    switch (kind) {
+    case nk::device_kind_t::cpu_k: return "cpu";
+    case nk::device_kind_t::cuda_k: return "cuda";
+    case nk::device_kind_t::rocm_k: return "rocm";
+    case nk::device_kind_t::metal_k: return "metal";
+    }
+    return "unrecognized";
+}
+
+static std::optional<std::vector<device_selection_t>> parse_devices(std::string_view text) {
+    std::vector<device_selection_t> devices;
+    do {
+        std::size_t const comma = text.find(',');
+        std::string_view const entry = text.substr(0, comma);
+        std::size_t const colon = entry.find(':');
+        if (colon == std::string_view::npos) return std::nullopt;
+        std::string_view const vendor = entry.substr(0, colon);
+        nk::device_kind_t backend;
+        if (vendor == "cuda") backend = nk::device_kind_t::cuda_k;
+        else if (vendor == "rocm") backend = nk::device_kind_t::rocm_k;
+        else if (vendor == "metal") backend = nk::device_kind_t::metal_k;
+        else return std::nullopt;
+        std::string_view const number = entry.substr(colon + 1);
+        std::size_t ordinal = 0;
+        auto const [end, error] = std::from_chars(number.data(), number.data() + number.size(), ordinal);
+        if (error != std::errc {} || end != number.data() + number.size()) return std::nullopt;
+        devices.push_back({backend, ordinal});
+        if (comma == std::string_view::npos) return devices;
+        text.remove_prefix(comma + 1);
+    } while (!text.empty());
+    return std::nullopt;
+}
+
+/** The devices @c NUMKONG_DEVICES names, or the first of each kind found when it is unset, each
+ *  printed in the grammar the setting parses from. */
+static std::vector<nk::device_t> selected_devices(int argc, char **argv) {
     std::vector<nk::device_t> devices;
-    if constexpr (NUMKONG_HEADER_ONLY) {
-        if (requested) {
-            fmt::println(stderr, "This header-only executable accepts only CPU workloads");
-            std::exit(1);
-        }
-        return devices;
-    }
-    if (requested) {
-        for (device_selection_t const &selection : *requested) {
-            auto const device = nk::device_t::make(selection.backend, selection.ordinal);
-            if (!device) {
-                fmt::println(stderr, "{}:{}: {}", device_name(selection.backend), selection.ordinal,
-                             nk::status_name(device.status));
-                std::exit(1);
-            }
-            devices.push_back(device.value);
-        }
-    }
-    else {
+    char const *text = setting_text(argc, argv, "NUMKONG_DEVICES", "--devices");
+    if (!text) {
+        fmt::println("- Devices: auto");
         for (nk::device_kind_t kind :
              {nk::device_kind_t::cuda_k, nk::device_kind_t::rocm_k, nk::device_kind_t::metal_k})
             if (auto device = nk::device_t::make(kind, 0)) devices.push_back(device.value);
+        return devices;
+    }
+    std::optional<std::vector<device_selection_t>> const requested = parse_devices(text);
+    if (!requested) exit_unparsed("NUMKONG_DEVICES", text, "comma-separated devices such as cuda:0,rocm:1");
+    for (device_selection_t const &selection : *requested) {
+        fmt::println("- Device: {}:{}", device_name(selection.backend), selection.ordinal);
+        auto const device = nk::device_t::make(selection.backend, selection.ordinal);
+        if (!device) {
+            fmt::println(stderr, "{}:{}: {}", device_name(selection.backend), selection.ordinal,
+                         nk::status_name(device.status));
+            std::exit(1);
+        }
+        devices.push_back(device.value);
     }
     return devices;
 }
 
 /** Runs every case of @p device , over the capabilities it enables. */
 static nk::status_t run_device_cases(nk::device_t device) {
-    if constexpr (NUMKONG_HEADER_ONLY) return nk::status_t::missing_library_k;
-    else {
-        auto const capabilities = device.capabilities_enabled();
-        if (!capabilities) return capabilities.status;
-        fmt::println("- {}:{}: {}", device_name(device.kind()), device.ordinal(),
-                     capability_names_t {capabilities.value});
-        test_run.settings.device = device;
-        test_run.settings.capabilities = capabilities.value;
-        run_kernel_case("test_gpu_capabilities(device)", test_gpu_capabilities,
-                        nk_cap_cuda_k | nk_cap_rocm_k | nk_cap_metal_k, device);
-        switch (device.kind()) {
-        case nk::device_kind_t::cuda_k:
-            run_tensor_cuda_cases();
-            run_cast_cuda_cases();
-            run_each_cuda_cases();
-            run_reduce_cuda_cases();
-            run_shapes_cuda_cases();
-            run_cross_cuda_cases();
-            break;
-        case nk::device_kind_t::rocm_k:
-            run_cast_rocm_cases();
-            run_each_rocm_cases();
-            run_shapes_rocm_cases();
-            run_cross_rocm_cases();
-            break;
-        case nk::device_kind_t::metal_k:
-            run_cast_metal_cases();
-            run_each_metal_cases();
-            run_shapes_metal_cases();
-            run_cross_metal_cases();
-            break;
-        default: return nk::status_t::missing_gpu_k;
-        }
-        return nk::status_t::success_k;
+    auto const capabilities = device.capabilities_enabled();
+    if (!capabilities) return capabilities.status;
+    fmt::println("- {}:{}: {}", device_name(device.kind()), device.ordinal(), capability_names_t {capabilities.value});
+    test_run.settings.device_ordinal = device.ordinal();
+    test_run.settings.capabilities = capabilities.value;
+    run_kernel_case("test_gpu_capabilities(device)", test_gpu_capabilities,
+                    nk_cap_cuda_k | nk_cap_rocm_k | nk_cap_metal_k, device);
+    switch (device.kind()) {
+    case nk::device_kind_t::cuda_k:
+        run_tensor_cuda_cases();
+        run_cast_cuda_cases();
+        run_each_cuda_cases();
+        run_reduce_cuda_cases();
+        run_shapes_cuda_cases();
+        run_cross_cuda_cases();
+        break;
+    case nk::device_kind_t::rocm_k:
+        run_cast_rocm_cases();
+        run_each_rocm_cases();
+        run_shapes_rocm_cases();
+        run_cross_rocm_cases();
+        break;
+    case nk::device_kind_t::metal_k:
+        run_cast_metal_cases();
+        run_each_metal_cases();
+        run_shapes_metal_cases();
+        run_cross_metal_cases();
+        break;
+    default: return nk::status_t::missing_gpu_k;
     }
+    return nk::status_t::success_k;
 }
 
 int main(int argc, char **argv) {
@@ -659,7 +650,7 @@ int main(int argc, char **argv) {
     if (char const *summary_path = std::getenv("GITHUB_STEP_SUMMARY"))
         if (std::FILE *summary = std::fopen(summary_path, "a"))
             std::fputc('\n', summary), print(machine, summary), std::fclose(summary);
-    auto const devices = selected_devices();
+    auto const devices = selected_devices(argc, argv);
     [[maybe_unused]] nk_status_t const configured = nk_configure_thread_cpu(machine.detected); // Also enables AMX
 
     run_vector_cases();

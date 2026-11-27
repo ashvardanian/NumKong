@@ -1,5 +1,5 @@
 /**
- *  @file cpp/numkong/tensor.hpp
+ *  @file include/numkong/tensor.hpp
  *  @author Ash Vardanian
  *  @date January 11, 2026
  *  @brief NumKong tensor types and tensor-level operations for C++20 and newer.
@@ -37,7 +37,7 @@
 #include <tuple> // `std::tuple_element_t`
 #include <type_traits>
 
-#include "vector.hpp" // `aligned_allocator`
+#include "numkong/vector.hpp" // `aligned_allocator`
 
 /** True when the compiler supports C++23 P2128 multi-arg <tt>operator[]</tt>. Under this gate we expose
  *  <tt>t[a, b, c]</tt> as sugar that delegates to <tt>operator()</tt>. */
@@ -1644,19 +1644,6 @@ struct tensor {
      */
     static expected<tensor> zeros(std::initializer_list<size_type> extents, allocator_type_ alloc = {}) noexcept {
         return zeros(extents.begin(), extents.size(), alloc);
-    }
-
-    /**
-     *  @brief Factory: allocate a tensor filled with ones.
-     *  @param[in] extents Extents, one per dimension, e.g. <tt>{3, 4}</tt>.
-     *  @param[in] alloc Allocator instance.
-     *  @return The tensor.
-     *
-     *  @par Statuses:
-     *  - @c unexpected_dimensions_k As @c uninitialized reports.
-     */
-    static expected<tensor> ones(std::initializer_list<size_type> extents, allocator_type_ alloc = {}) noexcept {
-        return full(extents, value_type_ {1}, alloc);
     }
 
     /**

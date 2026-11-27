@@ -13,9 +13,10 @@ endif ()
 
 include("${CMAKE_CURRENT_LIST_DIR}/numkongTargets.cmake")
 
-# The export defines `numkong::abi`, `numkong::cpp`, `numkong::header`, `numkong::static`, and `numkong::shared`. Flavors
-# and GPU vendors are components, so `COMPONENTS shared cuda` fails at configure time where either is absent.
-foreach (numkong_flavor_ abi cpp header static shared)
+# The export defines `numkong::abi`, `numkong::types` and `numkong::header`, and with the libraries `numkong::static`,
+# `numkong::shared` and `numkong::cpp`. Flavors and GPU vendors are components, so `COMPONENTS shared cuda` fails at
+# configure time where either is absent.
+foreach (numkong_flavor_ abi types cpp header static shared)
     if (TARGET numkong::${numkong_flavor_})
         set(numkong_${numkong_flavor_}_FOUND TRUE)
     endif ()

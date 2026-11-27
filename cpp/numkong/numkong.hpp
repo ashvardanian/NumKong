@@ -2,7 +2,7 @@
  *  @file cpp/numkong/numkong.hpp
  *  @author Ash Vardanian
  *  @date January 7, 2026
- *  @brief NumKong SDK for C++23 and newer.
+ *  @brief NumKong SDK for C++20 and newer.
  *
  *  C lacks a strong type system and the composable infrastructure that C++ templates and Rust
  *  traits give complex kernels and data structures. Unlike C++, C also lacks function overloading,
@@ -22,9 +22,9 @@
  *  the C ABI one to one, keeping lengths, strides and task windows for sharded launches:
  *
  *  @code{.cpp}
- *  template <typename in_type_, typename result_type_ = typename in_type_::dot_result_t>
- *  status_t dot(in_type_ const *, in_type_ const *, std::size_t, result_type_ *,
- *               nk_capability_t = default_capabilities(), void * = nullptr);
+ *  template <typename in_type_>
+ *  status_t dot(in_type_ const *, in_type_ const *, std::size_t, typename in_type_::dot_result_t *,
+ *               nk_capability_t = default_capabilities(), nk_stream_t = nullptr);
  *  @endcode
  *
  *  The concept layer takes any contiguous run satisfying @c a_vector_of, or a matrix satisfying
@@ -43,20 +43,29 @@
  *
  *  @code{.cpp}
  *  auto [b_matrix, b_status] = nk::matrix<nk::f32_t>::zeros({256, 512});
- *  auto [packed, packed_status] = nk::packed_matrix<nk::f32_t>::make(b_matrix.view());
+ *  auto [packed, packed_status] = nk::dots_pack<nk::f32_t>(b_matrix.view());
  *  @endcode
+ *
+ *  The containers and scalar types live in the header-only @c numkong::types layer, and the verbs
+ *  here link the library. Converting, ordering or taking the square root of a scalar is a verb too,
+ *  like @c nk::cast, @c nk::to_f32, @c nk::order and @c nk::sqrt.
  *
  *  In HPC implementations, where pretty much every kernel and every datatype uses different
  *  Assembly instructions on different CPU generations/models, those higher-level abstractions
  *  aren't always productive for the primary implementation, but they can still be handy as a
- *  higher-level API for NumKong. Given a mask of no capability, they also verify the algorithms,
- *  upcasting to much larger number types like @c f118_t.
+ *  higher-level API for NumKong.
  */
+
+#if defined(NUMKONG_HEADER_ONLY) && NUMKONG_HEADER_ONLY
+#error "The NumKong C++ SDK links the library; link numkong::cpp, not numkong::header"
+#endif
 
 #ifndef NUMKONG_NUMKONG_HPP
 #define NUMKONG_NUMKONG_HPP
 
+#include "numkong/devices.hpp"
 #include "numkong/random.hpp"
+#include "numkong/scalar.hpp"
 #include "numkong/cast.hpp"
 #include "numkong/dot.hpp"
 #include "numkong/spatial.hpp"

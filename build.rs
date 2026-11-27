@@ -22,21 +22,17 @@ fn main() {
     // A directory holding `numkong_static` that CMake already built, like a parent project's
     // build tree or a release, skips the build here. Pass the archive's exact directory.
     println!("cargo:rerun-if-env-changed=NUMKONG_LIBRARY_DIR");
-    let (library, build) = match env::var_os("NUMKONG_LIBRARY_DIR") {
-        Some(directory) => {
-            let directory = PathBuf::from(directory);
-            (directory.clone(), directory)
-        }
-        None => {
-            let installed = build_library(&manifest, enabled);
-            (installed.join("lib"), installed.join("build"))
-        }
+    let library = match env::var_os("NUMKONG_LIBRARY_DIR") {
+        Some(directory) => PathBuf::from(directory),
+        None => build_library(&manifest, enabled),
     };
     // Watch the archive itself so replacing a prebuilt library relinks the crate.
     let archive_name = if target_env == "msvc" { "numkong_static.lib" } else { "libnumkong_static.a" };
     let archive = library.join(archive_name);
     println!("cargo:rerun-if-changed={}", archive.display());
+    // Straight in the directory, or one configuration deeper on the multi-configuration generators.
     println!("cargo:rustc-link-search=native={}", library.display());
+    println!("cargo:rustc-link-search=native={}", library.join("Release").display());
     // `rust/*.rs` link `numkong`, which names the archive CMake calls `numkong_static`.
     println!("cargo:rustc-link-lib=static=numkong:numkong_static");
     // The header roots, joined like `PATH`, for a dependent to split with `env::split_paths`.
@@ -48,7 +44,7 @@ fn main() {
     if enabled("CUDA") || enabled("ROCM") {
         // The runtimes come from wherever CMake found the toolkits it compiled the units with, and
         // a prebuilt archive without its build tree leaves them to the linker's own search path.
-        let cache = std::fs::read_to_string(build.join("CMakeCache.txt")).unwrap_or_default();
+        let cache = std::fs::read_to_string(library.join("CMakeCache.txt")).unwrap_or_default();
         // The directory `levels` above a path CMake cached.
         let search = |key: &str, levels: usize| {
             let cached = cache.lines().find_map(|line| line.strip_prefix(key));
@@ -72,18 +68,14 @@ fn main() {
     }
 }
 
-/// Builds and installs `numkong_static` through CMake and returns the installation prefix.
+/// Builds `numkong_static` through CMake and returns the directory holding it.
 fn build_library(manifest: &Path, enabled: impl Fn(&str) -> bool) -> PathBuf {
     for source in ["CMakeLists.txt", "VERSION", "cmake", "c", "cpp", "include", "probes", "src"] {
         println!("cargo:rerun-if-changed={}", manifest.join(source).display());
     }
 
     let mut library = cmake::Config::new(manifest);
-    library
-        .profile("Release")
-        .define("NUMKONG_INSTALL", "ON")
-        .define("CMAKE_INSTALL_LIBDIR", "lib")
-        .define("NUMKONG_BUILD_SHARED", "OFF");
+    library.profile("Release").define("NUMKONG_BUILD_LIBRARIES", "OFF").build_target("numkong_static");
     // The crate reconfigures on every invocation by default, which reruns every ISA probe before a
     // build that has nothing to do, but a variable from the environment may have changed since.
     let mut from_environment = false;
@@ -129,6 +121,6 @@ fn build_library(manifest: &Path, enabled: impl Fn(&str) -> bool) -> PathBuf {
         };
     }
 
-    // The default install target resolves configuration-specific archive paths in CMake.
-    library.build()
+    // `build_target` stops short of installing, so the archive sits where the generator left it.
+    library.build().join("build")
 }
