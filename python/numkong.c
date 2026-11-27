@@ -1317,6 +1317,7 @@ static PyMethodDef nk_methods[] = {
     // Tensor reductions
     {"moments", (PyCFunction)api_moments, METH_FASTCALL | METH_KEYWORDS, doc_reduce_moments},
     {"minmax", (PyCFunction)api_minmax, METH_FASTCALL | METH_KEYWORDS, doc_reduce_minmax},
+    {"histogram_u8", api_histogram_u8, METH_O, doc_histogram_u8},
     {"rmsnorm", (PyCFunction)api_rmsnorm, METH_FASTCALL | METH_KEYWORDS, doc_rmsnorm},
     {"rmscast", (PyCFunction)api_rmscast, METH_FASTCALL | METH_KEYWORDS, doc_rmscast},
     {"sum", (PyCFunction)api_sum, METH_FASTCALL | METH_KEYWORDS, doc_reduce_sum},

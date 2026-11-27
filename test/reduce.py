@@ -42,6 +42,37 @@ def baseline_moments(a, dtype=None):
     return (np.sum(arr), np.sum(arr**2))
 
 
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("shape", [(), (0, 3), (17,), (3, 7, 5, 9)])
+def test_histogram_u8_counts_every_value(shape, np_rng):
+    """Count scalars, empty buffers, tails, and arbitrary-rank uint8 input."""
+    values = np_rng.integers(0, 256, size=shape, dtype=np.uint8)
+    expected = np.bincount(values.reshape(-1), minlength=256).astype(np.uint64)
+    for source in (values, nk.Tensor(values)):
+        result = np.asarray(nk.histogram_u8(source))
+        assert result.dtype == np.uint64
+        np.testing.assert_array_equal(result, expected)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_histogram_u8_counts_above_float32_precision():
+    """Keep a concentrated count above the exact float32 integer range."""
+    size = 2**24 + 1
+    values = np.full(size, 17, dtype=np.uint8)
+    expected = np.zeros(256, dtype=np.uint64)
+    expected[17] = size
+    np.testing.assert_array_equal(np.asarray(nk.histogram_u8(values)), expected)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_histogram_u8_rejects_other_dtypes_and_layouts():
+    """Reject non-byte input and non-contiguous views before counting."""
+    with pytest.raises(TypeError, match="uint8"):
+        nk.histogram_u8(np.zeros(4, dtype=np.int8))
+    with pytest.raises((BufferError, ValueError)):
+        nk.histogram_u8(np.zeros((4, 4), dtype=np.uint8)[:, ::2])
+
+
 def baseline_sum(a, dtype=None):
     """Reference sum."""
     return np.sum(np.asarray(a))

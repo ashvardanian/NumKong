@@ -1524,6 +1524,10 @@ def astype(
 
 # region Reductions
 
+def histogram_u8(a: _BufferType, /) -> Tensor:
+    """Count every byte in a C-contiguous uint8 buffer. Returns 256 uint64 counts."""
+    ...
+
 def moments(
     a: _BufferType,
     /,
