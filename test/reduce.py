@@ -42,6 +42,103 @@ def baseline_moments(a, dtype=None):
     return (np.sum(arr), np.sum(arr**2))
 
 
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(
+    ("dtype", "result_dtype"), [("uint8", "uint64"), ("float16", "float32"), ("float32", "float64")]
+)
+@pytest.mark.parametrize(("shape", "axes", "keepdims"), [((5, 7, 3), (0, 1), False), ((2, 5, 7, 9), (0, 1, 2), True)])
+def test_moments_over_pixels_matches_numpy(dtype, result_dtype, shape, axes, keepdims, np_rng):
+    """Reduce interleaved pixels into two tensors of wide per-channel statistics."""
+    pixels = np_rng.integers(0, 16, size=shape).astype(dtype)
+    sums, squares = nk.moments(pixels, axis=axes, keepdims=keepdims)
+    wide = pixels.astype(result_dtype)
+    for actual, expected in (
+        (sums, wide.sum(axis=axes, keepdims=keepdims)),
+        (squares, (wide * wide).sum(axis=axes, keepdims=keepdims)),
+    ):
+        assert isinstance(actual, nk.Tensor)
+        actual_array = np.asarray(actual)
+        assert actual_array.dtype == expected.dtype
+        np.testing.assert_array_equal(actual_array, expected)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("axis", [1, (-1, 0)])
+def test_moments_with_strided_input(axis):
+    """Accept signed input and negative strides, with distinct sum and square dtypes."""
+    values = np.arange(-30, 30, dtype=np.int16).reshape(3, 4, 5)
+    view = values[:, ::-1, ::2]
+    expected_sum = view.sum(axis=axis, dtype=np.int64)
+    expected_squares = (view.astype(np.int64) ** 2).sum(axis=axis, dtype=np.uint64)
+    for result in (
+        nk.moments(view, axis=axis),
+        nk.Tensor(values)[:, ::-1, ::2].moments(axis=axis),
+    ):
+        sums, squares = map(np.asarray, result)
+        assert sums.dtype == expected_sum.dtype
+        assert squares.dtype == expected_squares.dtype
+        np.testing.assert_array_equal(sums, expected_sum)
+        np.testing.assert_array_equal(squares, expected_squares)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(("shape", "axis", "out_shape"), [((0, 4, 3), (0, 1), (3,)), ((2, 0, 3), (0, 2), (0,))])
+def test_moments_empty_axis(shape, axis, out_shape):
+    """Empty reductions produce zero moments with the unreduced shape."""
+    sums, squares = nk.moments(np.empty(shape, dtype=np.float32), axis=axis)
+    expected = np.zeros(out_shape, dtype=np.float64)
+    np.testing.assert_array_equal(np.asarray(sums), expected)
+    np.testing.assert_array_equal(np.asarray(squares), expected)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(
+    ("axis", "error"), [((), ValueError), ((0, -3), ValueError), (3, ValueError), ("0", TypeError)]
+)
+def test_moments_invalid_axis(axis, error):
+    """Reject empty, repeated, out-of-range, and non-integer axes."""
+    with pytest.raises(error):
+        nk.moments(np.zeros((2, 3, 4), dtype=np.uint8), axis=axis)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_moments_float64_retains_small_float16_contributions():
+    """Match float64 sums without widening the input buffer."""
+    tiny = np.nextafter(np.float16(np.finfo(np.float16).tiny), np.float16(0))
+    values = np.full((128, 128), tiny, dtype=np.float16)
+    values[0, 0] = 1
+    reference = values.astype(np.float64)
+    assert nk.moments(values, accumulator_dtype="float64") == (reference.sum(), (reference**2).sum())
+    assert nk.Tensor(values).moments(accumulator_dtype="float64") == (reference.sum(), (reference**2).sum())
+    assert nk.moments(values, accumulator_dtype=None) == nk.moments(values)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_moments_float64_keeps_dtype_and_shape_for_axis_views():
+    """Return double tensors for explicit axes over a reversed half view."""
+    values = (np.arange(60, dtype=np.float16).reshape(3, 4, 5) - 17) * np.float16(0.125)
+    view = values[:, ::-1, ::2]
+    reference = view.astype(np.float64)
+    sums, squares = nk.moments(view, axis=(0, 1), keepdims=True, accumulator_dtype="float64")
+    for actual, expected in (
+        (sums, reference.sum(axis=(0, 1), keepdims=True)),
+        (squares, (reference**2).sum(axis=(0, 1), keepdims=True)),
+    ):
+        assert np.asarray(actual).dtype == np.float64
+        np.testing.assert_array_equal(np.asarray(actual), expected)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_moments_float64_rejects_unsupported_input_and_options():
+    """Keep the opt-in restricted to half input and the moments API."""
+    with pytest.raises(ValueError, match="only for float16"):
+        nk.moments(np.zeros(3, dtype=np.float32), accumulator_dtype="float64")
+    with pytest.raises(ValueError, match="accumulator_dtype='float64'"):
+        nk.moments(np.zeros(3, dtype=np.float16), accumulator_dtype="float32")
+    with pytest.raises(TypeError, match="accumulator_dtype"):
+        nk.sum(np.zeros(3, dtype=np.float16), accumulator_dtype="float64")
+
+
 def baseline_sum(a, dtype=None):
     """Reference sum."""
     return np.sum(np.asarray(a))
